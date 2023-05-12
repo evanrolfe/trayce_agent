@@ -1,0 +1,18 @@
+FROM ubuntu:latest
+
+WORKDIR /app
+VOLUME [ "/app" ]
+
+RUN apt update -y
+RUN apt upgrade -y
+# Build dependencies:
+RUN apt install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-5.15.0-71-generic wget
+# Debugging tools:
+RUN apt install -y curl net-tools iproute2
+
+# Install Go
+RUN wget https://go.dev/dl/go1.20.4.linux-386.tar.gz
+RUN tar -C /usr/local -xf go1.20.4.linux-386.tar.gz
+ENV PATH "$PATH:/usr/local/go/bin"
+
+CMD mount -t debugfs debugfs /sys/kernel/debug && bash

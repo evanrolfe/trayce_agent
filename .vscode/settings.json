@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "*.tf": "tf",
+    "vmlinux.h": "c",
+    "unistd.h": "c"
+  }
+}
