@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 OUTPUT := .output
 CLANG ?= clang
-LIBBPF_SRC := $(abspath ./libbpf-bootstrap/libbpf/src)
-BPFTOOL_SRC := $(abspath ./libbpf-bootstrap/bpftool/src)
+LIBBPF_SRC := $(abspath ./third_party/libbpf-bootstrap/libbpf/src)
+BPFTOOL_SRC := $(abspath ./third_party/libbpf-bootstrap/bpftool/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
-LIBBLAZESYM_SRC := $(abspath ./libbpf-bootstrap/blazesym/)
+LIBBLAZESYM_SRC := $(abspath ./third_party/libbpf-bootstrap/blazesym/)
 LIBBLAZESYM_OBJ := $(abspath $(OUTPUT)/libblazesym.a)
 LIBBLAZESYM_HEADER := $(abspath $(OUTPUT)/blazesym.h)
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
@@ -16,11 +16,11 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/riscv64/riscv/' \
 			 | sed 's/loongarch64/loongarch/')
-VMLINUX := ./libbpf-bootstrap/vmlinux/$(ARCH)/vmlinux.h
+VMLINUX := ./third_party/libbpf-bootstrap/vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I./libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX))
+INCLUDES := -I$(OUTPUT) -I./third_party/libbpf-bootstrap/libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
@@ -139,3 +139,25 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 
 # keep intermediate (.skel.h, .bpf.o, etc) targets
 .SECONDARY:
+
+# ==============================================================================
+# Go
+# ==============================================================================
+# NOTE! What worked was changing the include path from /app/.output to /app/libbpfgo/output/
+# Run this with make go && ./tc
+CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output/"
+CGO_LDFLAGS_STATIC = "-lelf -lz /app/third_party/libbpfgo/output/libbpf.a"
+CGO_EXTLDFLAGS_STATIC = '-w -extldflags "-static"'
+CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output"
+
+ARCH_FOR_CGO := $(shell uname -m | sed 's/x86_64/amd64/g; s/aarch64/arm64/g')
+
+go:
+	CC=$(CLANG) \
+		CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
+		CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
+		GOOS=linux GOARCH=$(ARCH_FOR_CGO) \
+		CGO_ENABLED=1 \
+		go build \
+		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
+		-o tc ./main.go

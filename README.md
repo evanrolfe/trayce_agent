@@ -2,23 +2,27 @@
 
 ### Setup
 
-Download libbf-bootstrap:
+Download libbf-bootstrap & lbpfgo:
 ```
-git clone --recurse-submodules https://github.com/libbpf/libbpf-bootstrap
+git clone --recurse-submodules https://github.com/libbpf/libbpf-bootstrap ./third_party/libbpf-bootstrap
+git clone https://github.com/aquasecurity/libbpfgo  ./third_party/libbpfgo
+cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./libbpf
 ```
 
 ### Build
 ```
 docker build . -t ddbuild -f Dockerfile.build
 docker run --privileged -v ./:/app -it ddbuild
-make
-EXAMPLE_BTF_FILE=5.8.0-23-generic.btf ./tc
+cd third_party/libbpfgo && make libbpfgo-static
+cd ../../ && make
+make go
+./tc
 ```
 
 ### Run
 ```
 docker build . -t dd
-docker run --privileged -v ./:/app -it dd
+docker run --privileged -it dd
 ```
 
 ### Commands
