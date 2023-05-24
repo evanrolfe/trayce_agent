@@ -16,7 +16,7 @@ docker run --privileged -v ./:/app -it ddbuild
 cd third_party/libbpfgo && make libbpfgo-static
 cd ../../ && make
 make go
-./tc
+./dd_agent
 ```
 
 ### Run

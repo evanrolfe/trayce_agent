@@ -7,19 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"unsafe"
 
 	bpf "github.com/aquasecurity/libbpfgo"
 )
 
-// This works!!!
-// Run with:
-// make go && ./tc
-// cat /sys/kernel/debug/tracing/trace_pipe
-//
-// TODO:
-// 1. Clean up this repo and test from a clean slate
-// 2. Commit
-// 3. Make it so the log lines are sent from bpf to go
+// TODO: Create a hash map and set some values on in it from bpf
 
 func main() {
 	bpfModule, err := bpf.NewModuleFromFileArgs(bpf.NewModuleArgs{
@@ -67,10 +60,25 @@ func main() {
 		os.Exit(-1)
 	}
 
+	addrMap, err := bpfModule.GetMap("addr_map")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	fmt.Println("Running, press ctrl+c to exit...")
 	<-done // Will block here until user hits ctrl+c
+
+	var key uint32 = 42
+	//key := 42
+	val, err := addrMap.GetValue(unsafe.Pointer(&key))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+	fmt.Println("---> MAP: ", val)
 
 	tcOpts.ProgFd = 0
 	tcOpts.ProgId = 0

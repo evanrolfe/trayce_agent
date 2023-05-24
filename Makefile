@@ -160,4 +160,4 @@ go:
 		CGO_ENABLED=1 \
 		go build \
 		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-		-o tc ./main.go
+		-o dd_agent ./main.go

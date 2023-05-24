@@ -8,8 +8,16 @@
 #define TC_ACT_OK 0
 #define ETH_P_IP 0x0800 /* Internet Protocol packet	*/
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, __be32);
+    __type(value, __be32);
+    __uint(max_entries, 1 << 10);
+} addr_map SEC(".maps");
+
 SEC("tc")
 int tc_ingress(struct __sk_buff *ctx) {
+  bpf_printk("____________________> BPF STARTING!");
   void *data_end = (void *)(__u64)ctx->data_end;
   void *data = (void *)(__u64)ctx->data;
   struct ethhdr *l2;
@@ -25,6 +33,9 @@ int tc_ingress(struct __sk_buff *ctx) {
   l3 = (struct iphdr *)(l2 + 1);
   if ((void *)(l3 + 1) > data_end)
     return TC_ACT_OK;
+
+  u32 key = 42;
+  bpf_map_update_elem(&addr_map, &key, &l3->daddr, BPF_ANY);
 
   bpf_printk("XXX Got IP packet: tot_len: %d, ttl: %d", bpf_ntohs(l3->tot_len), l3->ttl);
   return TC_ACT_OK;
