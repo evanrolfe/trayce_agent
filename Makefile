@@ -161,3 +161,13 @@ go:
 		go build \
 		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
 		-o dd_agent ./main.go
+
+proxy:
+	CC=$(CLANG) \
+		CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
+		CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
+		GOOS=linux GOARCH=$(ARCH_FOR_CGO) \
+		CGO_ENABLED=1 \
+		go build \
+		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
+		-o dd_proxy ./cmd/proxy/main.go
