@@ -38,7 +38,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	hook.SetAttachPoint(bpf.BPFTcIngress)
+	hook.SetAttachPoint(bpf.BPFTcEgress)
 	err = hook.Create()
 	if err != nil {
 		if errno, ok := err.(syscall.Errno); ok && errno != syscall.EEXIST {
@@ -46,7 +46,7 @@ func main() {
 		}
 	}
 
-	tcProg, err := bpfModule.GetProgram("tc_ingress")
+	tcProg, err := bpfModule.GetProgram("tc_egress")
 	if tcProg == nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -60,7 +60,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	addrMap, err := bpfModule.GetMap("addr_map")
+	addrMap, err := bpfModule.GetMap("udp_packets")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -71,7 +71,7 @@ func main() {
 	fmt.Println("Running, press ctrl+c to exit...")
 	<-done // Will block here until user hits ctrl+c
 
-	var key uint32 = 42
+	var key uint32 = 0
 	//key := 42
 	val, err := addrMap.GetValue(unsafe.Pointer(&key))
 	if err != nil {
