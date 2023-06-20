@@ -3,6 +3,11 @@
     "*.tf": "tf",
     "vmlinux.h": "c",
     "unistd.h": "c",
-    "__node_handle": "c"
+    "__node_handle": "c",
+    "chrono": "c",
+    "variant": "c",
+    "bpf_helpers.h": "c",
+    "cstddef": "c",
+    "bpf_helper_defs.h": "c"
   }
 }

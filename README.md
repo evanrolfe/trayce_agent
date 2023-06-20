@@ -29,3 +29,9 @@ docker run --privileged -it dd
 
 Get network interface indexes:
 `ip link show`
+
+Get trace pipe output:
+`cat /sys/kernel/debug/tracing/trace_pipe`
+
+
+bpftool prog show netdev eth0 egress

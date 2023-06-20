@@ -9,49 +9,44 @@
 #define TC_ACT_OK 0
 #define ETH_P_IP 0x0800 /* Internet Protocol packet	*/
 
+// struct {
+//     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+//     __uint(key_size, sizeof(u32));
+//     __uint(value_size, sizeof(u32));
+// } udp_headers SEC(".maps");
+
+// struct {
+//     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+//     __uint(key_size, sizeof(u32));
+//     __uint(value_size, sizeof(__u8) * 1500);
+//     __uint(max_entries, 1024);
+// } udp_headers SEC(".maps");
+
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, __be32);
-    __type(value, __be32);
-    __uint(max_entries, 1 << 10);
-} addr_map SEC(".maps");
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(__u32));
+} ip_headers SEC(".maps");
 
-SEC("tc")
-int tc_ingress_old(struct __sk_buff *ctx) {
-  bpf_printk("____________________> BPF STARTING!");
-  void *data_end = (void *)(__u64)ctx->data_end;
-  void *data = (void *)(__u64)ctx->data;
-  struct ethhdr *l2;
-  struct iphdr *l3;
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(__u32));
+} udp_headers SEC(".maps");
 
-  if (ctx->protocol != bpf_htons(ETH_P_IP))
-    return TC_ACT_OK;
-
-  l2 = data;
-  if ((void *)(l2 + 1) > data_end)
-    return TC_ACT_OK;
-
-  l3 = (struct iphdr *)(l2 + 1);
-  if ((void *)(l3 + 1) > data_end)
-    return TC_ACT_OK;
-
-  u32 key = 42;
-  bpf_map_update_elem(&addr_map, &key, &l3->daddr, BPF_ANY);
-
-  bpf_printk("XXX Got IP packet: tot_len: %d, ttl: %d", bpf_ntohs(l3->tot_len), l3->ttl);
-  return TC_ACT_OK;
-}
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__type(key, __u32);
+	__type(value, __u32);
+	__uint(max_entries, 1);
+} udp_packets_index SEC(".maps");
 
 // https://medium.com/@nurkholish.halim/a-deep-dive-into-ebpf-writing-an-efficient-dns-monitoring-2c9dea92abdf
 // https://taoshu.in/unix/modify-udp-packet-using-ebpf.html
 // https://github.com/moolen/udplb
-
-struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __type(key, u32);
-    __type(value, u64);
-    __uint(max_entries, 1 << 10);
-} udp_packets SEC(".maps");
+struct event_data {
+    struct udphdr udp;
+} __attribute__((packed));
 
 SEC("tc")
 int tc_egress(struct __sk_buff *skb) {
@@ -73,39 +68,58 @@ int tc_egress(struct __sk_buff *skb) {
 	if (ip->protocol != IPPROTO_UDP)
 		return TC_ACT_OK;
 
-  // // Memory access safety checks:
-  if ((void *)(eth + 1) > data_end)
-    return TC_ACT_OK;
-
-  if ((void *)(ip + 1) > data_end)
-    return TC_ACT_OK;
-
-  if ((void *)(udp + 1) > data_end)
-    return TC_ACT_OK;
-
-  u32 key = 0;
-  u64 *value;
-
-  // Find an empty slot in the BPF array
-  for (int i = 0; i < 10; i++) {
-      value = bpf_map_lookup_elem(&udp_packets, &key);
-      if (value != NULL && *value == 0) {
-          break;
-      }
-      key++;
+  __u16 udp_len = bpf_ntohs(udp->len);
+  if (udp_len < 8 || udp_len > 10000) {
+    return TC_ACT_UNSPEC;
   }
 
-  // If no empty slot is found, return TC_ACT_OK
-  if (value == NULL || *value != 0) {
-      return TC_ACT_OK;
+  // if ((void *) ip + 1 > data_end)
+  //   return TC_ACT_UNSPEC;
+
+  // if ((void *) udp + udp_len > data_end)
+  //   return TC_ACT_UNSPEC;
+
+  // Access the UDP payload
+  // __u8 *payload = (void *) udp + udp_len - sizeof(struct udphdr);
+
+  // Find the first empty element of the array:
+  __u32 zero_index = 0;
+  __u32 *index;
+  index = bpf_map_lookup_elem(&udp_packets_index, &zero_index);
+
+  if (!index) {
+    bpf_printk("No index value found");
+    return TC_ACT_OK;
   }
 
-  // Add the UDP message to the BPF array
-  bpf_map_update_elem(&udp_packets, &key, &udp, BPF_ANY);
+    // Prepare perf event data
+    struct event_data event_data = {};
+  __builtin_memcpy(&event_data.udp, udp, sizeof(struct udphdr));
 
-  bpf_printk("==> Got UDP message: from: %x UDP len: %d", ip->saddr);
+  // Save the UDP header & payload
+  // bpf_map_update_elem(&udp_headers, index, payload, BPF_ANY);
+  // __u32 value = 10001;
+  bpf_perf_event_output(skb, &udp_headers, BPF_F_CURRENT_CPU, &event_data, sizeof(struct event_data));
 
+  // Increment and save the index
+  (*index)++;
+  bpf_map_update_elem(&udp_packets_index, &zero_index, index, BPF_ANY);
+
+  bpf_printk("Got a request");
   return TC_ACT_OK;
 }
 
 char __license[] SEC("license") = "GPL";
+
+  // // Access the UDP length
+  // __u16 udp_len = bpf_ntohs(udp->len);
+
+  // // Extract individual decimal digits from UDP length
+  // int digit3 = udp_len / 1000;         // Thousands digit
+  // int digit2 = (udp_len / 100) % 10;   // Hundreds digit
+  // int digit1 = (udp_len / 10) % 10;    // Tens digit
+  // int digit0 = udp_len % 10;           // Units digit
+
+  // // Trace print the human-readable decimal digits
+  // bpf_printk("UDP source: %lu, len: %d", udp->source, digit3);
+  // bpf_printk("UDP len: %d%d%d\n", digit2, digit1, digit0);
