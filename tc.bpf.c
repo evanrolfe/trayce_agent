@@ -26,13 +26,13 @@ struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
     __uint(key_size, sizeof(__u32));
     __uint(value_size, sizeof(__u32));
-} ip_headers SEC(".maps");
+} udp_headers SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
     __uint(key_size, sizeof(__u32));
     __uint(value_size, sizeof(__u32));
-} udp_headers SEC(".maps");
+} udp_payloads SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
@@ -48,62 +48,50 @@ struct event_data {
     struct udphdr udp;
 } __attribute__((packed));
 
+struct payload_data {
+    __u8 payload[100];
+} __attribute__((packed));
+
 SEC("tc")
 int tc_egress(struct __sk_buff *skb) {
 	void *data = (void *)(long)skb->data;
 	void *data_end = (void *)(long)skb->data_end;
 
-	if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) > data_end)
-		return TC_ACT_UNSPEC;
+  struct ethhdr *eth = data;
+  struct udphdr *udp;
+  struct iphdr *ip;
 
-	struct ethhdr  *eth  = data;
-	struct iphdr   *ip   = (data + sizeof(struct ethhdr));
-	struct udphdr  *udp  = (data + sizeof(struct ethhdr) + sizeof(struct iphdr));
+  if ((void *)eth + sizeof(*eth) > data_end)
+      return TC_ACT_OK;
 
-	// Only allow IP packets
-	if (eth->h_proto != bpf_htons(ETH_P_IP))
-		return TC_ACT_OK;
+  ip = data + sizeof(*eth);
+  if ((void *)ip + sizeof(*ip) > data_end)
+      return TC_ACT_OK;
 
-	// Only allow UDP
-	if (ip->protocol != IPPROTO_UDP)
-		return TC_ACT_OK;
+  if (ip->protocol != IPPROTO_UDP)
+      return TC_ACT_OK;
+
+  udp = (void *)ip + sizeof(*ip);
+  if ((void *)udp + sizeof(*udp) > data_end)
+    return TC_ACT_OK;
 
   __u16 udp_len = bpf_ntohs(udp->len);
-  if (udp_len < 8 || udp_len > 10000) {
+  if (udp_len < 8 || udp_len > 10000)
     return TC_ACT_UNSPEC;
-  }
 
-  // if ((void *) ip + 1 > data_end)
-  //   return TC_ACT_UNSPEC;
-
-  // if ((void *) udp + udp_len > data_end)
-  //   return TC_ACT_UNSPEC;
-
-  // Access the UDP payload
-  // __u8 *payload = (void *) udp + udp_len - sizeof(struct udphdr);
-
-  // Find the first empty element of the array:
-  __u32 zero_index = 0;
-  __u32 *index;
-  index = bpf_map_lookup_elem(&udp_packets_index, &zero_index);
-
-  if (!index) {
-    bpf_printk("No index value found");
+  if ((void *)udp + udp_len > data_end)
     return TC_ACT_OK;
+
+  __u8 c = *((__u8 *)udp + udp_len - 1);
+
+  __u16 copy_len = udp_len;
+  if (udp_len >= 400) {
+    copy_len = 400;
   }
+  __u8 my_payload[400] = {0};
 
-    // Prepare perf event data
-    struct event_data event_data = {};
-  __builtin_memcpy(&event_data.udp, udp, sizeof(struct udphdr));
-
-  // Save the UDP header & payload
-  // bpf_map_update_elem(&udp_headers, index, payload, BPF_ANY);
-  // __u32 value = 10001;
-  bpf_perf_event_output(skb, &udp_headers, BPF_F_CURRENT_CPU, &event_data, sizeof(struct event_data));
-
-  // Increment and save the index
-  (*index)++;
-  bpf_map_update_elem(&udp_packets_index, &zero_index, index, BPF_ANY);
+  bpf_probe_read_kernel(&my_payload, copy_len, udp);
+  bpf_perf_event_output(skb, &udp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
 
   bpf_printk("Got a request");
   return TC_ACT_OK;

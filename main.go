@@ -5,11 +5,14 @@ import "C"
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/miekg/dns"
 
 	bpf "github.com/aquasecurity/libbpfgo"
 )
@@ -19,6 +22,12 @@ type UDPHeader struct {
 	DestinationPort uint16
 	Length          uint16
 	Checksum        uint16
+}
+
+type SKBuffer struct {
+	srcAddr   uint32
+	DestAddr  uint32
+	UdpHeader UDPHeader
 }
 
 func main() {
@@ -77,7 +86,7 @@ func main() {
 	// Poll the perf buffer
 	udpHeadersChannel := make(chan []byte)
 	lostChannel := make(chan uint64)
-	udpHeadersPerfBuf, err := bpfModule.InitPerfBuf("udp_headers", udpHeadersChannel, lostChannel, 1)
+	udpHeadersPerfBuf, err := bpfModule.InitPerfBuf("udp_payloads", udpHeadersChannel, lostChannel, 1)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -92,12 +101,20 @@ func main() {
 				fmt.Println("Shutting down")
 				wg.Done()
 				return
-			case udpHeaderBytes := <-udpHeadersChannel:
-				fmt.Println("Bytes: ", udpHeaderBytes)
+			case eventBytes := <-udpHeadersChannel:
+				fmt.Println("-------------------------------------------------")
+				fmt.Println("Bytes: ", eventBytes)
 				var udpHeader UDPHeader
 
 				// Parse the UDP header from bytes
-				err := binary.Read(bytes.NewReader(udpHeaderBytes), binary.BigEndian, &udpHeader)
+				fmt.Println("Sizeof UDPHeader: ", binary.Size(UDPHeader{}))
+				udpHeaderBytes := eventBytes[0:8]
+				payloadBytes := eventBytes[8:]
+				fmt.Println("udpHeaderBytes: ", udpHeaderBytes)
+				fmt.Println("payloadBytes:")
+				fmt.Println(hex.Dump(eventBytes))
+
+				err = binary.Read(bytes.NewReader(udpHeaderBytes), binary.BigEndian, &udpHeader)
 				if err != nil {
 					fmt.Println("Failed to parse UDP header:", err)
 					return
@@ -108,6 +125,22 @@ func main() {
 				fmt.Println("Destination Port:", udpHeader.DestinationPort)
 				fmt.Println("Length:", udpHeader.Length)
 				fmt.Println("Checksum:", udpHeader.Checksum)
+
+				// Create a new dnsmessage
+				msg := new(dns.Msg)
+
+				// Parse the byte array into the dnsmessage
+				err := msg.Unpack(payloadBytes)
+				if err != nil {
+					fmt.Println("Error unpacking DNS message:", err)
+					return
+				}
+				fmt.Println("\nDNS Message:")
+				fmt.Println("OpCode:", msg.Opcode)
+				fmt.Println("Q Name:", msg.Question[0].Name)
+				fmt.Println("Q Class:", msg.Question[0].Qclass)
+				fmt.Println("Q Type:", msg.Question[0].Qtype)
+
 			}
 		}
 	}()
