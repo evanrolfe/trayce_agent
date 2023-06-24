@@ -9,19 +9,6 @@
 #define TC_ACT_OK 0
 #define ETH_P_IP 0x0800 /* Internet Protocol packet	*/
 
-// struct {
-//     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-//     __uint(key_size, sizeof(u32));
-//     __uint(value_size, sizeof(u32));
-// } udp_headers SEC(".maps");
-
-// struct {
-//     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-//     __uint(key_size, sizeof(u32));
-//     __uint(value_size, sizeof(__u8) * 1500);
-//     __uint(max_entries, 1024);
-// } udp_headers SEC(".maps");
-
 struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
     __uint(key_size, sizeof(__u32));
@@ -35,6 +22,18 @@ struct {
 } udp_payloads SEC(".maps");
 
 struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(__u32));
+} tcp_headers SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(__u32));
+} tcp_payloads SEC(".maps");
+
+struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
 	__type(key, __u32);
 	__type(value, __u32);
@@ -44,13 +43,51 @@ struct {
 // https://medium.com/@nurkholish.halim/a-deep-dive-into-ebpf-writing-an-efficient-dns-monitoring-2c9dea92abdf
 // https://taoshu.in/unix/modify-udp-packet-using-ebpf.html
 // https://github.com/moolen/udplb
-struct event_data {
-    struct udphdr udp;
-} __attribute__((packed));
 
-struct payload_data {
-    __u8 payload[100];
-} __attribute__((packed));
+// SEC("tc")
+// int tc_egress(struct __sk_buff *skb) {
+// 	void *data = (void *)(long)skb->data;
+// 	void *data_end = (void *)(long)skb->data_end;
+
+//   struct ethhdr *eth = data;
+//   struct udphdr *udp;
+//   struct iphdr *ip;
+
+//   if ((void *)eth + sizeof(*eth) > data_end)
+//       return TC_ACT_OK;
+
+//   ip = data + sizeof(*eth);
+//   if ((void *)ip + sizeof(*ip) > data_end)
+//       return TC_ACT_OK;
+
+//   if (ip->protocol != IPPROTO_UDP)
+//       return TC_ACT_OK;
+
+//   udp = (void *)ip + sizeof(*ip);
+//   if ((void *)udp + sizeof(*udp) > data_end)
+//     return TC_ACT_OK;
+
+//   __u16 udp_len = bpf_ntohs(udp->len);
+//   if (udp_len < 8 || udp_len > 10000)
+//     return TC_ACT_UNSPEC;
+
+//   if ((void *)udp + udp_len > data_end)
+//     return TC_ACT_OK;
+
+//   __u8 c = *((__u8 *)udp + udp_len - 1);
+
+//   __u16 copy_len = udp_len;
+//   if (udp_len >= 400) {
+//     copy_len = 400;
+//   }
+//   __u8 my_payload[400] = {0};
+
+//   bpf_probe_read_kernel(&my_payload, copy_len, udp);
+//   bpf_perf_event_output(skb, &udp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
+
+//   bpf_printk("Got a request");
+//   return TC_ACT_OK;
+// }
 
 SEC("tc")
 int tc_egress(struct __sk_buff *skb) {
@@ -58,8 +95,8 @@ int tc_egress(struct __sk_buff *skb) {
 	void *data_end = (void *)(long)skb->data_end;
 
   struct ethhdr *eth = data;
-  struct udphdr *udp;
   struct iphdr *ip;
+  struct tcphdr *tcp;
 
   if ((void *)eth + sizeof(*eth) > data_end)
       return TC_ACT_OK;
@@ -68,30 +105,52 @@ int tc_egress(struct __sk_buff *skb) {
   if ((void *)ip + sizeof(*ip) > data_end)
       return TC_ACT_OK;
 
-  if (ip->protocol != IPPROTO_UDP)
+  if (ip->protocol != IPPROTO_TCP)
       return TC_ACT_OK;
 
-  udp = (void *)ip + sizeof(*ip);
-  if ((void *)udp + sizeof(*udp) > data_end)
+  if (ip->version != 4) {
+    bpf_printk("TODO: Handle IPV6!");
+    return TC_ACT_OK;
+  }
+
+  tcp = (void *)ip + sizeof(*ip);
+  if ((void *)tcp + sizeof(*tcp) > data_end)
     return TC_ACT_OK;
 
-  __u16 udp_len = bpf_ntohs(udp->len);
-  if (udp_len < 8 || udp_len > 10000)
-    return TC_ACT_UNSPEC;
+  // Calculate the length of the TCP header
+  int tcp_len = bpf_ntohs(ip->tot_len) - (ip->ihl * 4);
 
-  if ((void *)udp + udp_len > data_end)
+  // Check if the packet has a payload
+  if (tcp_len <= 0)
     return TC_ACT_OK;
 
-  __u8 c = *((__u8 *)udp + udp_len - 1);
 
-  __u16 copy_len = udp_len;
-  if (udp_len >= 400) {
+  // Send the TCP Header
+  // struct tcphdr my_tcp;
+  // bpf_probe_read_kernel(&my_tcp, sizeof(struct tcphdr), tcp);
+  // bpf_perf_event_output(skb, &tcp_headers, BPF_F_CURRENT_CPU, &my_tcp, sizeof(struct tcphdr));
+
+  // Send the TCP Payload
+  // Get a pointer to the start of the TCP payload
+  // void *tcp_payload = (void *)tcp ;
+  bpf_printk("tcp_len: %d", tcp_len);
+
+
+  int copy_len = tcp_len;
+  if (copy_len > 400) {
     copy_len = 400;
   }
   __u8 my_payload[400] = {0};
 
-  bpf_probe_read_kernel(&my_payload, copy_len, udp);
-  bpf_perf_event_output(skb, &udp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
+  if ((void *)tcp + copy_len > data_end) {
+    bpf_printk("Payload out of bounds! copy_len: %d, diff: %d", copy_len, data_end - (void *)tcp - copy_len);
+
+    return TC_ACT_OK;
+  }
+
+
+  bpf_probe_read_kernel(&my_payload, copy_len, tcp);
+  bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
 
   bpf_printk("Got a request");
   return TC_ACT_OK;
