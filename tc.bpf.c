@@ -104,7 +104,6 @@ int tc_egress(struct __sk_buff *skb) {
   ip = data + sizeof(*eth);
   if ((void *)ip + sizeof(*ip) > data_end)
       return TC_ACT_OK;
-
   if (ip->protocol != IPPROTO_TCP)
       return TC_ACT_OK;
 
@@ -113,43 +112,36 @@ int tc_egress(struct __sk_buff *skb) {
     return TC_ACT_OK;
   }
 
-  tcp = (void *)ip + sizeof(*ip);
-  if ((void *)tcp + sizeof(*tcp) > data_end)
-    return TC_ACT_OK;
-
   // Calculate the length of the TCP header
-  int tcp_len = bpf_ntohs(ip->tot_len) - (ip->ihl * 4);
+  int ip_len = bpf_ntohs(ip->tot_len);
+  int ip_hdr_len = ip->ihl * 4;
+
+  bpf_printk("");
+  bpf_printk("ip_len: %d", ip_len);
+  // TODO: This has to be part of the solution... get this working, also consider trying
+  bpf_printk("0. skb->len = %d, data_end = %d", skb->len, skb->data_end);
+  bpf_skb_pull_data(skb, skb->len);
+  bpf_printk("1. skb->len = %d, skb->data_end = %d, data_end = %d", skb->len, skb->data_end, data_end);
 
   // Check if the packet has a payload
-  if (tcp_len <= 0)
-    return TC_ACT_OK;
-
-
-  // Send the TCP Header
-  // struct tcphdr my_tcp;
-  // bpf_probe_read_kernel(&my_tcp, sizeof(struct tcphdr), tcp);
-  // bpf_perf_event_output(skb, &tcp_headers, BPF_F_CURRENT_CPU, &my_tcp, sizeof(struct tcphdr));
-
-  // Send the TCP Payload
-  // Get a pointer to the start of the TCP payload
-  // void *tcp_payload = (void *)tcp ;
-  bpf_printk("tcp_len: %d", tcp_len);
-
-
-  int copy_len = tcp_len;
-  if (copy_len > 400) {
-    copy_len = 400;
-  }
-  __u8 my_payload[400] = {0};
-
-  if ((void *)tcp + copy_len > data_end) {
-    bpf_printk("Payload out of bounds! copy_len: %d, diff: %d", copy_len, data_end - (void *)tcp - copy_len);
-
+  if (ip_len <= 0) {
+    bpf_printk("ip_len <= 0");
     return TC_ACT_OK;
   }
 
+  int copy_len = ip_len;
+  if (copy_len > 200) {
+    bpf_printk("copy_len > 200");
+    copy_len = 200;
+  }
 
-  bpf_probe_read_kernel(&my_payload, copy_len, tcp);
+  if ((void *)ip + copy_len > (void *)(long)skb->data_end) {
+    bpf_printk("Payload out of bounds! ip_len: %d, ip_hdr_len: %d, diff: %d", ip_len, ip_hdr_len, data_end - (void *)ip - copy_len);
+    return TC_ACT_OK;
+  }
+
+  __u8 my_payload[200] = {0};
+  bpf_probe_read_kernel(&my_payload, copy_len, ip);
   bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
 
   bpf_printk("Got a request");

@@ -173,16 +173,16 @@ func main() {
 
 			case tcpBytes := <-tcpPayloadsChannel:
 				fmt.Println("-------------------------------------------------")
-				fmt.Println("TCP Payload Bytes: ", len(tcpBytes))
+				fmt.Println("IP Packet Bytes: ", len(tcpBytes))
 				fmt.Println(hex.Dump(tcpBytes))
 
-				// Parse the TCP header from bytes
+				// // Parse the TCP header from bytes
 				fmt.Println("Sizeof TCPHeader: ", binary.Size(TCPHeader{}))
-				tcpHeaderBytes := tcpBytes[0:20]
-				// payloadBytes := tcpBytes[8:]
+				// tcpHeaderBytes := tcpBytes[0:20]
+				tcpBytes = tcpBytes[20:]
 
 				var tcpHeader TCPHeader
-				err = binary.Read(bytes.NewReader(tcpHeaderBytes), binary.BigEndian, &tcpHeader)
+				err = binary.Read(bytes.NewReader(tcpBytes), binary.BigEndian, &tcpHeader)
 				if err != nil {
 					fmt.Println("Failed to parse TCP header:", err)
 					return
