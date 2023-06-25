@@ -44,51 +44,6 @@ struct {
 // https://taoshu.in/unix/modify-udp-packet-using-ebpf.html
 // https://github.com/moolen/udplb
 
-// SEC("tc")
-// int tc_egress(struct __sk_buff *skb) {
-// 	void *data = (void *)(long)skb->data;
-// 	void *data_end = (void *)(long)skb->data_end;
-
-//   struct ethhdr *eth = data;
-//   struct udphdr *udp;
-//   struct iphdr *ip;
-
-//   if ((void *)eth + sizeof(*eth) > data_end)
-//       return TC_ACT_OK;
-
-//   ip = data + sizeof(*eth);
-//   if ((void *)ip + sizeof(*ip) > data_end)
-//       return TC_ACT_OK;
-
-//   if (ip->protocol != IPPROTO_UDP)
-//       return TC_ACT_OK;
-
-//   udp = (void *)ip + sizeof(*ip);
-//   if ((void *)udp + sizeof(*udp) > data_end)
-//     return TC_ACT_OK;
-
-//   __u16 udp_len = bpf_ntohs(udp->len);
-//   if (udp_len < 8 || udp_len > 10000)
-//     return TC_ACT_UNSPEC;
-
-//   if ((void *)udp + udp_len > data_end)
-//     return TC_ACT_OK;
-
-//   __u8 c = *((__u8 *)udp + udp_len - 1);
-
-//   __u16 copy_len = udp_len;
-//   if (udp_len >= 400) {
-//     copy_len = 400;
-//   }
-//   __u8 my_payload[400] = {0};
-
-//   bpf_probe_read_kernel(&my_payload, copy_len, udp);
-//   bpf_perf_event_output(skb, &udp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
-
-//   bpf_printk("Got a request");
-//   return TC_ACT_OK;
-// }
-
 SEC("tc")
 int tc_egress(struct __sk_buff *skb) {
 	void *data = (void *)(long)skb->data;
@@ -104,6 +59,7 @@ int tc_egress(struct __sk_buff *skb) {
   ip = data + sizeof(*eth);
   if ((void *)ip + sizeof(*ip) > data_end)
       return TC_ACT_OK;
+
   if (ip->protocol != IPPROTO_TCP)
       return TC_ACT_OK;
 
@@ -111,37 +67,52 @@ int tc_egress(struct __sk_buff *skb) {
     bpf_printk("TODO: Handle IPV6!");
     return TC_ACT_OK;
   }
-
+  bpf_printk("---------------------------------------------------------------");
+  // bpf_printk("0. skb->len = %d, skb->data = %d, skb->data_end = %d", skb->len, skb->data, skb->data_end);
   // Calculate the length of the TCP header
   int ip_len = bpf_ntohs(ip->tot_len);
   int ip_hdr_len = ip->ihl * 4;
-
-  bpf_printk("");
-  bpf_printk("ip_len: %d", ip_len);
-  // TODO: This has to be part of the solution... get this working, also consider trying
-  bpf_printk("0. skb->len = %d, data_end = %d", skb->len, skb->data_end);
   bpf_skb_pull_data(skb, skb->len);
-  bpf_printk("1. skb->len = %d, skb->data_end = %d, data_end = %d", skb->len, skb->data_end, data_end);
+
+  bpf_printk("ip_len: %d", ip_len);
+  // bpf_printk("1. skb->len = %d, skb->data = %d, skb->data_end = %d", skb->len, skb->data, skb->data_end);
 
   // Check if the packet has a payload
   if (ip_len <= 0) {
-    bpf_printk("ip_len <= 0");
+    bpf_printk("RETURN: ip_len <= 0");
     return TC_ACT_OK;
   }
 
   int copy_len = ip_len;
-  if (copy_len > 200) {
-    bpf_printk("copy_len > 200");
-    copy_len = 200;
+  if (copy_len > 400) {
+    bpf_printk("copy_len > 400");
+    copy_len = 400;
   }
 
-  if ((void *)ip + copy_len > (void *)(long)skb->data_end) {
-    bpf_printk("Payload out of bounds! ip_len: %d, ip_hdr_len: %d, diff: %d", ip_len, ip_hdr_len, data_end - (void *)ip - copy_len);
+  // ===========================================================================
+  // Get the new skb:
+	void *data2 = (void *)(long)skb->data;
+	void *data_end2 = (void *)(long)skb->data_end;
+
+  struct ethhdr *eth2 = data2;
+  struct iphdr *ip2;
+
+  if ((void *)eth2 + sizeof(*eth2) > data_end2)
+      return TC_ACT_OK;
+
+  ip2 = data2 + sizeof(*eth2);
+  if ((void *)ip2 + sizeof(*ip2) > data_end2) {
+    bpf_printk("RETURN: ip2 + sizeof(*ip2) > data_end2 (ip_len: %d)", ip_len);
     return TC_ACT_OK;
   }
 
-  __u8 my_payload[200] = {0};
-  bpf_probe_read_kernel(&my_payload, copy_len, ip);
+  if ((void *)ip2 + copy_len > data_end2) {
+    bpf_printk("RETURN: Payload out of bounds! ip_len: %d, ip_hdr_len: %d", ip_len, ip_hdr_len);
+    return TC_ACT_OK;
+  }
+
+  __u8 my_payload[400] = {0};
+  bpf_probe_read_kernel(&my_payload, copy_len, ip2);
   bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
 
   bpf_printk("Got a request");
