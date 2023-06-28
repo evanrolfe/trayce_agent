@@ -8,24 +8,12 @@
 #define TC_ACT_UNSPEC -1
 #define TC_ACT_OK 0
 #define ETH_P_IP 0x0800 /* Internet Protocol packet	*/
+#define BUFFER_CHUNK_SIZE 400
 
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(__u32));
-    __uint(value_size, sizeof(__u32));
-} udp_headers SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(__u32));
-    __uint(value_size, sizeof(__u32));
-} udp_payloads SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(__u32));
-    __uint(value_size, sizeof(__u32));
-} tcp_headers SEC(".maps");
+// Helper function to find the minimum of two values
+static inline unsigned int min(unsigned int a, unsigned int b) {
+    return (a < b) ? a : b;
+}
 
 struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
@@ -33,38 +21,24 @@ struct {
     __uint(value_size, sizeof(__u32));
 } tcp_payloads SEC(".maps");
 
-struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
-	__type(key, __u32);
-	__type(value, __u32);
-	__uint(max_entries, 1);
-} udp_packets_index SEC(".maps");
-
-// https://medium.com/@nurkholish.halim/a-deep-dive-into-ebpf-writing-an-efficient-dns-monitoring-2c9dea92abdf
-// https://taoshu.in/unix/modify-udp-packet-using-ebpf.html
-// https://github.com/moolen/udplb
-
 SEC("tc")
 int tc_egress(struct __sk_buff *skb) {
   if (skb->len > 0)
     bpf_skb_pull_data(skb, skb->len);
 
-  // ===========================================================================
-  // Get the new skb:
 	void *data = (void *)(long)skb->data;
 	void *data_end = (void *)(long)skb->data_end;
 
   struct ethhdr *eth = data;
   struct iphdr *ip;
 
+  // Ensure we're not accessing out-of-bounds memory
   if ((void *)eth + sizeof(*eth) > data_end)
       return TC_ACT_OK;
 
   ip = data + sizeof(*eth);
-  if ((void *)ip + sizeof(*ip) > data_end) {
-    // bpf_printk("RETURN: ip + sizeof(*ip) > data_end (ip_len: %d)", ip_len);
+  if ((void *)ip + sizeof(*ip) > data_end)
     return TC_ACT_OK;
-  }
 
   if (ip->protocol != IPPROTO_TCP)
       return TC_ACT_OK;
@@ -78,40 +52,41 @@ int tc_egress(struct __sk_buff *skb) {
   int ip_len = bpf_ntohs(ip->tot_len);
   int ip_hdr_len = ip->ihl * 4;
 
-  bpf_printk("---------------------------------------------------------------");
-  bpf_printk("ip_len: %d", ip_len);
-
   // TODO: Check if the packet has a payload instead of using arbitrary 80 const value here
   if (ip_len <= 80) {
     bpf_printk("RETURN: ip_len <= 0");
     return TC_ACT_OK;
   }
 
-  int copy_len = ip_len;
-  if (copy_len > 400) {
-    bpf_printk("copy_len > 400");
-    copy_len = 400;
+  // Divide ip_len by chunk size and round up if remainder is non-zero
+  unsigned int num_chunks = ip_len / BUFFER_CHUNK_SIZE;
+  if (ip_len % BUFFER_CHUNK_SIZE > 0)
+    num_chunks++;
+
+  // NOTE: For some reason the ebpf verifier won't accept i < num_chunks in this for loop, but it will
+  // accept a hardcoded upper-bound and the if () break; line.
+  // Max stack size is 512 bytes and max size an IP packet is 65535 bytes. We set BUFFER_CHUNK_SIZE to
+  // 400 to allow for other data on the stack.
+  // So 164 = 65535 / 400.
+  for (__u32 i = 0; i < 164; i++) {
+    if (i >= num_chunks)
+      break;
+
+    // TODO: Make it so this only copies the necessary bytes, not all 400
+    unsigned int offset = i * BUFFER_CHUNK_SIZE;
+    struct iphdr *ip_offset = (struct iphdr *)((void *)ip + offset);
+
+    // TODO: Why is this copying an extra 7 bytes?
+    bpf_printk("ip_len: %d, offset: %d, chunk_size: %d", ip_len, offset, ip_len - offset);
+    unsigned int chunk_size = min(BUFFER_CHUNK_SIZE, ip_len - offset);
+
+    __u8 chunk[BUFFER_CHUNK_SIZE] = {0};
+    bpf_probe_read_kernel(&chunk, BUFFER_CHUNK_SIZE, ip_offset);
+    bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &chunk, chunk_size);
+    // bpf_printk("chunk_size: %d", chunk_size);
   }
 
-  if ((void *)ip + copy_len > data_end) {
-    bpf_printk("RETURN: Payload out of bounds! ip_len: %d, ip_hdr_len: %d", ip_len, ip_hdr_len);
-    return TC_ACT_OK;
-  }
-
-  // TODO: Split the ip packet into chunks and send one-at-a-time:
-  __u8 my_payload[400] = {0};
-  bpf_probe_read_kernel(&my_payload, copy_len, ip);
-  bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
-
-  bpf_printk("Got a request");
   return TC_ACT_OK;
 }
 
 char __license[] SEC("license") = "GPL";
-
-// for (unsigned int i = 1; i < 3; i++){
-//   unsigned int offset = i * 50;
-//   struct iphdr *ip_offset = (struct iphdr *)((void *)ip + offset);
-//   bpf_probe_read_kernel(&my_payload, copy_len, ip);
-//   bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &my_payload, copy_len);
-// }

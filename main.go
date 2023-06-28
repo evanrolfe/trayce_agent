@@ -12,8 +12,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/miekg/dns"
-
 	bpf "github.com/aquasecurity/libbpfgo"
 )
 
@@ -79,6 +77,9 @@ func main() {
 		os.Exit(-1)
 	}
 
+	// =========================================================================
+	// Attach tc_engress
+	// =========================================================================
 	hook := bpfModule.TcHookInit()
 	err = hook.SetInterfaceByName("eth0")
 	if err != nil {
@@ -108,32 +109,15 @@ func main() {
 		os.Exit(-1)
 	}
 
+	// =========================================================================
+	// Handle output
+	// =========================================================================
 	// Create a channel to receive interrupt signals
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 	var wg sync.WaitGroup
 	// Start a goroutine to handle the interrupt signal
 	wg.Add(1)
-
-	// Poll the UDP Headers perf buffer
-	udpHeadersChannel := make(chan []byte)
-	lostChannel := make(chan uint64)
-	udpHeadersPerfBuf, err := bpfModule.InitPerfBuf("udp_payloads", udpHeadersChannel, lostChannel, 1)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-	udpHeadersPerfBuf.Poll(BufPollRateMs)
-
-	// Poll the TCP Headers perf buffer
-	tcpHeadersChannel := make(chan []byte)
-	lostChannelTcp := make(chan uint64)
-	tcpHeadersPerfBuf, err := bpfModule.InitPerfBuf("tcp_headers", tcpHeadersChannel, lostChannelTcp, 1)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-	tcpHeadersPerfBuf.Poll(BufPollRateMs)
 
 	// Poll the TCP Payloads perf buffer
 	tcpPayloadsChannel := make(chan []byte)
@@ -153,23 +137,6 @@ func main() {
 				fmt.Println("Shutting down")
 				wg.Done()
 				return
-			case tcpBytes := <-tcpHeadersChannel:
-				fmt.Println("-------------------------------------------------")
-				fmt.Println("TCP Bytes: ")
-				fmt.Println(hex.Dump(tcpBytes))
-
-				var tcpHeader TCPHeader
-				err = binary.Read(bytes.NewReader(tcpBytes), binary.BigEndian, &tcpHeader)
-				if err != nil {
-					fmt.Println("Failed to parse TCP header:", err)
-					return
-				}
-
-				// Print the parsed UDP header fields
-				fmt.Println("Source Port:", tcpHeader.SourcePort)
-				fmt.Println("Destination Port:", tcpHeader.DestinationPort)
-				// fmt.Println("Length:", tcpHeader.Length)
-				// fmt.Println("Checksum:", tcpHeader.Checksum)
 
 			case tcpBytes := <-tcpPayloadsChannel:
 				fmt.Println("-------------------------------------------------")
@@ -185,7 +152,7 @@ func main() {
 				err = binary.Read(bytes.NewReader(tcpBytes), binary.BigEndian, &tcpHeader)
 				if err != nil {
 					fmt.Println("Failed to parse TCP header:", err)
-					return
+					continue
 				}
 
 				fmt.Println("Source Port:", tcpHeader.SourcePort)
@@ -193,45 +160,45 @@ func main() {
 				fmt.Println("AckNumber:", tcpHeader.AckNumber)
 				fmt.Println("SequenceNumber:", tcpHeader.SequenceNumber)
 
-			case udpBytes := <-udpHeadersChannel:
-				fmt.Println("-------------------------------------------------")
-				fmt.Println("UDP Bytes: ", udpBytes)
-				var udpHeader UDPHeader
+				// case udpBytes := <-udpHeadersChannel:
+				// 	fmt.Println("-------------------------------------------------")
+				// 	fmt.Println("UDP Bytes: ", udpBytes)
+				// 	var udpHeader UDPHeader
 
-				// Parse the UDP header from bytes
-				fmt.Println("Sizeof UDPHeader: ", binary.Size(UDPHeader{}))
-				udpHeaderBytes := udpBytes[0:8]
-				payloadBytes := udpBytes[8:]
-				fmt.Println("udpHeaderBytes: ", udpHeaderBytes)
-				fmt.Println("payloadBytes:")
-				fmt.Println(hex.Dump(udpBytes))
+				// 	// Parse the UDP header from bytes
+				// 	fmt.Println("Sizeof UDPHeader: ", binary.Size(UDPHeader{}))
+				// 	udpHeaderBytes := udpBytes[0:8]
+				// 	payloadBytes := udpBytes[8:]
+				// 	fmt.Println("udpHeaderBytes: ", udpHeaderBytes)
+				// 	fmt.Println("payloadBytes:")
+				// 	fmt.Println(hex.Dump(udpBytes))
 
-				err = binary.Read(bytes.NewReader(udpHeaderBytes), binary.BigEndian, &udpHeader)
-				if err != nil {
-					fmt.Println("Failed to parse UDP header:", err)
-					return
-				}
+				// 	err = binary.Read(bytes.NewReader(udpHeaderBytes), binary.BigEndian, &udpHeader)
+				// 	if err != nil {
+				// 		fmt.Println("Failed to parse UDP header:", err)
+				// 		return
+				// 	}
 
-				// Print the parsed UDP header fields
-				fmt.Println("Source Port:", udpHeader.SourcePort)
-				fmt.Println("Destination Port:", udpHeader.DestinationPort)
-				fmt.Println("Length:", udpHeader.Length)
-				fmt.Println("Checksum:", udpHeader.Checksum)
+				// 	// Print the parsed UDP header fields
+				// 	fmt.Println("Source Port:", udpHeader.SourcePort)
+				// 	fmt.Println("Destination Port:", udpHeader.DestinationPort)
+				// 	fmt.Println("Length:", udpHeader.Length)
+				// 	fmt.Println("Checksum:", udpHeader.Checksum)
 
-				// Create a new dnsmessage
-				msg := new(dns.Msg)
+				// 	// Create a new dnsmessage
+				// 	msg := new(dns.Msg)
 
-				// Parse the byte array into the dnsmessage
-				err := msg.Unpack(payloadBytes)
-				if err != nil {
-					fmt.Println("Error unpacking DNS message:", err)
-					return
-				}
-				fmt.Println("\nDNS Message:")
-				fmt.Println("OpCode:", msg.Opcode)
-				fmt.Println("Q Name:", msg.Question[0].Name)
-				fmt.Println("Q Class:", msg.Question[0].Qclass)
-				fmt.Println("Q Type:", msg.Question[0].Qtype)
+				// 	// Parse the byte array into the dnsmessage
+				// 	err := msg.Unpack(payloadBytes)
+				// 	if err != nil {
+				// 		fmt.Println("Error unpacking DNS message:", err)
+				// 		return
+				// 	}
+				// 	fmt.Println("\nDNS Message:")
+				// 	fmt.Println("OpCode:", msg.Opcode)
+				// 	fmt.Println("Q Name:", msg.Question[0].Name)
+				// 	fmt.Println("Q Class:", msg.Question[0].Qclass)
+				// 	fmt.Println("Q Type:", msg.Question[0].Qtype)
 
 			}
 		}
