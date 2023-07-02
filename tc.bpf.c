@@ -8,7 +8,8 @@
 #define TC_ACT_UNSPEC -1
 #define TC_ACT_OK 0
 #define ETH_P_IP 0x0800 /* Internet Protocol packet	*/
-#define BUFFER_CHUNK_SIZE 400
+#define BUFFER_CHUNK_SIZE 128
+#define IP_HEADER_SIZE 20
 
 // Helper function to find the minimum of two values
 static inline unsigned int min(unsigned int a, unsigned int b) {
@@ -49,41 +50,50 @@ int tc_egress(struct __sk_buff *skb) {
   }
 
   // Calculate the length of the TCP header
-  int ip_len = bpf_ntohs(ip->tot_len);
-  int ip_hdr_len = ip->ihl * 4;
+  unsigned int ip_len = bpf_ntohs(ip->tot_len);
+  unsigned int ip_hdr_len = ip->ihl * 4;
+  unsigned int ip_payload_len = ip_len - ip_hdr_len;
 
   // TODO: Check if the packet has a payload instead of using arbitrary 80 const value here
-  if (ip_len <= 80) {
-    bpf_printk("RETURN: ip_len <= 0");
+  if (ip_len <= 80)
     return TC_ACT_OK;
-  }
 
   // Divide ip_len by chunk size and round up if remainder is non-zero
-  unsigned int num_chunks = ip_len / BUFFER_CHUNK_SIZE;
-  if (ip_len % BUFFER_CHUNK_SIZE > 0)
+  unsigned int payload_chunk_size = BUFFER_CHUNK_SIZE-IP_HEADER_SIZE;
+  unsigned int num_chunks = ip_payload_len / payload_chunk_size;
+  bpf_printk("0 ip_payload_len: %d, num_chunks: %d", ip_payload_len, num_chunks);
+  if (ip_payload_len % payload_chunk_size > 0)
     num_chunks++;
+  bpf_printk("1 num_chunks: %d", num_chunks);
 
   // NOTE: For some reason the ebpf verifier won't accept i < num_chunks in this for loop, but it will
   // accept a hardcoded upper-bound and the if () break; line.
   // Max stack size is 512 bytes and max size an IP packet is 65535 bytes. We set BUFFER_CHUNK_SIZE to
   // 400 to allow for other data on the stack.
   // So 164 = 65535 / 400.
-  for (__u32 i = 0; i < 164; i++) {
+  for (__u32 i = 0; i < 200; i++) {
     if (i >= num_chunks)
       break;
 
-    // TODO: Make it so this only copies the necessary bytes, not all 400
-    unsigned int offset = i * BUFFER_CHUNK_SIZE;
-    struct iphdr *ip_offset = (struct iphdr *)((void *)ip + offset);
+    bpf_printk("ip_len: %d, num_chunks: %d", ip_len, num_chunks);
 
-    // TODO: Why is this copying an extra 7 bytes?
-    bpf_printk("ip_len: %d, offset: %d, chunk_size: %d", ip_len, offset, ip_len - offset);
-    unsigned int chunk_size = min(BUFFER_CHUNK_SIZE, ip_len - offset);
+    unsigned int offset = i * payload_chunk_size;
+    struct iphdr *ip_header = ip;
+    struct iphdr *ip_payload_chunk = (struct iphdr *)((void *)ip + ip_hdr_len + offset);
 
+    // Copy the IP header into header and the payload chunk into payload
+    __u8 header[IP_HEADER_SIZE] = {0};
+    __u8 payload[BUFFER_CHUNK_SIZE-IP_HEADER_SIZE] = {0};
+    bpf_probe_read_kernel(&header, IP_HEADER_SIZE, ip_header);
+    bpf_probe_read_kernel(&payload, payload_chunk_size, ip_payload_chunk);
+
+    // Copy the header and payload into the chunk
     __u8 chunk[BUFFER_CHUNK_SIZE] = {0};
-    bpf_probe_read_kernel(&chunk, BUFFER_CHUNK_SIZE, ip_offset);
-    bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &chunk, chunk_size);
-    // bpf_printk("chunk_size: %d", chunk_size);
+    __builtin_memcpy(chunk, header, IP_HEADER_SIZE);
+    __builtin_memcpy(chunk + IP_HEADER_SIZE, payload, BUFFER_CHUNK_SIZE - IP_HEADER_SIZE);
+
+    // Send the chunk to the userspace
+    bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &chunk, BUFFER_CHUNK_SIZE);
   }
 
   return TC_ACT_OK;
