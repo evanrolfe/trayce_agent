@@ -90,6 +90,10 @@ func (bp *BufferPacket) DestPort() int {
 	return int(binary.BigEndian.Uint16(bp.raw[22:24]))
 }
 
+func (bp *BufferPacket) SequenceNum() int {
+	return int(binary.BigEndian.Uint16(bp.raw[24:28]))
+}
+
 func (bp *BufferPacket) TCPHeaderLen() int {
 	return int(bp.raw[32]>>4) * 4
 }

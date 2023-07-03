@@ -40,6 +40,29 @@ import (
 
 const BufPollRateMs = 200
 
+func testRequest(url string) {
+	client := &http.Client{
+		Transport: &http.Transport{
+			DisableCompression: true,
+		},
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return
+	}
+
+	req.Header.Set("Accept-Encoding", "identity")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error making request:", err)
+		return
+	}
+	defer resp.Body.Close()
+}
+
 func main() {
 	bpfModule, err := bpf.NewModuleFromFileArgs(bpf.NewModuleArgs{
 		BPFObjPath: ".output/tc.bpf.o",
@@ -135,7 +158,7 @@ func main() {
 	fmt.Println("Running! Press CTRL+C to exit...")
 
 	// For testing purposes:
-	http.Get("http://pntest.io")
+	testRequest("http://pntest.io")
 
 	wg.Wait()
 

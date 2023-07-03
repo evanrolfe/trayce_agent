@@ -32,6 +32,7 @@ int tc_egress(struct __sk_buff *skb) {
 
   struct ethhdr *eth = data;
   struct iphdr *ip;
+  struct tcphdr *tcp;
 
   // Ensure we're not accessing out-of-bounds memory
   if ((void *)eth + sizeof(*eth) > data_end)
@@ -49,13 +50,18 @@ int tc_egress(struct __sk_buff *skb) {
     return TC_ACT_OK;
   }
 
+  tcp = data + sizeof(*eth) + sizeof(*ip);
+  if ((void *)tcp + sizeof(*tcp) > data_end)
+    return TC_ACT_OK;
+
   // Calculate the length of the TCP header
   unsigned int ip_len = bpf_ntohs(ip->tot_len);
   unsigned int ip_hdr_len = ip->ihl * 4;
   unsigned int ip_payload_len = ip_len - ip_hdr_len;
+  unsigned int tcp_header_len = tcp->doff * 4;
 
-  // TODO: Check if the packet has a payload instead of using arbitrary 80 const value here
-  if (ip_len <= 80)
+  // If there is no TCP payload, then we are not interested
+  if (tcp_header_len == ip_payload_len)
     return TC_ACT_OK;
 
   // Divide ip_len by chunk size and round up if remainder is non-zero
