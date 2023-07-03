@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/hex"
 	"fmt"
 )
 
@@ -26,6 +27,8 @@ func (pr *PacketReceiver) ReceivePayload(payload []byte) *BufferPacket {
 	}
 
 	fmt.Println("MD5:", newPacket.MD5())
+	fmt.Println(hex.Dump(payload))
+	fmt.Println("")
 
 	return pr.Packets[newPacket.MD5()]
 	// fmt.Println(hex.Dump(packet.Payload()))

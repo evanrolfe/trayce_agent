@@ -90,7 +90,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	hook.SetAttachPoint(bpf.BPFTcEgress)
+	hook.SetAttachPoint(bpf.BPFTcIngress)
 	err = hook.Create()
 	if err != nil {
 		if errno, ok := err.(syscall.Errno); ok && errno != syscall.EEXIST {
@@ -124,8 +124,7 @@ func main() {
 
 	// Poll the TCP Payloads perf buffer
 	tcpPayloadsChannel := make(chan []byte)
-	lostChannelTcpP := make(chan uint64)
-	tcpPayloadsPerfBuf, err := bpfModule.InitPerfBuf("tcp_payloads", tcpPayloadsChannel, lostChannelTcpP, 1)
+	tcpPayloadsPerfBuf, err := bpfModule.InitRingBuf("tcp_payloads", tcpPayloadsChannel)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -158,7 +157,7 @@ func main() {
 	fmt.Println("Running! Press CTRL+C to exit...")
 
 	// For testing purposes:
-	testRequest("http://pntest.io")
+	testRequest("http://172.17.0.4")
 
 	wg.Wait()
 

@@ -3,7 +3,6 @@ package internal
 import (
 	"crypto/md5"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 )
 
@@ -31,13 +30,14 @@ func (bp *BufferPacket) ConcatenatePayloads(newPacket *BufferPacket) {
 }
 
 func (bp *BufferPacket) Debug() {
-	fmt.Println(hex.Dump(bp.raw))
+	// fmt.Println(hex.Dump(bp.raw))
 	fmt.Println("Len: ", len(bp.raw), "TCP Hdr len:", bp.TCPHeaderLen())
 	fmt.Println("SAddr: ", bp.SourceAddr())
 	fmt.Println("DAddr: ", bp.DestAddr())
 	fmt.Println("Protocol: ", bp.Protocol())
 	fmt.Println("SPort: ", bp.SourcePort())
 	fmt.Println("DPort: ", bp.DestPort())
+	fmt.Println("")
 	fmt.Println(string(bp.TCPPayload()))
 }
 

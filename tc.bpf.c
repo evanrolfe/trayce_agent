@@ -17,9 +17,8 @@ static inline unsigned int min(unsigned int a, unsigned int b) {
 }
 
 struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(key_size, sizeof(__u32));
-    __uint(value_size, sizeof(__u32));
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024); // 256 KB
 } tcp_payloads SEC(".maps");
 
 SEC("tc")
@@ -67,10 +66,9 @@ int tc_egress(struct __sk_buff *skb) {
   // Divide ip_len by chunk size and round up if remainder is non-zero
   unsigned int payload_chunk_size = BUFFER_CHUNK_SIZE-IP_HEADER_SIZE;
   unsigned int num_chunks = ip_payload_len / payload_chunk_size;
-  bpf_printk("0 ip_payload_len: %d, num_chunks: %d", ip_payload_len, num_chunks);
   if (ip_payload_len % payload_chunk_size > 0)
     num_chunks++;
-  bpf_printk("1 num_chunks: %d", num_chunks);
+  bpf_printk("ip_payload_len: %d, num_chunks: %d", ip_payload_len, num_chunks);
 
   // NOTE: For some reason the ebpf verifier won't accept i < num_chunks in this for loop, but it will
   // accept a hardcoded upper-bound and the if () break; line.
@@ -80,8 +78,6 @@ int tc_egress(struct __sk_buff *skb) {
   for (__u32 i = 0; i < 200; i++) {
     if (i >= num_chunks)
       break;
-
-    bpf_printk("ip_len: %d, num_chunks: %d", ip_len, num_chunks);
 
     unsigned int offset = i * payload_chunk_size;
     struct iphdr *ip_header = ip;
@@ -96,10 +92,11 @@ int tc_egress(struct __sk_buff *skb) {
     // Copy the header and payload into the chunk
     __u8 chunk[BUFFER_CHUNK_SIZE] = {0};
     __builtin_memcpy(chunk, header, IP_HEADER_SIZE);
-    __builtin_memcpy(chunk + IP_HEADER_SIZE, payload, BUFFER_CHUNK_SIZE - IP_HEADER_SIZE);
+    __builtin_memcpy(chunk + IP_HEADER_SIZE, payload, payload_chunk_size);
 
     // Send the chunk to the userspace
-    bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &chunk, BUFFER_CHUNK_SIZE);
+    // bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &chunk, BUFFER_CHUNK_SIZE);
+    bpf_ringbuf_output(&tcp_payloads, &chunk, BUFFER_CHUNK_SIZE, 0);
   }
 
   return TC_ACT_OK;
