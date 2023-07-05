@@ -1,35 +1,32 @@
 package internal
 
-import (
-	"encoding/hex"
-	"fmt"
-)
-
 type PacketReceiver struct {
-	Packets map[string]*BufferPacket
+	Packets []*BufferPacket
 }
 
 func NewPacketReceiver() PacketReceiver {
-	return PacketReceiver{Packets: map[string]*BufferPacket{}}
+	return PacketReceiver{Packets: []*BufferPacket{}}
 }
 
 func (pr *PacketReceiver) ReceivePayload(payload []byte) *BufferPacket {
-	newPacket := NewBufferPacket(payload)
-
-	_, exists := pr.Packets[newPacket.MD5()]
-	if exists {
-		fmt.Println("Found existing packet, appending...")
-		existingPacket := pr.Packets[newPacket.MD5()]
-		existingPacket.ConcatenatePayloads(&newPacket)
-	} else {
-		fmt.Println("This is a new packet!")
-		pr.Packets[newPacket.MD5()] = &newPacket
+	if len(pr.Packets) == 0 {
+		newPacket := NewBufferPacket(payload)
+		pr.Packets = append(pr.Packets, &newPacket)
+		return &newPacket
 	}
 
-	fmt.Println("MD5:", newPacket.MD5())
-	fmt.Println(hex.Dump(payload))
-	fmt.Println("")
+	lastPacket := pr.Packets[len(pr.Packets)-1]
+	if lastPacket.IsComplete() {
+		// fmt.Println("last packet complete, creating a new one")
+		// fmt.Println(hex.Dump(payload))
+		newPacket := NewBufferPacket(payload)
+		pr.Packets = append(pr.Packets, &newPacket)
+		return &newPacket
+	}
 
-	return pr.Packets[newPacket.MD5()]
-	// fmt.Println(hex.Dump(packet.Payload()))
+	// fmt.Println("appending payload to last packet")
+	lastPacket.AddPayload(payload)
+
+	// fmt.Printf("	TotalLen: %d, raw len: %d\n", lastPacket.TotalLen(), len(lastPacket.Raw))
+	return lastPacket
 }

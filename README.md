@@ -35,3 +35,5 @@ Get trace pipe output:
 
 
 bpftool prog show netdev eth0 egress
+tc filter show dev eth0 egress
+tc filter del dev eth0 egress pref 49152
