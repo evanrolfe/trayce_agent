@@ -17,10 +17,15 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/tcpassembly"
-	// "github.com/evanrolfe/dockerdog/internal/parse"
 )
 
-const BufPollRateMs = 200
+const (
+	BufPollRateMs = 200
+	bpfFilePath   = ".output/tc.bpf.o"
+	btfFilePath   = "5.8.0-23-generic.btf"
+	interfaceName = "eth0"
+	bpfFuncName   = "tc_egress"
+)
 
 func formatByteArray(data []byte) string {
 	output := ""
@@ -44,6 +49,7 @@ func testRequest(url string) {
 	}
 
 	req.Header.Set("Accept-Encoding", "identity")
+	req.Header.Set("Connection", "close")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -54,7 +60,7 @@ func testRequest(url string) {
 }
 
 func main() {
-	bpfProg, err := internal.NewBPFProgramFromFileArgs(".output/tc.bpf.o", "5.8.0-23-generic.btf", "eth0", "tc_egress")
+	bpfProg, err := internal.NewBPFProgramFromFileArgs(bpfFilePath, btfFilePath, interfaceName, bpfFuncName)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -109,7 +115,7 @@ func main() {
 				packet := packetReceiver.ReceivePayload(ipPacketBytes)
 
 				if packet.IsComplete() {
-					fmt.Printf("PACKET RECEIVED: %s:%d => %s:%d, TotalLen: %d, raw len: %d\n", packet.SourceAddr(), packet.SourcePort(), packet.DestAddr(), packet.DestPort(), packet.TotalLen(), len(packet.Raw))
+					// fmt.Printf("PACKET RECEIVED: %s:%d => %s:%d, TotalLen: %d, raw len: %d\n", packet.SourceAddr(), packet.SourcePort(), packet.DestAddr(), packet.DestPort(), packet.TotalLen(), len(packet.Raw))
 
 					// packet.Debug()
 					packet1 := gopacket.NewPacket(packet.Raw, layers.LayerTypeIPv4, gopacket.Default)
