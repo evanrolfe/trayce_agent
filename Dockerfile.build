@@ -5,7 +5,7 @@ VOLUME [ "/app" ]
 
 # Build dependencies:
 RUN apt-get update -y
-RUN apt-get install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget gcc-multilib
+RUN apt-get install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget gcc-multilib binutils
 
 # Debugging tools:
 RUN apt-get install -y curl net-tools iproute2 dnsutils
