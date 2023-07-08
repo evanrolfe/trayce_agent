@@ -1,3 +1,17 @@
+// Copyright 2022 CFC4N <cfc4n.cs@gmail.com>. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <vmlinux.h>
 
 #include <bpf/bpf_helpers.h>
@@ -160,12 +174,12 @@ static int process_SSL_data(
     if (len < 0) {
         return 0;
     }
-    bpf_printk("-----------> process_SSL_data() len: %d", len);
+    // bpf_printk("-----------> process_SSL_data() len: %d", len);
     struct ssl_data_event_t* event = create_ssl_data_event(id);
     if (event == NULL) {
         return 0;
     }
-    bpf_printk("-----------> process_SSL_data() got the event!");
+    // bpf_printk("-----------> process_SSL_data() got the event!");
     event->type = type;
     event->fd = fd;
     event->version = version;
@@ -175,7 +189,7 @@ static int process_SSL_data(
     bpf_probe_read_user(event->data, event->data_len, buf);
     bpf_get_current_comm(&event->comm, sizeof(event->comm));
 
-    bpf_printk("-----------> process_SSL_data() publishing to tls_events, len: %d", event->data_len);
+    // bpf_printk("-----------> process_SSL_data() publishing to tls_events, len: %d", event->data_len);
     // bpf_perf_event_output(ctx, &tls_events, BPF_F_CURRENT_CPU, event, sizeof(struct ssl_data_event_t));
     bpf_ringbuf_output(&tls_events, event, sizeof(struct ssl_data_event_t), 0);
     return 0;
@@ -188,11 +202,12 @@ static int process_SSL_data(
 // int SSL_read(SSL *s, void *buf, int num)
 SEC("uprobe/SSL_read")
 int probe_entry_SSL_read(struct pt_regs* ctx) {
+    bpf_printk("probe_entry_SSL_read");
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
-    bpf_printk("openssl uprobe/SSL_read pid :%d\n", pid);
+    // bpf_printk("openssl uprobe/SSL_read pid :%d\n", pid);
 
     void* ssl = (void*)PT_REGS_PARM1(ctx);
     // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
@@ -204,7 +219,7 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
 
     // get fd ssl->rbio->num
     u32 fd = bio_r.num;
-    bpf_printk("openssl uprobe PID:%d, SSL_read FD:%d\n", pid, fd);
+    // bpf_printk("openssl uprobe PID:%d, SSL_read FD:%d\n", pid, fd);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
     struct active_ssl_buf active_ssl_buf_t;
@@ -218,11 +233,12 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_read")
 int probe_ret_SSL_read(struct pt_regs* ctx) {
+    bpf_printk("probe_ret_SSL_read");
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
-    bpf_printk("openssl uretprobe/SSL_read pid :%d\n", pid);
+    // bpf_printk("openssl uretprobe/SSL_read pid :%d\n", pid);
 
     struct active_ssl_buf* active_ssl_buf_t = bpf_map_lookup_elem(&active_ssl_read_args_map, &current_pid_tgid);
 
@@ -241,12 +257,13 @@ int probe_ret_SSL_read(struct pt_regs* ctx) {
 // int SSL_write(SSL *ssl, const void *buf, int num);
 SEC("uprobe/SSL_write")
 int probe_entry_SSL_write(struct pt_regs* ctx) {
+    bpf_printk("probe_entry_SSL_write");
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
 
-    bpf_printk("openssl uprobe/SSL_write pid :%d\n", pid);
+    // bpf_printk("openssl uprobe/SSL_write pid :%d\n", pid);
 
     void* ssl = (void*)PT_REGS_PARM1(ctx);
     // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
@@ -258,7 +275,7 @@ int probe_entry_SSL_write(struct pt_regs* ctx) {
 
     // get fd ssl->wbio->num
     u32 fd = bio_w.num;
-    bpf_printk("openssl uprobe SSL_write FD:%d\n", fd);
+    // bpf_printk("openssl uprobe SSL_write FD:%d\n", fd);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
     struct active_ssl_buf active_ssl_buf_t;
@@ -274,12 +291,13 @@ int probe_entry_SSL_write(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_write")
 int probe_ret_SSL_write(struct pt_regs* ctx) {
+    bpf_printk("probe_ret_SSL_write");
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
 
-    bpf_printk("openssl uretprobe/SSL_write pid :%d\n", pid);
+    // bpf_printk("openssl uretprobe/SSL_write pid :%d\n", pid);
     struct active_ssl_buf* active_ssl_buf_t =
         bpf_map_lookup_elem(&active_ssl_write_args_map, &current_pid_tgid);
     if (active_ssl_buf_t != NULL) {

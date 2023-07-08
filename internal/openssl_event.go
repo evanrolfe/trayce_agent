@@ -64,6 +64,17 @@ func (se *SSLDataEvent) PayloadLen() int {
 	return int(se.DataLen)
 }
 
+func (se *SSLDataEvent) Type() string {
+	switch AttachType(se.DataType) {
+	case ProbeEntry:
+		return "ProbeEntry"
+	case ProbeRet:
+		return "ProbeReturn"
+	default:
+		return "unknown"
+	}
+}
+
 // func (se *SSLDataEvent) StringHex() string {
 // 	//addr := se.module.(*module.MOpenSSLProbe).GetConn(se.Pid, se.Fd)
 // 	addr := "[TODO]"

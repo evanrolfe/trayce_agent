@@ -61,7 +61,9 @@ func main() {
 
 	// ------------------------------------------------------------------------
 	// probe_entry_SSL_read
+	// This gives: HTTP/1.1 301 Moved Permanently..
 	// ------------------------------------------------------------------------
+	// Entry
 	prog, err := bpfModule.GetProgram("probe_entry_SSL_read")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -79,9 +81,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
-	// ------------------------------------------------------------------------
-	// probe_entry_SSL_read
-	// ------------------------------------------------------------------------
+	// Return
 	prog2, err := bpfModule.GetProgram("probe_ret_SSL_read")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -96,7 +96,9 @@ func main() {
 
 	// ------------------------------------------------------------------------
 	// probe_entry_SSL_write
+	// This is what gives: GET / HTTP/1.1..
 	// ------------------------------------------------------------------------
+	// Entry
 	prog3, err := bpfModule.GetProgram("probe_entry_SSL_write")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -114,9 +116,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
-	// ------------------------------------------------------------------------
-	// probe_entry_SSL_write
-	// ------------------------------------------------------------------------
+	// Return
 	prog4, err := bpfModule.GetProgram("probe_ret_SSL_write")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -160,9 +160,9 @@ func main() {
 				return
 
 			case payload := <-eventsChannel:
-				fmt.Println("Received ", len(payload), "bytes")
 				event := internal.SSLDataEvent{}
 				event.Decode(payload)
+				fmt.Println("Received ", event.DataLen, "bytes, type:", event.Type())
 
 				fmt.Println(event.GetUUID())
 				fmt.Println(hex.Dump(event.Data[0:event.DataLen]))
