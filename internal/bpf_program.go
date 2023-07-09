@@ -8,21 +8,20 @@ import (
 	"syscall"
 
 	bpf "github.com/aquasecurity/libbpfgo"
+	"github.com/aquasecurity/libbpfgo/helpers"
 )
 
 type BPFProgram struct {
 	BpfModule     *bpf.Module
 	hooksAndOpts  map[*bpf.TcHook]*bpf.TcOpts
 	interfaceName string
-	tcFuncName    string
 }
 
-func NewBPFProgram(bpfModule *bpf.Module, interfaceName string, tcFuncName string) (*BPFProgram, error) {
+func NewBPFProgram(bpfModule *bpf.Module, interfaceName string) (*BPFProgram, error) {
 	prog := &BPFProgram{
 		BpfModule:     bpfModule,
 		hooksAndOpts:  map[*bpf.TcHook]*bpf.TcOpts{},
 		interfaceName: interfaceName,
-		tcFuncName:    tcFuncName,
 	}
 
 	err := prog.LoadProgram()
@@ -33,7 +32,7 @@ func NewBPFProgram(bpfModule *bpf.Module, interfaceName string, tcFuncName strin
 	return prog, nil
 }
 
-func NewBPFProgramFromFileArgs(bpfPath string, btfPath string, interfaceName string, tcFuncName string) (*BPFProgram, error) {
+func NewBPFProgramFromFileArgs(bpfPath string, btfPath string, interfaceName string) (*BPFProgram, error) {
 	bpfModule, err := bpf.NewModuleFromFileArgs(bpf.NewModuleArgs{
 		BPFObjPath: bpfPath,
 		BTFObjPath: btfPath,
@@ -42,10 +41,10 @@ func NewBPFProgramFromFileArgs(bpfPath string, btfPath string, interfaceName str
 		return nil, err
 	}
 
-	return NewBPFProgram(bpfModule, interfaceName, tcFuncName)
+	return NewBPFProgram(bpfModule, interfaceName)
 }
 
-func (prog *BPFProgram) AttachToTC(attachPoint bpf.TcAttachPoint) (*bpf.TcHook, *bpf.TcOpts, error) {
+func (prog *BPFProgram) AttachToTC(tcFuncName string, attachPoint bpf.TcAttachPoint) (*bpf.TcHook, *bpf.TcOpts, error) {
 	hook := prog.BpfModule.TcHookInit()
 	err := hook.SetInterfaceByName(prog.interfaceName)
 	if err != nil {
@@ -61,7 +60,7 @@ func (prog *BPFProgram) AttachToTC(attachPoint bpf.TcAttachPoint) (*bpf.TcHook, 
 		}
 	}
 
-	tcProg, err := prog.BpfModule.GetProgram(prog.tcFuncName)
+	tcProg, err := prog.BpfModule.GetProgram(tcFuncName)
 	if tcProg == nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -78,6 +77,52 @@ func (prog *BPFProgram) AttachToTC(attachPoint bpf.TcAttachPoint) (*bpf.TcHook, 
 	prog.hooksAndOpts[hook] = &tcOpts
 
 	return hook, &tcOpts, nil
+}
+
+func (prog *BPFProgram) AttachToUProbe(funcName string, probeFuncName string, binaryPath string) error {
+	// Get Offset
+	offset, err := helpers.SymbolToOffset(binaryPath, probeFuncName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	// Attach Entry Probe
+	probeEntry, err := prog.BpfModule.GetProgram(funcName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	_, err = probeEntry.AttachUprobe(-1, binaryPath, offset)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+	return nil
+}
+
+func (prog *BPFProgram) AttachToURetProbe(funcName string, probeFuncName string, binaryPath string) error {
+	// Get Offset
+	offset, err := helpers.SymbolToOffset(binaryPath, probeFuncName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	// Attach Return Probe
+	prog2, err := prog.BpfModule.GetProgram(funcName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	_, err = prog2.AttachURetprobe(-1, binaryPath, offset)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+	return nil
 }
 
 func (prog *BPFProgram) LoadProgram() error {

@@ -10,8 +10,6 @@ import (
 	"sync"
 	"syscall"
 
-	bpf "github.com/aquasecurity/libbpfgo"
-	"github.com/aquasecurity/libbpfgo/helpers"
 	"github.com/evanrolfe/dockerdog/internal"
 )
 
@@ -24,23 +22,6 @@ const (
 	sslLibPath    = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 )
 
-func resizeMap(module *bpf.Module, name string, size uint32) error {
-	m, err := module.GetMap("events")
-	if err != nil {
-		return err
-	}
-
-	if err = m.Resize(size); err != nil {
-		return err
-	}
-
-	if actual := m.GetMaxEntries(); actual != size {
-		return fmt.Errorf("map resize failed, expected %v, actual %v", size, actual)
-	}
-
-	return nil
-}
-
 func main() {
 	_, err := os.Stat(sslLibPath)
 	if err != nil {
@@ -48,86 +29,26 @@ func main() {
 		os.Exit(-1)
 	}
 
-	bpfModule, err := bpf.NewModuleFromFileArgs(bpf.NewModuleArgs{
-		BPFObjPath: bpfFilePath,
-		BTFObjPath: btfFilePath,
-	})
+	bpfProg, err := internal.NewBPFProgramFromFileArgs(bpfFilePath, btfFilePath, interfaceName)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
-	defer bpfModule.Close()
-	bpfModule.BPFLoadObject()
+	defer bpfProg.Close()
 
 	// ------------------------------------------------------------------------
 	// probe_entry_SSL_read
-	// This gives: HTTP/1.1 301 Moved Permanently..
+	// Entry gives: HTTP/1.1 301 Moved Permanently..
 	// ------------------------------------------------------------------------
-	// Entry
-	prog, err := bpfModule.GetProgram("probe_entry_SSL_read")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	offset, err := helpers.SymbolToOffset(sslLibPath, "SSL_read")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	_, err = prog.AttachUprobe(-1, sslLibPath, offset)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-	// Return
-	prog2, err := bpfModule.GetProgram("probe_ret_SSL_read")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	_, err = prog2.AttachURetprobe(-1, sslLibPath, offset)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
+	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", sslLibPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", sslLibPath)
 
 	// ------------------------------------------------------------------------
 	// probe_entry_SSL_write
-	// This is what gives: GET / HTTP/1.1..
+	// Return gives: GET / HTTP/1.1..
 	// ------------------------------------------------------------------------
-	// Entry
-	prog3, err := bpfModule.GetProgram("probe_entry_SSL_write")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	offset3, err := helpers.SymbolToOffset(sslLibPath, "SSL_write")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	_, err = prog3.AttachUprobe(-1, sslLibPath, offset3)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-	// Return
-	prog4, err := bpfModule.GetProgram("probe_ret_SSL_write")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	_, err = prog4.AttachURetprobe(-1, sslLibPath, offset3)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
+	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", sslLibPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", sslLibPath)
 
 	// ------------------------------------------------------------------------
 	// Channel
@@ -142,7 +63,7 @@ func main() {
 	// // Create a channel to receive events from the ebpf program
 	eventsChannel := make(chan []byte)
 	// lostChannel := make(chan uint64)
-	rb, err := bpfModule.InitRingBuf("tls_events", eventsChannel)
+	rb, err := bpfProg.BpfModule.InitRingBuf("tls_events", eventsChannel)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)

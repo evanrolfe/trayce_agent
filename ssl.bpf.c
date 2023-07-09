@@ -255,6 +255,7 @@ int probe_ret_SSL_read(struct pt_regs* ctx) {
 
 // Function signature being probed:
 // int SSL_write(SSL *ssl, const void *buf, int num);
+// SSL_write() writes num bytes from the buffer buf into the specified ssl connection
 SEC("uprobe/SSL_write")
 int probe_entry_SSL_write(struct pt_regs* ctx) {
     bpf_printk("probe_entry_SSL_write");
@@ -283,8 +284,7 @@ int probe_entry_SSL_write(struct pt_regs* ctx) {
     active_ssl_buf_t.fd = fd;
     active_ssl_buf_t.version = ssl_info.version;
     active_ssl_buf_t.buf = buf;
-    bpf_map_update_elem(&active_ssl_write_args_map, &current_pid_tgid,
-                        &active_ssl_buf_t, BPF_ANY);
+    bpf_map_update_elem(&active_ssl_write_args_map, &current_pid_tgid, &active_ssl_buf_t, BPF_ANY);
 
     return 0;
 }
@@ -297,9 +297,10 @@ int probe_ret_SSL_write(struct pt_regs* ctx) {
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
 
+    // Send entry data from map
     // bpf_printk("openssl uretprobe/SSL_write pid :%d\n", pid);
-    struct active_ssl_buf* active_ssl_buf_t =
-        bpf_map_lookup_elem(&active_ssl_write_args_map, &current_pid_tgid);
+    struct active_ssl_buf* active_ssl_buf_t = bpf_map_lookup_elem(&active_ssl_write_args_map, &current_pid_tgid);
+
     if (active_ssl_buf_t != NULL) {
         const char* buf;
         u32 fd = active_ssl_buf_t->fd;

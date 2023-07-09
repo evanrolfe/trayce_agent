@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -60,7 +61,7 @@ func testRequest(url string) {
 }
 
 func main() {
-	bpfProg, err := internal.NewBPFProgramFromFileArgs(bpfFilePath, btfFilePath, interfaceName, bpfFuncName)
+	bpfProg, err := internal.NewBPFProgramFromFileArgs(bpfFilePath, btfFilePath, interfaceName)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -68,8 +69,8 @@ func main() {
 	defer bpfProg.Close()
 
 	// Attach to TC ingress & egress points
-	bpfProg.AttachToTC(bpf.BPFTcIngress)
-	bpfProg.AttachToTC(bpf.BPFTcEgress)
+	bpfProg.AttachToTC(bpfFuncName, bpf.BPFTcIngress)
+	bpfProg.AttachToTC(bpfFuncName, bpf.BPFTcEgress)
 
 	// =========================================================================
 	// Handle output
@@ -129,7 +130,8 @@ func main() {
 	fmt.Println("Running! Press CTRL+C to exit...")
 
 	// For testing purposes:
-	testRequest("http://172.17.0.4")
+	cmd := exec.Command("curl", "https://www.pntest.io", "--http1.1")
+	cmd.Output()
 
 	wg.Wait()
 
