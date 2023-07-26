@@ -60,15 +60,21 @@ int tc_egress(struct __sk_buff *skb) {
   unsigned int tcp_header_len = tcp->doff * 4;
 
   // If there is no TCP payload, then we are not interested
-  if (tcp_header_len == ip_payload_len)
-    return TC_ACT_OK;
+  // if (tcp_header_len == ip_payload_len)
+  //   return TC_ACT_OK;
 
   // Divide ip_len by chunk size and round up if remainder is non-zero
-  unsigned int payload_chunk_size = BUFFER_CHUNK_SIZE-IP_HEADER_SIZE;
-  unsigned int num_chunks = ip_payload_len / payload_chunk_size;
-  if (ip_payload_len % payload_chunk_size > 0)
+  unsigned int num_chunks = ip_len / BUFFER_CHUNK_SIZE;
+  if (ip_len % BUFFER_CHUNK_SIZE > 0)
     num_chunks++;
-  bpf_printk("ip_payload_len: %d, num_chunks: %d", ip_payload_len, num_chunks);
+  bpf_printk("---------------------------------------------------------------");
+  bpf_printk("ip_len: %d, num_chunks: %d", ip_len, num_chunks);
+  u64 current_pid_tgid = bpf_get_current_pid_tgid();
+  u32 pid = current_pid_tgid >> 32;
+  u64 current_uid_gid = bpf_get_current_uid_gid();
+  u32 uid = current_uid_gid;
+
+  bpf_printk("current_pid_tgid: %d, pid: %d, current_uid_gid: %d", current_pid_tgid, pid, current_uid_gid);
 
   // NOTE: For some reason the ebpf verifier won't accept i < num_chunks in this for loop, but it will
   // accept a hardcoded upper-bound and the if () break; line.
@@ -79,24 +85,35 @@ int tc_egress(struct __sk_buff *skb) {
     if (i >= num_chunks)
       break;
 
-    unsigned int offset = i * payload_chunk_size;
-    struct iphdr *ip_header = ip;
-    struct iphdr *ip_payload_chunk = (struct iphdr *)((void *)ip + ip_hdr_len + offset);
+    unsigned int offset = i * BUFFER_CHUNK_SIZE;
+    struct iphdr *ip_chunk = (struct iphdr *)((void *)ip + offset);
+
+    // Get the chunk_size so its... TODO
+    __u32 chunk_size = BUFFER_CHUNK_SIZE;
+    if (i == num_chunks - 1) {  // If its the last chunk
+      chunk_size = ip_len - (BUFFER_CHUNK_SIZE * (num_chunks - 1));
+      chunk_size &= 0xffffff;
+    }
+    if (chunk_size > BUFFER_CHUNK_SIZE)
+      return TC_ACT_OK;
 
     // Copy the IP header into header and the payload chunk into payload
-    __u8 header[IP_HEADER_SIZE] = {0};
-    __u8 payload[BUFFER_CHUNK_SIZE-IP_HEADER_SIZE] = {0};
-    bpf_probe_read_kernel(&header, IP_HEADER_SIZE, ip_header);
-    bpf_probe_read_kernel(&payload, payload_chunk_size, ip_payload_chunk);
+    __u8 payload[BUFFER_CHUNK_SIZE] = {0};
+    bpf_probe_read_kernel(&payload, chunk_size, ip_chunk);
+
+    bpf_printk("  %d. chunk_size: %d", i, chunk_size);
 
     // Copy the header and payload into the chunk
     __u8 chunk[BUFFER_CHUNK_SIZE] = {0};
-    __builtin_memcpy(chunk, header, IP_HEADER_SIZE);
-    __builtin_memcpy(chunk + IP_HEADER_SIZE, payload, payload_chunk_size);
+    __builtin_memcpy(chunk, payload, BUFFER_CHUNK_SIZE);
 
     // Send the chunk to the userspace
-    // bpf_perf_event_output(skb, &tcp_payloads, BPF_F_CURRENT_CPU, &chunk, BUFFER_CHUNK_SIZE);
     bpf_ringbuf_output(&tcp_payloads, &chunk, BUFFER_CHUNK_SIZE, 0);
+
+    // if (i == num_chunks - 1) {  // If its the last chunk
+    //   __u8 final_chunk[BUFFER_CHUNK_SIZE] = {0};
+    //   bpf_ringbuf_output(&tcp_payloads, &final_chunk, BUFFER_CHUNK_SIZE, 0);
+    // }
   }
 
   return TC_ACT_OK;

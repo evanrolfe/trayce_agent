@@ -9,7 +9,7 @@ import (
 const maxBufferSize = 128
 
 type BufferPacket struct {
-	raw []byte
+	Raw []byte
 }
 
 func NewBufferPacket(raw []byte) BufferPacket {
@@ -17,13 +17,13 @@ func NewBufferPacket(raw []byte) BufferPacket {
 	if len(raw) > maxBufferSize {
 		raw = raw[0:maxBufferSize]
 	}
-	bp := BufferPacket{raw: raw}
+	bp := BufferPacket{Raw: raw}
 	bp.Trim()
 	return bp
 }
 
-func (bp *BufferPacket) ConcatenatePayloads(newPacket *BufferPacket) {
-	bp.raw = append(bp.raw, newPacket.Payload()...)
+func (bp *BufferPacket) AddPayload(payload []byte) {
+	bp.Raw = append(bp.Raw, payload...)
 
 	// One the last chunk, it may be null-padded so lets trim it down
 	bp.Trim()
@@ -31,51 +31,59 @@ func (bp *BufferPacket) ConcatenatePayloads(newPacket *BufferPacket) {
 
 func (bp *BufferPacket) Debug() {
 	// fmt.Println(hex.Dump(bp.raw))
-	fmt.Println("Len: ", len(bp.raw), "TCP Hdr len:", bp.TCPHeaderLen())
+	fmt.Println("Len: ", len(bp.Raw), "TCP Hdr len:", bp.TCPHeaderLen())
 	fmt.Println("SAddr: ", bp.SourceAddr())
 	fmt.Println("DAddr: ", bp.DestAddr())
 	fmt.Println("Protocol: ", bp.Protocol())
 	fmt.Println("SPort: ", bp.SourcePort())
 	fmt.Println("DPort: ", bp.DestPort())
+	fmt.Println("SeqNum: ", bp.SequenceNum())
+	fmt.Println("FragOffset: ", bp.FragmentOffset())
+	fmt.Println("TotalLen: ", bp.TotalLen())
 	fmt.Println("")
-	fmt.Println(string(bp.TCPPayload()))
+	// fmt.Println(string(bp.TCPPayload()))
 }
 
 func (bp *BufferPacket) Trim() {
-	if len(bp.raw) > bp.TotalLen() {
-		bp.raw = bp.raw[0:bp.TotalLen()]
+	if len(bp.Raw) > bp.TotalLen() {
+		bp.Raw = bp.Raw[0:bp.TotalLen()]
 	}
 }
 
 func (bp *BufferPacket) IsComplete() bool {
-	return (len(bp.raw) == bp.TotalLen())
+	return (len(bp.Raw) == bp.TotalLen())
 }
 
 // -----------------------------------------------------------------------------
 // IP Header
 // -----------------------------------------------------------------------------
 func (bp *BufferPacket) MD5() string {
-	return fmt.Sprintf("%x", md5.Sum(bp.raw[0:20]))
+	return fmt.Sprintf("%x", md5.Sum(bp.Raw[0:20]))
 }
 
 func (bp *BufferPacket) SourceAddr() string {
-	return fmt.Sprintf("%d.%d.%d.%d", bp.raw[12], bp.raw[13], bp.raw[14], bp.raw[15])
+	return fmt.Sprintf("%d.%d.%d.%d", bp.Raw[12], bp.Raw[13], bp.Raw[14], bp.Raw[15])
 }
 
 func (bp *BufferPacket) DestAddr() string {
-	return fmt.Sprintf("%d.%d.%d.%d", bp.raw[16], bp.raw[17], bp.raw[18], bp.raw[19])
+	return fmt.Sprintf("%d.%d.%d.%d", bp.Raw[16], bp.Raw[17], bp.Raw[18], bp.Raw[19])
 }
 
 func (bp *BufferPacket) TotalLen() int {
-	return int(binary.BigEndian.Uint16(bp.raw[2:4]))
+	return int(binary.BigEndian.Uint16(bp.Raw[2:4]))
 }
 
 func (bp *BufferPacket) Protocol() int {
-	return int(bp.raw[9])
+	return int(bp.Raw[9])
+}
+
+func (bp *BufferPacket) FragmentOffset() int {
+	fragmentOffset := int((uint16(bp.Raw[6])<<8 | uint16(bp.Raw[7])) & 0x1FFF)
+	return fragmentOffset
 }
 
 func (bp *BufferPacket) Payload() []byte {
-	return bp.raw[20:len(bp.raw)]
+	return bp.Raw[20:len(bp.Raw)]
 }
 
 // -----------------------------------------------------------------------------
@@ -83,22 +91,22 @@ func (bp *BufferPacket) Payload() []byte {
 // NOTE: ALL byte positions here include the 20 bytes for the IP header!
 // -----------------------------------------------------------------------------
 func (bp *BufferPacket) SourcePort() int {
-	return int(binary.BigEndian.Uint16(bp.raw[20:22]))
+	return int(binary.BigEndian.Uint16(bp.Raw[20:22]))
 }
 
 func (bp *BufferPacket) DestPort() int {
-	return int(binary.BigEndian.Uint16(bp.raw[22:24]))
+	return int(binary.BigEndian.Uint16(bp.Raw[22:24]))
 }
 
 func (bp *BufferPacket) SequenceNum() int {
-	return int(binary.BigEndian.Uint16(bp.raw[24:28]))
+	return int(binary.BigEndian.Uint16(bp.Raw[24:28]))
 }
 
 func (bp *BufferPacket) TCPHeaderLen() int {
-	return int(bp.raw[32]>>4) * 4
+	return int(bp.Raw[32]>>4) * 4
 }
 
 func (bp *BufferPacket) TCPPayload() []byte {
 	offset := 20 + bp.TCPHeaderLen()
-	return bp.raw[offset:]
+	return bp.Raw[offset:]
 }
