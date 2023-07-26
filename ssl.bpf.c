@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <vmlinux.h>
-
+#include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
@@ -40,6 +40,11 @@
 #define TC_ACT_OK 0
 #define ETH_P_IP 0x0800 /* Internet Protocol packet        */
 #define SKB_MAX_DATA_SIZE 2048
+#define SA_DATA_LEN 14
+
+typedef short unsigned int __kernel_sa_family_t;
+
+typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum ssl_data_event_type { kSSLRead, kSSLWrite };
 const u32 invalidFD = 0;
@@ -55,11 +60,24 @@ struct ssl_data_event_t {
     s32 version;
 };
 
+struct connect_event_t {
+    u64 timestamp_ns;
+    u32 pid;
+    u32 tid;
+    u32 fd;
+    u32 ip;
+    u16 port;
+};
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024); // 256 KB
 } tls_events SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024); // 256 KB
+} connect_events SEC(".maps");
 
 // struct connect_event_t {
 //     u64 timestamp_ns;
@@ -120,6 +138,7 @@ typedef long (*unused_fn)();
 struct unused {};
 
 struct BIO {
+    void* libctx;
     const struct unused* method;
     unused_fn callback;
     unused_fn callback_ex;
@@ -171,6 +190,7 @@ static int process_SSL_data(
     s32 version
 ) {
     int len = (int)PT_REGS_RC(ctx);
+    bpf_printk("-> process_SSL_data len: %d", len);
     if (len < 0) {
         return 0;
     }
@@ -202,7 +222,6 @@ static int process_SSL_data(
 // int SSL_read(SSL *s, void *buf, int num)
 SEC("uprobe/SSL_read")
 int probe_entry_SSL_read(struct pt_regs* ctx) {
-    bpf_printk("probe_entry_SSL_read");
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
@@ -219,7 +238,7 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
 
     // get fd ssl->rbio->num
     u32 fd = bio_r.num;
-    // bpf_printk("openssl uprobe PID:%d, SSL_read FD:%d\n", pid, fd);
+    bpf_printk("openssl uprobe sizeof(ssl_info): %d, PID:%d, SSL_read FD:%d\n", sizeof(ssl_info), pid, fd);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
     struct active_ssl_buf active_ssl_buf_t;
@@ -233,7 +252,6 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_read")
 int probe_ret_SSL_read(struct pt_regs* ctx) {
-    bpf_printk("probe_ret_SSL_read");
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
@@ -258,7 +276,6 @@ int probe_ret_SSL_read(struct pt_regs* ctx) {
 // SSL_write() writes num bytes from the buffer buf into the specified ssl connection
 SEC("uprobe/SSL_write")
 int probe_entry_SSL_write(struct pt_regs* ctx) {
-    bpf_printk("probe_entry_SSL_write");
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
@@ -276,7 +293,7 @@ int probe_entry_SSL_write(struct pt_regs* ctx) {
 
     // get fd ssl->wbio->num
     u32 fd = bio_w.num;
-    // bpf_printk("openssl uprobe SSL_write FD:%d\n", fd);
+    bpf_printk("openssl uprobe SSL_write FD:%d\n", fd);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
     struct active_ssl_buf active_ssl_buf_t;
@@ -291,7 +308,6 @@ int probe_entry_SSL_write(struct pt_regs* ctx) {
 
 SEC("uretprobe/SSL_write")
 int probe_ret_SSL_write(struct pt_regs* ctx) {
-    bpf_printk("probe_ret_SSL_write");
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
@@ -311,5 +327,158 @@ int probe_ret_SSL_write(struct pt_regs* ctx) {
     bpf_map_delete_elem(&active_ssl_write_args_map, &current_pid_tgid);
     return 0;
 }
+
+// https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/socket/connect.c
+// int __connect (int fd, __CONST_SOCKADDR_ARG addr, socklen_t len)
+SEC("uprobe/connect")
+int probe_connect(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+    u64 current_uid_gid = bpf_get_current_uid_gid();
+    u32 uid = current_uid_gid;
+
+    u32 fd = (u32)PT_REGS_PARM1(ctx);
+
+    struct sockaddr* saddr = (struct sockaddr*)PT_REGS_PARM2(ctx);
+    if (!saddr) {
+        return 0;
+    }
+
+    sa_family_t address_family = 0;
+    bpf_probe_read_user(&address_family, sizeof(address_family), &saddr->sa_family);
+
+    if (address_family != AF_INET) {
+        return 0;
+    }
+
+    // Get the IP Protocol
+    bpf_printk("probe_connect pid: %d, current_pid_tgid: %d, fd: %d", pid, current_pid_tgid, fd);
+
+    // Get the socket address
+    struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
+
+    // Build the connect_event
+    struct connect_event_t conn_event;
+    __builtin_memset(&conn_event, 0, sizeof(conn_event));
+    conn_event.timestamp_ns = bpf_ktime_get_ns();
+    conn_event.pid = pid;
+    conn_event.tid = current_pid_tgid;
+    conn_event.fd = fd;
+
+    bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
+    bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
+    bpf_ringbuf_output(&connect_events, &conn_event, sizeof(struct connect_event_t), 0);
+
+    // u32 dest_ip = PT_REGS_PARM3(ctx);
+    // u16 dest_port = PT_REGS_PARM4(ctx);
+    // bpf_printk("dest_port: %d", dest_port);
+
+    // u8 dest_ip_octet1 = dest_ip & 0xFF;
+    // u8 dest_ip_octet2 = (dest_ip >> 8) & 0xFF;
+    // u8 dest_ip_octet3 = (dest_ip >> 16) & 0xFF;
+    // u8 dest_ip_octet4 = (dest_ip >> 24) & 0xFF;
+
+    // bpf_printk("Dest IP: %u.%u", dest_ip_octet1, dest_ip_octet2);
+    // bpf_printk("       : %u.%u", dest_ip_octet3, dest_ip_octet4);
+
+    return 0;
+}
+
+// SEC("uretprobe/connect")
+// int probe_ret_connect(struct pt_regs* ctx) {
+//     u64 current_pid_tgid = bpf_get_current_pid_tgid();
+//     u32 pid = current_pid_tgid >> 32;
+//     u64 current_uid_gid = bpf_get_current_uid_gid();
+//     u32 uid = current_uid_gid;
+
+//     u32 fd = (u32)PT_REGS_PARM1(ctx);
+//     bpf_printk("RETURN: probe_connect fd: %d", fd);
+
+//     struct sockaddr* saddr = (struct sockaddr*)PT_REGS_PARM2(ctx);
+//     if (!saddr) {
+//         return 0;
+//     }
+
+//     sa_family_t address_family = 0;
+//     bpf_probe_read_user(&address_family, sizeof(address_family), &saddr->sa_family);
+
+//     if (address_family != AF_INET) {
+//         return 0;
+//     }
+
+//     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
+//     struct connect_event_t conn_event;
+//     __builtin_memset(&conn_event, 0, sizeof(conn_event));
+
+//     conn_event.timestamp_ns = bpf_ktime_get_ns();
+//     conn_event.pid = pid;
+//     conn_event.tid = current_pid_tgid;
+//     conn_event.fd = fd;
+
+//     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
+//     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
+//     bpf_ringbuf_output(&connect_events, &conn_event, sizeof(struct connect_event_t), 0);
+
+//     return 0;
+// }
+
+// ssize_t sendto(int fd, const void *buf, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+SEC("kprobe/send")
+int probe_entry_send(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+    u64 current_uid_gid = bpf_get_current_uid_gid();
+    u32 uid = current_uid_gid;
+
+    u32 fd = (u32)PT_REGS_PARM1(ctx);
+    size_t len = (size_t)PT_REGS_PARM3(ctx);
+
+    bpf_printk("======> entry_send pid: %d, current_pid_tgid: %d, fd: %d", pid, current_pid_tgid, fd);
+    bpf_printk("======> entry_send len: %d", len);
+
+    const char* buf = (const char*)PT_REGS_PARM2(ctx);
+    struct active_ssl_buf active_ssl_buf_t;
+    __builtin_memset(&active_ssl_buf_t, 0, sizeof(active_ssl_buf_t));
+    active_ssl_buf_t.fd = fd;
+    active_ssl_buf_t.buf = buf;
+    bpf_map_update_elem(&active_ssl_write_args_map, &current_pid_tgid, &active_ssl_buf_t, BPF_ANY);
+
+    return 0;
+}
+
+// ssize_t send(int fd, const void *buf, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+SEC("kretprobe/send")
+int probe_ret_send(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+    u64 current_uid_gid = bpf_get_current_uid_gid();
+    u32 uid = current_uid_gid;
+
+    int len = (int)PT_REGS_RC(ctx);
+    bpf_printk("====== >return_send current_pid_tgid: %d, len: %d", current_pid_tgid, len);
+
+    struct active_ssl_buf* active_ssl_buf_t = bpf_map_lookup_elem(&active_ssl_write_args_map, &current_pid_tgid);
+
+    if (active_ssl_buf_t != NULL) {
+        // bpf_printk("return_send current_pid_tgid: %d, fd: %d", current_pid_tgid, active_ssl_buf_t->fd);
+        const char* buf;
+        u32 fd = active_ssl_buf_t->fd;
+        s32 version = active_ssl_buf_t->version;
+        bpf_probe_read(&buf, sizeof(const char*), &active_ssl_buf_t->buf);
+        process_SSL_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version);
+    }
+
+    bpf_map_delete_elem(&active_ssl_write_args_map, &current_pid_tgid);
+
+    return 0;
+}
+
+// TODO:
+// 0. Write tests
+// 1. Use seperate maps for each probe
+// 2. process_SSL_data => process_data
+// 3. change TLSEvent => DataEvent (or similar)
+// 4. add an source_fn enum to the event
+// 5. figure out whats the difference between send and sendto???
 
 char __license[] SEC("license") = "GPL";

@@ -17,6 +17,7 @@ type BPFProgram struct {
 	interfaceName string
 }
 
+// TODO: interfaceName should only be required for TC programs
 func NewBPFProgram(bpfModule *bpf.Module, interfaceName string) (*BPFProgram, error) {
 	prog := &BPFProgram{
 		BpfModule:     bpfModule,
@@ -77,6 +78,38 @@ func (prog *BPFProgram) AttachToTC(tcFuncName string, attachPoint bpf.TcAttachPo
 	prog.hooksAndOpts[hook] = &tcOpts
 
 	return hook, &tcOpts, nil
+}
+
+func (prog *BPFProgram) AttachToKProbe(funcName string, probeFuncName string) error {
+	// Attach Entry Probe
+	probeEntry, err := prog.BpfModule.GetProgram(funcName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	_, err = probeEntry.AttachKprobe(probeFuncName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+	return nil
+}
+
+func (prog *BPFProgram) AttachToKRetProbe(funcName string, probeFuncName string) error {
+	// Attach Entry Probe
+	probeEntry, err := prog.BpfModule.GetProgram(funcName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	_, err = probeEntry.AttachKretprobe(probeFuncName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+	return nil
 }
 
 func (prog *BPFProgram) AttachToUProbe(funcName string, probeFuncName string, binaryPath string) error {

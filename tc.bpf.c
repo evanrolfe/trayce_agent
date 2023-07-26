@@ -69,6 +69,12 @@ int tc_egress(struct __sk_buff *skb) {
     num_chunks++;
   bpf_printk("---------------------------------------------------------------");
   bpf_printk("ip_len: %d, num_chunks: %d", ip_len, num_chunks);
+  u64 current_pid_tgid = bpf_get_current_pid_tgid();
+  u32 pid = current_pid_tgid >> 32;
+  u64 current_uid_gid = bpf_get_current_uid_gid();
+  u32 uid = current_uid_gid;
+
+  bpf_printk("current_pid_tgid: %d, pid: %d, current_uid_gid: %d", current_pid_tgid, pid, current_uid_gid);
 
   // NOTE: For some reason the ebpf verifier won't accept i < num_chunks in this for loop, but it will
   // accept a hardcoded upper-bound and the if () break; line.

@@ -8,6 +8,11 @@
     "variant": "c",
     "bpf_helpers.h": "c",
     "cstddef": "c",
-    "bpf_helper_defs.h": "c"
+    "bpf_helper_defs.h": "c",
+    "vmlinux_62.h": "c",
+    "vmlinux_601.h": "c",
+    "vmlinux_602.h": "c",
+    "vmlinux_600.h": "c",
+    "bpf_core_read.h": "c"
   }
 }
