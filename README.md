@@ -14,17 +14,10 @@ cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./li
 docker build . -t ddbuild -f Dockerfile.build
 docker run --privileged -v ./:/app -it ddbuild
 cd third_party/libbpfgo && make libbpfgo-static
-cd ../../ && make tc
-make go
+cd ../../ &&
+make ssl && make go
 ./dd_agent
 ```
-
-### SSL
-go build -o testuprobe ./cmd/testuprobe/main.go
-make go && ./dd_agent ./testuprobe main.testFunction
-./testuprobe
-
-./dd_agent /usr/lib/x86_64-linux-gnu/libssl.so.3 SSL_write
 
 ### Run
 ```
