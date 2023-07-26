@@ -161,4 +161,4 @@ go:
 		CGO_ENABLED=1 \
 		go build \
 		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-		-o dd_agent ./cmd/ssl/main.go
+		-o dd_agent ./cmd/dd_agent/main.go
