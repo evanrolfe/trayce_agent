@@ -46,10 +46,10 @@ typedef short unsigned int __kernel_sa_family_t;
 
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
-enum ssl_data_event_type { kSSLRead, kSSLWrite };
+enum data_event_type { kSSLRead, kSSLWrite };
 const u32 invalidFD = 0;
-struct ssl_data_event_t {
-    enum ssl_data_event_type type;
+struct data_event_t {
+    enum data_event_type type;
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
@@ -72,7 +72,7 @@ struct connect_event_t {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024); // 256 KB
-} tls_events SEC(".maps");
+} data_events SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -92,7 +92,7 @@ struct {
 //     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
 // } connect_events SEC(".maps");
 
-struct active_ssl_buf {
+struct active_buf {
     /*
      * protocol version (one of SSL2_VERSION, SSL3_VERSION, TLS1_VERSION,
      * DTLS1_VERSION)
@@ -112,23 +112,23 @@ struct active_ssl_buf {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, u64);
-    __type(value, struct active_ssl_buf);
+    __type(value, struct active_buf);
     __uint(max_entries, 1024);
-} active_ssl_read_args_map SEC(".maps");
+} active_read_args_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, u64);
-    __type(value, struct active_ssl_buf);
+    __type(value, struct active_buf);
     __uint(max_entries, 1024);
-} active_ssl_write_args_map SEC(".maps");
+} active_write_args_map SEC(".maps");
 
 // BPF programs are limited to a 512-byte stack. We store this value per CPU
 // and use it as a heap allocated value.
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
     __type(key, u32);
-    __type(value, struct ssl_data_event_t);
+    __type(value, struct data_event_t);
     __uint(max_entries, 1);
 } data_buffer_heap SEC(".maps");
 
@@ -161,10 +161,10 @@ struct ssl_st {
  * General helper functions
  ***********************************************************/
 
-static __inline struct ssl_data_event_t* create_ssl_data_event(
+static __inline struct data_event_t* create_data_event(
     u64 current_pid_tgid) {
     u32 kZero = 0;
-    struct ssl_data_event_t* event = bpf_map_lookup_elem(&data_buffer_heap, &kZero);
+    struct data_event_t* event = bpf_map_lookup_elem(&data_buffer_heap, &kZero);
     if (event == NULL)
         return NULL;
 
@@ -181,25 +181,25 @@ static __inline struct ssl_data_event_t* create_ssl_data_event(
  * BPF syscall processing functions
  ***********************************************************/
 
-static int process_SSL_data(
+static int process_data(
     struct pt_regs* ctx,
     u64 id,
-    enum ssl_data_event_type type,
+    enum data_event_type type,
     const char* buf,
     u32 fd,
     s32 version
 ) {
     int len = (int)PT_REGS_RC(ctx);
-    bpf_printk("-> process_SSL_data len: %d", len);
+    bpf_printk("-> process_data len: %d", len);
     if (len < 0) {
         return 0;
     }
-    // bpf_printk("-----------> process_SSL_data() len: %d", len);
-    struct ssl_data_event_t* event = create_ssl_data_event(id);
+    // bpf_printk("-----------> process_data() len: %d", len);
+    struct data_event_t* event = create_data_event(id);
     if (event == NULL) {
         return 0;
     }
-    // bpf_printk("-----------> process_SSL_data() got the event!");
+    // bpf_printk("-----------> process_data() got the event!");
     event->type = type;
     event->fd = fd;
     event->version = version;
@@ -209,9 +209,9 @@ static int process_SSL_data(
     bpf_probe_read_user(event->data, event->data_len, buf);
     bpf_get_current_comm(&event->comm, sizeof(event->comm));
 
-    // bpf_printk("-----------> process_SSL_data() publishing to tls_events, len: %d", event->data_len);
-    // bpf_perf_event_output(ctx, &tls_events, BPF_F_CURRENT_CPU, event, sizeof(struct ssl_data_event_t));
-    bpf_ringbuf_output(&tls_events, event, sizeof(struct ssl_data_event_t), 0);
+    // bpf_printk("-----------> process_data() publishing to data_events, len: %d", event->data_len);
+    // bpf_perf_event_output(ctx, &data_events, BPF_F_CURRENT_CPU, event, sizeof(struct data_event_t));
+    bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
     return 0;
 }
 
@@ -241,12 +241,12 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
     bpf_printk("openssl uprobe sizeof(ssl_info): %d, PID:%d, SSL_read FD:%d\n", sizeof(ssl_info), pid, fd);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
-    struct active_ssl_buf active_ssl_buf_t;
-    __builtin_memset(&active_ssl_buf_t, 0, sizeof(active_ssl_buf_t));
-    active_ssl_buf_t.fd = fd;
-    active_ssl_buf_t.version = ssl_info.version;
-    active_ssl_buf_t.buf = buf;
-    bpf_map_update_elem(&active_ssl_read_args_map, &current_pid_tgid, &active_ssl_buf_t, BPF_ANY);
+    struct active_buf active_buf_t;
+    __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
+    active_buf_t.fd = fd;
+    active_buf_t.version = ssl_info.version;
+    active_buf_t.buf = buf;
+    bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
     return 0;
 }
 
@@ -258,16 +258,16 @@ int probe_ret_SSL_read(struct pt_regs* ctx) {
     u32 uid = current_uid_gid;
     // bpf_printk("openssl uretprobe/SSL_read pid :%d\n", pid);
 
-    struct active_ssl_buf* active_ssl_buf_t = bpf_map_lookup_elem(&active_ssl_read_args_map, &current_pid_tgid);
+    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
 
-    if (active_ssl_buf_t != NULL) {
+    if (active_buf_t != NULL) {
         const char* buf;
-        u32 fd = active_ssl_buf_t->fd;
-        s32 version = active_ssl_buf_t->version;
-        bpf_probe_read(&buf, sizeof(const char*), &active_ssl_buf_t->buf);
-        process_SSL_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version);
+        u32 fd = active_buf_t->fd;
+        s32 version = active_buf_t->version;
+        bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
+        process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version);
     }
-    bpf_map_delete_elem(&active_ssl_read_args_map, &current_pid_tgid);
+    bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
     return 0;
 }
 
@@ -296,12 +296,12 @@ int probe_entry_SSL_write(struct pt_regs* ctx) {
     bpf_printk("openssl uprobe SSL_write FD:%d\n", fd);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
-    struct active_ssl_buf active_ssl_buf_t;
-    __builtin_memset(&active_ssl_buf_t, 0, sizeof(active_ssl_buf_t));
-    active_ssl_buf_t.fd = fd;
-    active_ssl_buf_t.version = ssl_info.version;
-    active_ssl_buf_t.buf = buf;
-    bpf_map_update_elem(&active_ssl_write_args_map, &current_pid_tgid, &active_ssl_buf_t, BPF_ANY);
+    struct active_buf active_buf_t;
+    __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
+    active_buf_t.fd = fd;
+    active_buf_t.version = ssl_info.version;
+    active_buf_t.buf = buf;
+    bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
     return 0;
 }
@@ -315,16 +315,16 @@ int probe_ret_SSL_write(struct pt_regs* ctx) {
 
     // Send entry data from map
     // bpf_printk("openssl uretprobe/SSL_write pid :%d\n", pid);
-    struct active_ssl_buf* active_ssl_buf_t = bpf_map_lookup_elem(&active_ssl_write_args_map, &current_pid_tgid);
+    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
 
-    if (active_ssl_buf_t != NULL) {
+    if (active_buf_t != NULL) {
         const char* buf;
-        u32 fd = active_ssl_buf_t->fd;
-        s32 version = active_ssl_buf_t->version;
-        bpf_probe_read(&buf, sizeof(const char*), &active_ssl_buf_t->buf);
-        process_SSL_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version);
+        u32 fd = active_buf_t->fd;
+        s32 version = active_buf_t->version;
+        bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
+        process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version);
     }
-    bpf_map_delete_elem(&active_ssl_write_args_map, &current_pid_tgid);
+    bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
     return 0;
 }
 
@@ -368,18 +368,6 @@ int probe_connect(struct pt_regs* ctx) {
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
     bpf_ringbuf_output(&connect_events, &conn_event, sizeof(struct connect_event_t), 0);
-
-    // u32 dest_ip = PT_REGS_PARM3(ctx);
-    // u16 dest_port = PT_REGS_PARM4(ctx);
-    // bpf_printk("dest_port: %d", dest_port);
-
-    // u8 dest_ip_octet1 = dest_ip & 0xFF;
-    // u8 dest_ip_octet2 = (dest_ip >> 8) & 0xFF;
-    // u8 dest_ip_octet3 = (dest_ip >> 16) & 0xFF;
-    // u8 dest_ip_octet4 = (dest_ip >> 24) & 0xFF;
-
-    // bpf_printk("Dest IP: %u.%u", dest_ip_octet1, dest_ip_octet2);
-    // bpf_printk("       : %u.%u", dest_ip_octet3, dest_ip_octet4);
 
     return 0;
 }
@@ -437,11 +425,11 @@ int probe_entry_send(struct pt_regs* ctx) {
     bpf_printk("======> entry_send len: %d", len);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
-    struct active_ssl_buf active_ssl_buf_t;
-    __builtin_memset(&active_ssl_buf_t, 0, sizeof(active_ssl_buf_t));
-    active_ssl_buf_t.fd = fd;
-    active_ssl_buf_t.buf = buf;
-    bpf_map_update_elem(&active_ssl_write_args_map, &current_pid_tgid, &active_ssl_buf_t, BPF_ANY);
+    struct active_buf active_buf_t;
+    __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
+    active_buf_t.fd = fd;
+    active_buf_t.buf = buf;
+    bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
     return 0;
 }
@@ -457,28 +445,20 @@ int probe_ret_send(struct pt_regs* ctx) {
     int len = (int)PT_REGS_RC(ctx);
     bpf_printk("====== >return_send current_pid_tgid: %d, len: %d", current_pid_tgid, len);
 
-    struct active_ssl_buf* active_ssl_buf_t = bpf_map_lookup_elem(&active_ssl_write_args_map, &current_pid_tgid);
+    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
 
-    if (active_ssl_buf_t != NULL) {
-        // bpf_printk("return_send current_pid_tgid: %d, fd: %d", current_pid_tgid, active_ssl_buf_t->fd);
+    if (active_buf_t != NULL) {
+        // bpf_printk("return_send current_pid_tgid: %d, fd: %d", current_pid_tgid, active_buf_t->fd);
         const char* buf;
-        u32 fd = active_ssl_buf_t->fd;
-        s32 version = active_ssl_buf_t->version;
-        bpf_probe_read(&buf, sizeof(const char*), &active_ssl_buf_t->buf);
-        process_SSL_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version);
+        u32 fd = active_buf_t->fd;
+        s32 version = active_buf_t->version;
+        bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
+        process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version);
     }
 
-    bpf_map_delete_elem(&active_ssl_write_args_map, &current_pid_tgid);
+    bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
 
     return 0;
 }
-
-// TODO:
-// 0. Write tests
-// 1. Use seperate maps for each probe
-// 2. process_SSL_data => process_data
-// 3. change TLSEvent => DataEvent (or similar)
-// 4. add an source_fn enum to the event
-// 5. figure out whats the difference between send and sendto???
 
 char __license[] SEC("license") = "GPL";

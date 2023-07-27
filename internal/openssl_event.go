@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-type SSLDataEvent struct {
+type DataEvent struct {
 	eventType EventType
 	DataType  int64             `json:"dataType"`
 	Timestamp uint64            `json:"timestamp"`
@@ -19,7 +19,7 @@ type SSLDataEvent struct {
 	Version   int32             `json:"version"`
 }
 
-func (se *SSLDataEvent) Decode(payload []byte) (err error) {
+func (se *DataEvent) Decode(payload []byte) (err error) {
 	buf := bytes.NewBuffer(payload)
 	if err = binary.Read(buf, binary.LittleEndian, &se.DataType); err != nil {
 		return
@@ -52,19 +52,19 @@ func (se *SSLDataEvent) Decode(payload []byte) (err error) {
 	return nil
 }
 
-func (se *SSLDataEvent) GetUUID() string {
+func (se *DataEvent) GetUUID() string {
 	return fmt.Sprintf("%d_%d_%s_%d_%d", se.Pid, se.Tid, CToGoString(se.Comm[:]), se.Fd, se.DataType)
 }
 
-func (se *SSLDataEvent) Payload() []byte {
+func (se *DataEvent) Payload() []byte {
 	return se.Data[:se.DataLen]
 }
 
-func (se *SSLDataEvent) PayloadLen() int {
+func (se *DataEvent) PayloadLen() int {
 	return int(se.DataLen)
 }
 
-func (se *SSLDataEvent) Type() string {
+func (se *DataEvent) Type() string {
 	switch AttachType(se.DataType) {
 	case ProbeEntry:
 		return "ProbeEntry"

@@ -52,7 +52,7 @@ func NewBPFAgent(bpfFilePath string, btfFilePath string) *BPFAgent {
 }
 
 func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
-	tlsEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("tls_events", agent.tlsEventsChan)
+	tlsEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.tlsEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -73,7 +73,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
 			return
 
 		case payload := <-agent.tlsEventsChan:
-			event := SSLDataEvent{}
+			event := DataEvent{}
 			event.Decode(payload)
 			fmt.Println("[TLSEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid)
 
