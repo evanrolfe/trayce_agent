@@ -4,11 +4,11 @@ WORKDIR /app
 VOLUME [ "/app" ]
 
 # Build dependencies:
-RUN apt-get update -y
-RUN apt-get install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget gcc-multilib binutils
+RUN apt update -y
+RUN apt install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget gcc-multilib binutils
 
 # Debugging tools:
-RUN apt-get install -y curl net-tools iproute2 dnsutils strace ltrace
+RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
 
 # Install Go
 RUN wget https://go.dev/dl/go1.20.4.linux-386.tar.gz
