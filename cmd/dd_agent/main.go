@@ -47,6 +47,7 @@ func main() {
 				wg.Done()
 				return
 			case msgEvent := <-msgEventsChan:
+				fmt.Printf("[MsgEvent] Local: %s, Remote: %s\n", msgEvent.LocalAddr, msgEvent.RemoteAddr)
 				fmt.Println(hex.Dump(msgEvent.Payload))
 			}
 		}

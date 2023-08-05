@@ -76,7 +76,7 @@ func (se *DataEvent) Type() string {
 }
 
 func (se *DataEvent) Key() string {
-	return fmt.Sprintf("%d-%d", se.Pid, se.Tid)
+	return fmt.Sprintf("%d-%d", se.Pid, se.Fd)
 }
 
 // func (se *SSLDataEvent) StringHex() string {

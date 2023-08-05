@@ -14,7 +14,7 @@ cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./li
 docker build . -t ddbuild -f Dockerfile.build
 docker run --privileged -v ./:/app -it ddbuild
 cd third_party/libbpfgo && make libbpfgo-static
-cd ../../ &&
+cd ../../
 make ssl && make go
 ./dd_agent
 ```

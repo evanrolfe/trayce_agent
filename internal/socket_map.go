@@ -3,8 +3,8 @@ package internal
 import "fmt"
 
 type SocketDesc struct {
-	SourceAddr string
-	DestAddr   string
+	LocalAddr  string
+	RemoteAddr string
 	Protocol   string
 }
 
@@ -25,9 +25,9 @@ func (m SocketMap) ParseAddrEvent(event *SocketAddrEvent) {
 	addr := fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 
 	if event.Local {
-		socket.SourceAddr = addr
+		socket.LocalAddr = addr
 	} else {
-		socket.DestAddr = addr
+		socket.RemoteAddr = addr
 	}
 }
 
@@ -38,6 +38,6 @@ func (m *SocketMap) AddProtocol() {
 func (m SocketMap) Debug() {
 	fmt.Println("-------------------------------------------------------------\nSockets:")
 	for key, value := range m {
-		fmt.Printf("	%s => {Src: %s, Dst: %s, %s}\n", key, value.SourceAddr, value.DestAddr, value.Protocol)
+		fmt.Printf("	%s => {Src: %s, Dst: %s, %s}\n", key, value.LocalAddr, value.RemoteAddr, value.Protocol)
 	}
 }

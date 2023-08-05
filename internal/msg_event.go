@@ -1,17 +1,17 @@
 package internal
 
 type MsgEvent struct {
-	Ip         string `json:"ip"`
-	Port       int    `json:"port"`
+	LocalAddr  string `json:"local_addr"`
+	RemoteAddr string `json:"remote_addr"`
 	L4Protocol string `json:"l4_protocol"`
 	L7Protocol string `json:"l7_protocol"`
 	Payload    []byte `json:"payload"`
 }
 
-func NewMsgEvent(dataEvent *DataEvent, connEvent *SocketAddrEvent) MsgEvent {
+func NewMsgEvent(dataEvent *DataEvent, socket *SocketDesc) MsgEvent {
 	return MsgEvent{
-		Payload: dataEvent.Data[0:dataEvent.DataLen],
-		Ip:      connEvent.IPAddr(),
-		Port:    int(connEvent.Port),
+		Payload:    dataEvent.Data[0:dataEvent.DataLen],
+		LocalAddr:  socket.LocalAddr,
+		RemoteAddr: socket.RemoteAddr,
 	}
 }

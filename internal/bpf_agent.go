@@ -85,20 +85,20 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
 		case payload := <-agent.dataEventsChan:
 			event := DataEvent{}
 			event.Decode(payload)
-			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 
 			// Fetch its corresponding connect event
-			connEvent, exists := agent.socketAddrEvents[event.Key()]
+			socket, exists := agent.sockets[event.Key()]
 			if !exists {
 				continue
 			}
 
-			outputChan <- NewMsgEvent(&event, &connEvent)
+			outputChan <- NewMsgEvent(&event, socket)
 
 		case payload := <-agent.socketAddrEventsChan:
 			event := SocketAddrEvent{}
 			event.Decode(payload)
-			fmt.Println("[SocketAddrEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+			// fmt.Println("[SocketAddrEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
 			// Save the event to the map
 			agent.socketAddrEvents[event.Key()] = event
