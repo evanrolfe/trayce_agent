@@ -60,13 +60,14 @@ struct data_event_t {
     s32 version;
 };
 
-struct connect_event_t {
+struct socket_addr_event_t {
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
     u32 fd;
     u32 ip;
     u16 port;
+    bool local;
 };
 
 struct {
@@ -77,20 +78,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024); // 256 KB
-} connect_events SEC(".maps");
-
-// struct connect_event_t {
-//     u64 timestamp_ns;
-//     u32 pid;
-//     u32 tid;
-//     u32 fd;
-//     char sa_data[SA_DATA_LEN];
-//     char comm[TASK_COMM_LEN];
-// };
-
-// struct {
-//     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-// } connect_events SEC(".maps");
+} socket_addr_events SEC(".maps");
 
 struct active_buf {
     /*
@@ -101,6 +89,11 @@ struct active_buf {
     s32 version;
     u32 fd;
     const char* buf;
+};
+
+struct socket_args {
+    // The IP protocol (TCP/UDP)
+    u32 protocol;
 };
 
 /***********************************************************
@@ -122,6 +115,22 @@ struct {
     __type(value, struct active_buf);
     __uint(max_entries, 1024);
 } active_write_args_map SEC(".maps");
+
+// Key is the file descriptor FD, Value is the protocol
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, int);
+    __uint(max_entries, 1024);
+} socket_protocol_map SEC(".maps");
+
+// Key is the file descriptor FD, Value is the addr
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, struct sockaddr);
+    __uint(max_entries, 1024);
+} socket_src_addr_map SEC(".maps");
 
 // BPF programs are limited to a 512-byte stack. We store this value per CPU
 // and use it as a heap allocated value.
@@ -357,17 +366,18 @@ int probe_connect(struct pt_regs* ctx) {
     // Get the socket address
     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
 
-    // Build the connect_event
-    struct connect_event_t conn_event;
+    // Build the socket_addr_event
+    struct socket_addr_event_t conn_event;
     __builtin_memset(&conn_event, 0, sizeof(conn_event));
     conn_event.timestamp_ns = bpf_ktime_get_ns();
     conn_event.pid = pid;
     conn_event.tid = current_pid_tgid;
     conn_event.fd = fd;
+    conn_event.local = false;
 
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-    bpf_ringbuf_output(&connect_events, &conn_event, sizeof(struct connect_event_t), 0);
+    bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct socket_addr_event_t), 0);
 
     return 0;
 }
@@ -395,7 +405,7 @@ int probe_connect(struct pt_regs* ctx) {
 //     }
 
 //     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
-//     struct connect_event_t conn_event;
+//     struct socket_addr_event_t conn_event;
 //     __builtin_memset(&conn_event, 0, sizeof(conn_event));
 
 //     conn_event.timestamp_ns = bpf_ktime_get_ns();
@@ -405,13 +415,73 @@ int probe_connect(struct pt_regs* ctx) {
 
 //     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
 //     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-//     bpf_ringbuf_output(&connect_events, &conn_event, sizeof(struct connect_event_t), 0);
+//     bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct socket_addr_event_t), 0);
 
 //     return 0;
 // }
 
+// int getsockname(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
+SEC("uretprobe/getsockname")
+int probe_ret_getsockname(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+    u64 current_uid_gid = bpf_get_current_uid_gid();
+    u32 uid = current_uid_gid;
+
+    u32 fd = (u32)PT_REGS_PARM1(ctx);
+
+    struct sockaddr* saddr = (struct sockaddr*)PT_REGS_PARM2(ctx);
+    if (!saddr) {
+        return 0;
+    }
+
+    sa_family_t address_family = 0;
+    bpf_probe_read_user(&address_family, sizeof(address_family), &saddr->sa_family);
+
+    if (address_family != AF_INET) {
+        return 0;
+    }
+
+    // Get the socket address
+    struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
+
+    // Build the socket_addr_event
+    struct socket_addr_event_t conn_event;
+    __builtin_memset(&conn_event, 0, sizeof(conn_event));
+    conn_event.timestamp_ns = bpf_ktime_get_ns();
+    conn_event.pid = pid;
+    conn_event.tid = current_pid_tgid;
+    conn_event.fd = fd;
+    conn_event.local = true;
+
+    bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
+    bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
+    bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct socket_addr_event_t), 0);
+
+    // bpf_printk("!!!!!!!!> GETSOCKNAME fd: %d, pid: %d, current_pid_tgid: %d", fd, pid, current_pid_tgid);
+    // bpf_map_update_elem(&socket_src_addr_map, &fd, &saddr, BPF_ANY);
+
+    return 0;
+}
+
+// int socket(int domain, int type, int protocol);
+SEC("uretprobe/socket")
+int probe_ret_socket(struct pt_regs* ctx) {
+    int domain = (int)PT_REGS_PARM1(ctx);
+    int protocol = (int)PT_REGS_PARM3(ctx);
+    int fd = (int)PT_REGS_RC(ctx);
+
+    if (domain != AF_INET) {
+        return 0;
+    }
+
+    bpf_map_update_elem(&socket_protocol_map, &fd, &protocol, BPF_ANY);
+
+    return 0;
+}
+
 // ssize_t sendto(int fd, const void *buf, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-SEC("kprobe/send")
+SEC("uprobe/send")
 int probe_entry_send(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
@@ -419,6 +489,7 @@ int probe_entry_send(struct pt_regs* ctx) {
     u32 uid = current_uid_gid;
 
     u32 fd = (u32)PT_REGS_PARM1(ctx);
+
     size_t len = (size_t)PT_REGS_PARM3(ctx);
 
     bpf_printk("======> entry_send pid: %d, current_pid_tgid: %d, fd: %d", pid, current_pid_tgid, fd);
@@ -435,7 +506,7 @@ int probe_entry_send(struct pt_regs* ctx) {
 }
 
 // ssize_t send(int fd, const void *buf, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-SEC("kretprobe/send")
+SEC("uretprobe/send")
 int probe_ret_send(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;

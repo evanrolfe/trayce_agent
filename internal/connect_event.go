@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"net"
 )
 
@@ -15,16 +16,17 @@ uint64_t timestamp_ns;
   char sa_data[SA_DATA_LEN];
   char Comm[TASK_COMM_LEN];
 */
-type ConnDataEvent struct {
+type SocketAddrEvent struct {
 	TimestampNs uint64 `json:"timestampNs"`
 	Pid         uint32 `json:"pid"`
 	Tid         uint32 `json:"tid"`
 	Fd          uint32 `json:"fd"`
 	Ip          uint32 `json:"ip"`
 	Port        uint16 `json:"port"`
+	Local       bool   `json:"local"`
 }
 
-func (ce *ConnDataEvent) Decode(payload []byte) (err error) {
+func (ce *SocketAddrEvent) Decode(payload []byte) (err error) {
 	buf := bytes.NewBuffer(payload)
 	// TODO: Is this one little or big?
 	if err = binary.Read(buf, binary.LittleEndian, &ce.TimestampNs); err != nil {
@@ -45,11 +47,14 @@ func (ce *ConnDataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.BigEndian, &ce.Port); err != nil {
 		return
 	}
+	if err = binary.Read(buf, binary.BigEndian, &ce.Local); err != nil {
+		return
+	}
 
 	return nil
 }
 
-func (ce *ConnDataEvent) IPAddr() string {
+func (ce *SocketAddrEvent) IPAddr() string {
 	ipBytes := make([]byte, 4)
 	ipBytes[0] = byte(ce.Ip >> 24)
 	ipBytes[1] = byte(ce.Ip >> 16)
@@ -58,6 +63,10 @@ func (ce *ConnDataEvent) IPAddr() string {
 	ipAddr := net.IP(ipBytes)
 
 	return ipAddr.String()
+}
+
+func (ce *SocketAddrEvent) Key() string {
+	return fmt.Sprintf("%d-%d", ce.Pid, ce.Fd)
 }
 
 // func (ce *ConnDataEvent) StringHex() string {

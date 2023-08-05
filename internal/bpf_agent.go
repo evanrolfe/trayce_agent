@@ -1,7 +1,7 @@
 package internal
 
+import "C"
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
 )
@@ -13,10 +13,12 @@ const (
 )
 
 type BPFAgent struct {
-	bpfProg        *BPFProgram
-	tlsEventsChan  chan []byte
-	connEventsChan chan []byte
-	interuptChan   chan int
+	bpfProg              *BPFProgram
+	dataEventsChan       chan []byte
+	socketAddrEventsChan chan []byte
+	interuptChan         chan int
+	socketAddrEvents     map[string]SocketAddrEvent
+	sockets              SocketMap
 }
 
 func NewBPFAgent(bpfFilePath string, btfFilePath string) *BPFAgent {
@@ -36,35 +38,43 @@ func NewBPFAgent(bpfFilePath string, btfFilePath string) *BPFAgent {
 	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", sslLibPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", sslLibPath)
 
-	// probe_connect
+	// uprobe_connect
 	bpfProg.AttachToUProbe("probe_connect", "connect", libcLibPath)
+
+	// uprobe socket
+	bpfProg.AttachToURetProbe("probe_ret_socket", "socket", libcLibPath)
+
+	// uprobe getsockname
+	bpfProg.AttachToURetProbe("probe_ret_getsockname", "getsockname", libcLibPath)
 
 	// uprobe send
 	bpfProg.AttachToUProbe("probe_entry_send", "send", libcLibPath)
 	bpfProg.AttachToURetProbe("probe_ret_send", "send", libcLibPath)
 
 	return &BPFAgent{
-		bpfProg:        bpfProg,
-		tlsEventsChan:  make(chan []byte),
-		connEventsChan: make(chan []byte),
-		interuptChan:   make(chan int),
+		bpfProg:              bpfProg,
+		dataEventsChan:       make(chan []byte),
+		socketAddrEventsChan: make(chan []byte),
+		interuptChan:         make(chan int),
+		socketAddrEvents:     make(map[string]SocketAddrEvent),
+		sockets:              NewSocketMap(),
 	}
 }
 
 func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
-	tlsEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.tlsEventsChan)
+	dataEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.dataEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
-	connEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("connect_events", agent.connEventsChan)
+	socketAddrEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("socket_addr_events", agent.socketAddrEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
-	tlsEventsBuf.Poll(BufPollRateMs)
-	connEventsBuf.Poll(BufPollRateMs)
+	dataEventsBuf.Poll(BufPollRateMs)
+	socketAddrEventsBuf.Poll(BufPollRateMs)
 
 	for {
 		// Check if the interrupt signal has been received
@@ -72,38 +82,60 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
 		case <-agent.interuptChan:
 			return
 
-		case payload := <-agent.tlsEventsChan:
+		case payload := <-agent.dataEventsChan:
 			event := DataEvent{}
 			event.Decode(payload)
-			fmt.Println("[TLSEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid)
+			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 
-			// fmt.Println(event.GetUUID())
-			fmt.Println(hex.Dump(event.Data[0:event.DataLen]))
+			// Fetch its corresponding connect event
+			connEvent, exists := agent.socketAddrEvents[event.Key()]
+			if !exists {
+				continue
+			}
 
-			// msgEvent := MsgEvent{Payload: event.Data[0:event.DataLen]}
-			// outputChan <- msgEvent
+			outputChan <- NewMsgEvent(&event, &connEvent)
 
-		case payload := <-agent.connEventsChan:
-			fmt.Println("[ConnectEvent] Received ", len(payload), "bytes")
-			event := ConnDataEvent{}
+		case payload := <-agent.socketAddrEventsChan:
+			event := SocketAddrEvent{}
 			event.Decode(payload)
-			// err := binary.Read(bytes.NewReader(payload), binary.BigEndian, &event)
-			// if err != nil {
-			// 	fmt.Println("Error parsing payload:", err)
-			// 	return
-			// }
+			fmt.Println("[SocketAddrEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
-			// fmt.Println("Received ", len(payload), " bytes (ConnectEvet)")
-			// fmt.Println(hex.Dump(payload))
-			// fmt.Println(event.StringHex())
-			fmt.Println("PID:", event.Pid, "TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port)
+			// Save the event to the map
+			agent.socketAddrEvents[event.Key()] = event
+			agent.sockets.ParseAddrEvent(&event)
 		}
 	}
 }
 
 func (agent *BPFAgent) Close() {
+	agent.sockets.Debug()
 	agent.interuptChan <- 0
-	// close(agent.connEventsChan)
-	// close(agent.tlsEventsChan)
+	// close(agent.socketAddrEventsChan)
+	// close(agent.dataEventsChan)
 	agent.bpfProg.Close()
 }
+
+// -----------------------------------------------------------------------------
+// getsockname attempt
+// -----------------------------------------------------------------------------
+
+// type SocketAddress struct {
+// 	Family uint16
+// 	Port   uint16
+// 	Addr   uint32
+// }
+// libcTLS := libc.NewTLS()
+
+// var addrObj SocketAddress
+// var addrLenRaw int
+
+// addrPtr := unsafe.Pointer(&addrObj)
+// addrLenPtr := unsafe.Pointer(&addrLenRaw)
+
+// _, _, err := unix.Syscall(unix.SYS_GETSOCKNAME, uintptr(event.Fd), uintptr(addrPtr), uintptr(addrLenPtr))
+// result := libc.Xgetsockname(libcTLS, int32(event.Fd), uintptr(addrPtr), uintptr(addrLenPtr))
+
+// fmt.Printf("------------------------> addr: %d addrLen: %d, result: %d\n", addrObj, addrLenRaw)
+
+// _, err := C.fn()
+// fmt.Println("err:", int(err))

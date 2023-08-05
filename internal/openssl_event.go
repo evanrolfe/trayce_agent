@@ -75,6 +75,10 @@ func (se *DataEvent) Type() string {
 	}
 }
 
+func (se *DataEvent) Key() string {
+	return fmt.Sprintf("%d-%d", se.Pid, se.Tid)
+}
+
 // func (se *SSLDataEvent) StringHex() string {
 // 	//addr := se.module.(*module.MOpenSSLProbe).GetConn(se.Pid, se.Fd)
 // 	addr := "[TODO]"
