@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/evanrolfe/dockerdog/internal"
+	"github.com/evanrolfe/dockerdog/internal/models"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 )
 
 func main() {
-	msgEventsChan := make(chan internal.MsgEvent)
+	msgEventsChan := make(chan models.MsgEvent)
 	agent := internal.NewBPFAgent(bpfFilePath, btfFilePath)
 	defer agent.Close()
 

@@ -1,9 +1,11 @@
-package internal
+package models
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/evanrolfe/dockerdog/internal/utils"
 )
 
 type DataEvent struct {
@@ -53,7 +55,7 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 }
 
 func (se *DataEvent) GetUUID() string {
-	return fmt.Sprintf("%d_%d_%s_%d_%d", se.Pid, se.Tid, CToGoString(se.Comm[:]), se.Fd, se.DataType)
+	return fmt.Sprintf("%d_%d_%s_%d_%d", se.Pid, se.Tid, utils.CToGoString(se.Comm[:]), se.Fd, se.DataType)
 }
 
 func (se *DataEvent) Payload() []byte {

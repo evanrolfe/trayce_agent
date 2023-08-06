@@ -4,6 +4,8 @@ import "C"
 import (
 	"fmt"
 	"os"
+
+	"github.com/evanrolfe/dockerdog/internal/models"
 )
 
 const (
@@ -17,7 +19,7 @@ type BPFAgent struct {
 	dataEventsChan       chan []byte
 	socketAddrEventsChan chan []byte
 	interuptChan         chan int
-	sockets              SocketMap
+	sockets              models.SocketMap
 }
 
 func NewBPFAgent(bpfFilePath string, btfFilePath string) *BPFAgent {
@@ -55,11 +57,11 @@ func NewBPFAgent(bpfFilePath string, btfFilePath string) *BPFAgent {
 		dataEventsChan:       make(chan []byte),
 		socketAddrEventsChan: make(chan []byte),
 		interuptChan:         make(chan int),
-		sockets:              NewSocketMap(),
+		sockets:              models.NewSocketMap(),
 	}
 }
 
-func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
+func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 	// DataEvents ring buffer
 	dataEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.dataEventsChan)
 	if err != nil {
@@ -84,7 +86,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
 			return
 
 		case payload := <-agent.dataEventsChan:
-			event := DataEvent{}
+			event := models.DataEvent{}
 			event.Decode(payload)
 			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 
@@ -93,11 +95,10 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
 			if !exists {
 				continue
 			}
-
-			outputChan <- NewMsgEvent(&event, socket)
+			outputChan <- models.NewMsgEvent(&event, socket)
 
 		case payload := <-agent.socketAddrEventsChan:
-			event := SocketAddrEvent{}
+			event := models.SocketAddrEvent{}
 			event.Decode(payload)
 			if event.Local {
 				fmt.Println("[SocketAddrEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)

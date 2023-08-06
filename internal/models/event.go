@@ -1,4 +1,4 @@
-package internal
+package models
 
 type EventType uint8
 

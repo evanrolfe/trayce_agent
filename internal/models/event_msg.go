@@ -1,4 +1,4 @@
-package internal
+package models
 
 type MsgEvent struct {
 	LocalAddr  string `json:"local_addr"`
