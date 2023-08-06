@@ -2,12 +2,6 @@ package internal
 
 import "fmt"
 
-type SocketDesc struct {
-	LocalAddr  string
-	RemoteAddr string
-	Protocol   string
-}
-
 type SocketMap map[string]*SocketDesc
 
 func NewSocketMap() SocketMap {
@@ -15,23 +9,25 @@ func NewSocketMap() SocketMap {
 	return m
 }
 
-func (m SocketMap) ParseAddrEvent(event *SocketAddrEvent) {
+func (m SocketMap) ParseAddrEvent(event *SocketAddrEvent) *SocketDesc {
 	socket, exists := m[event.Key()]
 	if !exists {
-		socket = &SocketDesc{}
+		socket = NewSocketDesc(event.Pid, event.Fd)
 		m[event.Key()] = socket
 	}
 
 	addr := fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 
-	if event.Local {
+	if event.Local && socket.LocalAddr == "" {
 		socket.LocalAddr = addr
-	} else {
+	} else if !event.Local && socket.RemoteAddr == "" {
 		socket.RemoteAddr = addr
 	}
+
+	return socket
 }
 
-func (m *SocketMap) AddProtocol() {
+func (m SocketMap) AddProtocol() {
 
 }
 
