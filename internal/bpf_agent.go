@@ -18,7 +18,6 @@ type BPFAgent struct {
 	socketAddrEventsChan chan []byte
 	interuptChan         chan int
 	sockets              SocketMap
-	socketEventsBuffer   SocketEventsBuffer
 }
 
 func NewBPFAgent(bpfFilePath string, btfFilePath string) *BPFAgent {
@@ -57,7 +56,6 @@ func NewBPFAgent(bpfFilePath string, btfFilePath string) *BPFAgent {
 		socketAddrEventsChan: make(chan []byte),
 		interuptChan:         make(chan int),
 		sockets:              NewSocketMap(),
-		socketEventsBuffer:   NewSocketEventsBuffer(),
 	}
 }
 
@@ -93,13 +91,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
 			// Fetch its corresponding connect event
 			socket, exists := agent.sockets[event.Key()]
 			if !exists {
-				fmt.Println("[WARNING] no socket found with key: ", event.Key())
 				continue
-			}
-
-			// If the socket is incomplete then save it to the buffer so it will be sent out when the socket is finally completed
-			if !socket.IsComplete() {
-				agent.socketEventsBuffer.AddEvent(socket, &event)
 			}
 
 			outputChan <- NewMsgEvent(&event, socket)
@@ -112,16 +104,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan MsgEvent) {
 			}
 
 			// Save the event to the map
-			socket := agent.sockets.ParseAddrEvent(&event)
-
-			// If the socket is completed, send any buffered data events for this socket
-			if socket.IsComplete() {
-				events := agent.socketEventsBuffer.ClearEvents(socket)
-				for _, event := range events {
-					fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!! Clearing an event for socket: ", socket.Key())
-					outputChan <- NewMsgEvent(event, socket)
-				}
-			}
+			agent.sockets.ParseAddrEvent(&event)
 		}
 	}
 }
