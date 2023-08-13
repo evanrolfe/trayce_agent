@@ -60,7 +60,7 @@ struct data_event_t {
     s32 version;
 };
 
-struct socket_addr_event_t {
+struct connect_event_t {
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
@@ -79,6 +79,11 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024); // 256 KB
 } socket_addr_events SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024); // 256 KB
+} debug_events SEC(".maps");
 
 struct active_buf {
     /*
@@ -160,7 +165,7 @@ struct BIO {
 };
 
 struct ssl_st {
-    s32 version;
+    int version;
     struct unused* method;
     struct BIO* rbio;  // used by SSL_read
     struct BIO* wbio;  // used by SSL_write
@@ -244,10 +249,22 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
 
     struct BIO bio_r;
     bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
+    // bpf_ringbuf_output(&debug_events, &bio_r, sizeof(struct BIO), 0);
 
-    // get fd ssl->rbio->num
+    // Get the rbio.num (the file descriptor) using offsets
+    // int rbio_num;
+    // void *rbio_ptr = (void *)ssl_info.rbio;
+    // u64 *rbio_num_ptr = (u64 *)(rbio_ptr + RBIO_NUM_OFFSET);
+    // int ret = bpf_probe_read_user(&rbio_num, sizeof(rbio_num), (void *)rbio_num_ptr);
+    // if (ret) {
+    //     bpf_printk("bpf_probe_read rbio_num failed, ret :%d\n", ret);
+    // }
+    // bpf_printk("======================> rbio_num: %d\n", rbio_num);
+
     u32 fd = bio_r.num;
-    bpf_printk("openssl uprobe sizeof(ssl_info): %d, PID:%d, SSL_read FD:%d\n", sizeof(ssl_info), pid, fd);
+    bpf_printk("!!!!! openssl uprobe sizeof(bio_r): %d, PID:%d, SSL_read FD:%d\n", sizeof(bio_r), pid, fd);
+    // bpf_printk("!!!!! openssl uprobe init: %d, shutdown: %d, flags: %d\n", bio_r.init, bio_r.shutdown, bio_r.flags);
+    // bpf_printk("!!!!! openssl uprobe retry_reason: %d, num: %d\n", bio_r.retry_reason, bio_r.num);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
     struct active_buf active_buf_t;
@@ -272,6 +289,7 @@ int probe_ret_SSL_read(struct pt_regs* ctx) {
     if (active_buf_t != NULL) {
         const char* buf;
         u32 fd = active_buf_t->fd;
+        bpf_printk("~~~~~~~~~~~~~~~~~~~~~~~> pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
         process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version);
@@ -366,8 +384,8 @@ int probe_connect(struct pt_regs* ctx) {
     // Get the socket address
     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
 
-    // Build the socket_addr_event
-    struct socket_addr_event_t conn_event;
+    // Build the connect_event
+    struct connect_event_t conn_event;
     __builtin_memset(&conn_event, 0, sizeof(conn_event));
     conn_event.timestamp_ns = bpf_ktime_get_ns();
     conn_event.pid = pid;
@@ -377,7 +395,7 @@ int probe_connect(struct pt_regs* ctx) {
 
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-    bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct socket_addr_event_t), 0);
+    bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct connect_event_t), 0);
 
     return 0;
 }
@@ -405,7 +423,7 @@ int probe_connect(struct pt_regs* ctx) {
 //     }
 
 //     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
-//     struct socket_addr_event_t conn_event;
+//     struct connect_event_t conn_event;
 //     __builtin_memset(&conn_event, 0, sizeof(conn_event));
 
 //     conn_event.timestamp_ns = bpf_ktime_get_ns();
@@ -415,7 +433,7 @@ int probe_connect(struct pt_regs* ctx) {
 
 //     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
 //     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-//     bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct socket_addr_event_t), 0);
+//     bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct connect_event_t), 0);
 
 //     return 0;
 // }
@@ -445,8 +463,8 @@ int probe_ret_getsockname(struct pt_regs* ctx) {
     // Get the socket address
     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
 
-    // Build the socket_addr_event
-    struct socket_addr_event_t conn_event;
+    // Build the connect_event
+    struct connect_event_t conn_event;
     __builtin_memset(&conn_event, 0, sizeof(conn_event));
     conn_event.timestamp_ns = bpf_ktime_get_ns();
     conn_event.pid = pid;
@@ -456,7 +474,7 @@ int probe_ret_getsockname(struct pt_regs* ctx) {
 
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-    bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct socket_addr_event_t), 0);
+    bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct connect_event_t), 0);
 
     // bpf_printk("!!!!!!!!> GETSOCKNAME fd: %d, pid: %d, current_pid_tgid: %d", fd, pid, current_pid_tgid);
     // bpf_map_update_elem(&socket_src_addr_map, &fd, &saddr, BPF_ANY);

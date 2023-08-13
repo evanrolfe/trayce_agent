@@ -12,7 +12,7 @@ cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./li
 ### Build
 ```
 docker build . -t ddbuild -f Dockerfile.build
-docker run --privileged -v ./:/app -it ddbuild
+docker run --pid=host --privileged -v ./:/app -it ddbuild
 cd third_party/libbpfgo && make libbpfgo-static
 cd ../../
 make ssl && make go
@@ -22,7 +22,7 @@ make ssl && make go
 ### Run
 ```
 docker build . -t dd
-docker run --privileged -it dd
+docker run --pid=host --privileged -it dd
 ```
 
 ### Commands
@@ -37,3 +37,11 @@ Get trace pipe output:
 bpftool prog show netdev eth0 egress
 tc filter show dev eth0 egress
 tc filter del dev eth0 egress pref 49152
+
+### NsEnter
+`docker contaienr inspect ...` to get the PID of the container you want to intercept.
+
+From the dd container:
+```
+nsenter -t {PID} -n
+```
