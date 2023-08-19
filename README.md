@@ -27,16 +27,21 @@ docker run --pid=host --privileged -it dd
 
 ### Commands
 
+Install Go dev dependencies:
+`go install github.com/shuLhan/go-bindata/cmd/go-bindata@latest`
+
 Get network interface indexes:
 `ip link show`
 
 Get trace pipe output:
 `cat /sys/kernel/debug/tracing/trace_pipe`
 
-
 bpftool prog show netdev eth0 egress
 tc filter show dev eth0 egress
 tc filter del dev eth0 egress pref 49152
+
+Tracing:
+`strace -o strace_curl.txt -f -e trace=open,close,connect,sendto,recvfrom,send,recv bash -c 'curl --parallel --parallel-immediate --http1.1 --config urls.txt'`
 
 ### NsEnter
 `docker contaienr inspect ...` to get the PID of the container you want to intercept.

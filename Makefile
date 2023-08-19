@@ -152,8 +152,9 @@ CGO_EXTLDFLAGS_STATIC = '-w -extldflags "-static"'
 CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output"
 
 ARCH_FOR_CGO := $(shell uname -m | sed 's/x86_64/amd64/g; s/aarch64/arm64/g')
-
 go:
+	cp .output/ssl.bpf.o bundle/ssl.bpf.o
+	/root/go/bin/go-bindata -o ./internal/bundle.go ./bundle
 	CC=$(CLANG) \
 		CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
 		CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \

@@ -45,6 +45,18 @@ func NewBPFProgramFromFileArgs(bpfPath string, btfPath string, interfaceName str
 	return NewBPFProgram(bpfModule, interfaceName)
 }
 
+func NewBPFProgramFromBytes(bpfBuf []byte, btfPath string, interfaceName string) (*BPFProgram, error) {
+	bpfModule, err := bpf.NewModuleFromBufferArgs(bpf.NewModuleArgs{
+		BPFObjBuff: bpfBuf,
+		BPFObjName: "ssl.bpf.o",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return NewBPFProgram(bpfModule, interfaceName)
+}
+
 func (prog *BPFProgram) AttachToTC(tcFuncName string, attachPoint bpf.TcAttachPoint) (*bpf.TcHook, *bpf.TcOpts, error) {
 	hook := prog.BpfModule.TcHookInit()
 	err := hook.SetInterfaceByName(prog.interfaceName)

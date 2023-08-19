@@ -154,7 +154,7 @@ struct unused {};
 struct BIO {
     void* libctx;
     const struct unused* method;
-    unused_fn callback;
+unused_fn callback;
     unused_fn callback_ex;
     char* cb_arg; /* first argument for the callback */
     int init;
@@ -249,7 +249,7 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
 
     struct BIO bio_r;
     bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
-    // bpf_ringbuf_output(&debug_events, &bio_r, sizeof(struct BIO), 0);
+    bpf_ringbuf_output(&debug_events, &bio_r, sizeof(struct BIO), 0);
 
     // Get the rbio.num (the file descriptor) using offsets
     // int rbio_num;
@@ -262,7 +262,7 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
     // bpf_printk("======================> rbio_num: %d\n", rbio_num);
 
     u32 fd = bio_r.num;
-    bpf_printk("!!!!! openssl uprobe sizeof(bio_r): %d, PID:%d, SSL_read FD:%d\n", sizeof(bio_r), pid, fd);
+    // bpf_printk("!!!!! openssl uprobe sizeof(bio_r): %d, PID:%d, SSL_read FD:%d\n", sizeof(bio_r), pid, fd);
     // bpf_printk("!!!!! openssl uprobe init: %d, shutdown: %d, flags: %d\n", bio_r.init, bio_r.shutdown, bio_r.flags);
     // bpf_printk("!!!!! openssl uprobe retry_reason: %d, num: %d\n", bio_r.retry_reason, bio_r.num);
 
@@ -289,7 +289,7 @@ int probe_ret_SSL_read(struct pt_regs* ctx) {
     if (active_buf_t != NULL) {
         const char* buf;
         u32 fd = active_buf_t->fd;
-        bpf_printk("~~~~~~~~~~~~~~~~~~~~~~~> pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
+        bpf_printk("SSL_read pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
         process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version);
@@ -320,7 +320,7 @@ int probe_entry_SSL_write(struct pt_regs* ctx) {
 
     // get fd ssl->wbio->num
     u32 fd = bio_w.num;
-    bpf_printk("openssl uprobe SSL_write FD:%d\n", fd);
+    bpf_printk("SSL_write FD:%d\n", fd);
 
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
     struct active_buf active_buf_t;
@@ -364,13 +364,15 @@ int probe_connect(struct pt_regs* ctx) {
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
 
-    u32 fd = (u32)PT_REGS_PARM1(ctx);
+    int fd = (int)PT_REGS_PARM1(ctx);
+    bpf_printk("######################## probe_connect fd: %d", fd);
 
     struct sockaddr* saddr = (struct sockaddr*)PT_REGS_PARM2(ctx);
     if (!saddr) {
         return 0;
     }
 
+    
     sa_family_t address_family = 0;
     bpf_probe_read_user(&address_family, sizeof(address_family), &saddr->sa_family);
 
@@ -499,7 +501,7 @@ int probe_ret_socket(struct pt_regs* ctx) {
 }
 
 // ssize_t sendto(int fd, const void *buf, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-SEC("uprobe/send")
+SEC("kprobe/send")
 int probe_entry_send(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
@@ -524,7 +526,7 @@ int probe_entry_send(struct pt_regs* ctx) {
 }
 
 // ssize_t send(int fd, const void *buf, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-SEC("uretprobe/send")
+SEC("kretprobe/send")
 int probe_ret_send(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
@@ -542,10 +544,27 @@ int probe_ret_send(struct pt_regs* ctx) {
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
+
+        // bpf_ringbuf_output(&debug_events, &bio_r, sizeof(struct BIO), 0);
         process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version);
     }
 
     bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
+
+    return 0;
+}
+
+
+SEC("kprobe/sendto")
+int probe_entry_sendto(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+    u64 current_uid_gid = bpf_get_current_uid_gid();
+    u32 uid = current_uid_gid;
+
+    int fd = (int)PT_REGS_PARM1(ctx);
+
+    bpf_printk("======> probe_entry_sendto pid: %d, current_pid_tgid: %d, fd: %d", pid, current_pid_tgid, fd);
 
     return 0;
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/evanrolfe/dockerdog/internal/models"
 )
@@ -25,8 +26,8 @@ type BPFAgent struct {
 	sockets              models.SocketMap
 }
 
-func NewBPFAgent(bpfFilePath string, btfFilePath string, dockerRootPath string) *BPFAgent {
-	bpfProg, err := NewBPFProgramFromFileArgs(bpfFilePath, btfFilePath, "")
+func NewBPFAgent(bpfBytes []byte, btfFilePath string, dockerRootPath string) *BPFAgent {
+	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -34,7 +35,7 @@ func NewBPFAgent(bpfFilePath string, btfFilePath string, dockerRootPath string) 
 
 	// Intercept the libs from the specified docker container
 	sslLibPathDocker := filepath.Join(dockerRootPath, sslLibPath)
-	libcLibPathDocker := filepath.Join(dockerRootPath, libcLibPath)
+	// libcLibPathDocker := filepath.Join(dockerRootPath, libcLibPath)
 
 	// probe_entry_SSL_read
 	// Entry gives: HTTP/1.1 301 Moved Permanently..
@@ -46,18 +47,23 @@ func NewBPFAgent(bpfFilePath string, btfFilePath string, dockerRootPath string) 
 	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", sslLibPathDocker)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", sslLibPathDocker)
 
+	// kprobe connect
+	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
+	bpfProg.AttachToKProbe("probe_connect", funcName)
+
 	// // uprobe_connect
-	bpfProg.AttachToUProbe("probe_connect", "connect", libcLibPathDocker)
+	// bpfProg.AttachToUProbe("probe_connect", "connect", libcLibPathDocker)
 
 	// // uprobe socket
 	// bpfProg.AttachToURetProbe("probe_ret_socket", "socket", libcLibPathDocker)
 
 	// // uprobe getsockname
-	bpfProg.AttachToURetProbe("probe_ret_getsockname", "getsockname", libcLibPathDocker)
+	// bpfProg.AttachToURetProbe("probe_ret_getsockname", "getsockname", libcLibPathDocker)
 
 	// // uprobe send
-	// bpfProg.AttachToUProbe("probe_entry_send", "send", libcLibPathDocker)
-	// bpfProg.AttachToURetProbe("probe_ret_send", "send", libcLibPathDocker)
+	// funcName := fmt.Sprintf("__%s_sys_sendto", ksymArch())
+	// bpfProg.AttachToKProbe("probe_entry_sendto", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_send", funcName)
 
 	return &BPFAgent{
 		bpfProg:              bpfProg,
@@ -105,7 +111,12 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 			event := models.DataEvent{}
 			event.Decode(payload)
 			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-			fmt.Println(hex.Dump(event.Payload()))
+
+			eventPayload := event.Payload()
+			if len(eventPayload) > 256 {
+				eventPayload = eventPayload[0:128]
+			}
+			fmt.Println(hex.Dump(eventPayload))
 			// Fetch its corresponding connect event
 			socket, exists := agent.sockets[event.Key()]
 			if !exists {
@@ -131,6 +142,17 @@ func (agent *BPFAgent) Close() {
 	agent.sockets.Debug()
 	agent.interuptChan <- 0
 	agent.bpfProg.Close()
+}
+
+func ksymArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x64"
+	case "arm64":
+		return "arm64"
+	default:
+		panic("unsupported architecture")
+	}
 }
 
 // -----------------------------------------------------------------------------

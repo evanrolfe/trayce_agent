@@ -14,9 +14,23 @@ import (
 )
 
 const (
-	bpfFilePath = ".output/ssl.bpf.o"
-	btfFilePath = "5.8.0-23-generic.btf"
+	bpfFilePath = "bundle/ssl.bpf.o"
+	btfFilePath = "bundle/5.8.0-23-generic.btf"
 )
+
+func extractFile(data []byte, destPath string) {
+	f, err := os.Create(destPath)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = f.Write(data)
+	if err != nil {
+		panic(err)
+	}
+
+	f.Close()
+}
 
 func main() {
 	args := os.Args
@@ -30,12 +44,17 @@ func main() {
 		return
 	}
 
-	msgEventsChan := make(chan models.MsgEvent)
-	agent := internal.NewBPFAgent(bpfFilePath, btfFilePath, dockerRootPath)
+	bpfBytes := internal.MustAsset(bpfFilePath)
+	btfBytes := internal.MustAsset(btfFilePath)
+	btfDestFile := "./5.8.0-23-generic.btf"
+	extractFile(btfBytes, btfDestFile)
+
+	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, dockerRootPath)
 	defer agent.Close()
 
 	// Create a channel to receive interrupt signals
 	interrupt := make(chan os.Signal, 1)
+	msgEventsChan := make(chan models.MsgEvent)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("Agent listing...")
@@ -60,10 +79,11 @@ func main() {
 	}()
 
 	// For testing purposes:
-	cmd := exec.Command("curl", "https://www.pntest.io", "--http1.1")
+	cmd := exec.Command("curl", "--parallel", "--parallel-immediate", "--config", "/app/urls.txt", "--http1.1")
 	cmd.Output()
 
 	wg.Wait()
 
 	fmt.Println("Done, closing agent.")
+	os.Remove(btfDestFile)
 }
