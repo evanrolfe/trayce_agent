@@ -3,5 +3,4 @@ dd_agent
 third_party/libbpf-bootstrap
 third_party/libbpfgo
 .DS_Store
-tc
 vendor

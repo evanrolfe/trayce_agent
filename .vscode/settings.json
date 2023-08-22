@@ -13,6 +13,7 @@
     "vmlinux_601.h": "c",
     "vmlinux_602.h": "c",
     "vmlinux_600.h": "c",
-    "bpf_core_read.h": "c"
+    "bpf_core_read.h": "c",
+    "time.h": "c"
   }
 }

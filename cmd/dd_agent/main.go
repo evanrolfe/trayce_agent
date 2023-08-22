@@ -2,6 +2,7 @@ package main
 
 import "C"
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,8 +15,9 @@ import (
 )
 
 const (
-	bpfFilePath = "bundle/ssl.bpf.o"
-	btfFilePath = "bundle/5.8.0-23-generic.btf"
+	bpfFilePath   = "bundle/ssl.bpf.o"
+	btfFilePath   = "bundle/6.2.0-26-generic.btf"
+	sslLibDefault = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 )
 
 func extractFile(data []byte, destPath string) {
@@ -33,23 +35,24 @@ func extractFile(data []byte, destPath string) {
 }
 
 func main() {
-	args := os.Args
-	dockerRootPath := ""
+	// Parse Command line args
+	var pid int
+	var libSslPath string
+	flag.IntVar(&pid, "pid", 0, "The PID of the docker container to instrument. Or 0 to intsrument this container.")
+	flag.StringVar(&libSslPath, "libssl", sslLibDefault, "The path to the libssl shared object.")
+	flag.Parse()
 
-	if len(args) == 2 {
-		dockerPid := args[1]
-		dockerRootPath = fmt.Sprintf("/proc/%s/root", dockerPid)
-	} else if len(args) > 2 {
-		fmt.Println("Wrong args. Example: ./dd_agents {PID}")
-		return
-	}
+	fmt.Println("PID: ", pid)
+	fmt.Println("libssl: ", libSslPath)
 
+	// Extract bundled files
 	bpfBytes := internal.MustAsset(bpfFilePath)
 	btfBytes := internal.MustAsset(btfFilePath)
 	btfDestFile := "./5.8.0-23-generic.btf"
 	extractFile(btfBytes, btfDestFile)
 
-	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, dockerRootPath)
+	// Start the agent
+	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, libSslPath)
 	defer agent.Close()
 
 	// Create a channel to receive interrupt signals
@@ -79,11 +82,15 @@ func main() {
 	}()
 
 	// For testing purposes:
-	cmd := exec.Command("curl", "--parallel", "--parallel-immediate", "--config", "/app/urls.txt", "--http1.1")
+	// cmd := exec.Command("curl", "--parallel", "--parallel-immediate", "--config", "/app/urls.txt", "--http1.1")
+	// cmd.Output()
+	cmd := exec.Command("./request")
 	cmd.Output()
 
 	wg.Wait()
 
 	fmt.Println("Done, closing agent.")
 	os.Remove(btfDestFile)
+
+	// agent.Close()
 }

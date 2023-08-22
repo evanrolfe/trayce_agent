@@ -1,31 +1,29 @@
 # DockerDog
 
-### Setup
-
-Download libbf-bootstrap & lbpfgo:
-```
-git clone --recurse-submodules https://github.com/libbpf/libbpf-bootstrap ./third_party/libbpf-bootstrap
-git clone https://github.com/aquasecurity/libbpfgo  ./third_party/libbpfgo
-cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./libbpf
-```
-
 ### Build
+Start the build container:
 ```
 docker build . -t ddbuild -f Dockerfile.build
-docker run --pid=host --privileged -v ./:/app -it ddbuild
-cd third_party/libbpfgo && make libbpfgo-static
-cd ../../
-make ssl && make go
-./dd_agent
+docker run --privileged -v ./:/app -it ddbuild
+```
+
+Then from within the container run:
+```
+make install-libbpf
+make
 ```
 
 ### Run
+Once you have the built binary at `./dd_agent` run:
+
 ```
 docker build . -t dd
 docker run --pid=host --privileged -it dd
 ```
 
 ### Commands
+
+`curl https://www.pntest.io --http1.1`
 
 Install Go dev dependencies:
 `go install github.com/shuLhan/go-bindata/cmd/go-bindata@latest`
@@ -43,6 +41,12 @@ tc filter del dev eth0 egress pref 49152
 Tracing:
 `strace -o strace_curl.txt -f -e trace=open,close,connect,sendto,recvfrom,send,recv bash -c 'curl --parallel --parallel-immediate --http1.1 --config urls.txt'`
 
+Trace library calls:
+`ltrace -x "@libssl.so.3" -o strace.txt curl https://www.pntest.io --http1.1`
+
+Kernel args wrapped twice (https://stackoverflow.com/questions/69842674/cannot-read-arguements-properly-from-ebpf-kprobe)? Check:
+`$ sudo cat /boot/config-$(uname -r) | grep CONFIG_ARCH_HAS_SYSCALL_WRAPPER`
+
 ### NsEnter
 `docker contaienr inspect ...` to get the PID of the container you want to intercept.
 
@@ -50,3 +54,20 @@ From the dd container:
 ```
 nsenter -t {PID} -n
 ```
+
+### Installing curl:
+
+Download tag from github
+
+(ensure libssl-dev is installed)
+
+follow instructions (https://curl.se/docs/install.html):
+```
+./configure --with-openssl
+make
+make install
+```
+
+Try: `/usr/local/bin/curl --version`
+
+May need to run `ldconfig`

@@ -5,15 +5,18 @@ VOLUME [ "/app" ]
 
 # Build dependencies:
 RUN apt update -y
-RUN apt install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget gcc-multilib binutils
+RUN apt install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget gcc-multilib binutils git
 
 # Debugging tools:
 RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
-# RUN apt install python3-pip
+# RUN apt install python3-pip ruby
 
 # Install Go
 RUN wget https://go.dev/dl/go1.20.4.linux-386.tar.gz
 RUN tar -C /usr/local -xf go1.20.4.linux-386.tar.gz
-ENV PATH "$PATH:/usr/local/go/bin"
+ENV PATH "$PATH:/usr/local/go/bin:/root/go/bin"
+
+# Go Build dependencies
+RUN go install github.com/shuLhan/go-bindata/cmd/go-bindata@latest
 
 CMD mount -t debugfs debugfs /sys/kernel/debug && bash

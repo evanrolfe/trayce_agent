@@ -5,9 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 
+	"github.com/aquasecurity/libbpfgo"
 	"github.com/evanrolfe/dockerdog/internal/models"
 )
 
@@ -19,33 +19,35 @@ const (
 
 type BPFAgent struct {
 	bpfProg              *BPFProgram
+	sockets              models.SocketMap
+	interuptChan         chan int
 	dataEventsChan       chan []byte
 	socketAddrEventsChan chan []byte
 	debugEventsChan      chan []byte
-	interuptChan         chan int
-	sockets              models.SocketMap
+	dataEventsBuf        *libbpfgo.RingBuffer
+	socketAddrEventsBuf  *libbpfgo.RingBuffer
+	debugEventsBuf       *libbpfgo.RingBuffer
 }
 
-func NewBPFAgent(bpfBytes []byte, btfFilePath string, dockerRootPath string) *BPFAgent {
+func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAgent {
 	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
-	// Intercept the libs from the specified docker container
-	sslLibPathDocker := filepath.Join(dockerRootPath, sslLibPath)
-	// libcLibPathDocker := filepath.Join(dockerRootPath, libcLibPath)
-
 	// probe_entry_SSL_read
 	// Entry gives: HTTP/1.1 301 Moved Permanently..
-	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", sslLibPathDocker)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", sslLibPathDocker)
+	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
+
+	bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
 
 	// probe_entry_SSL_write
 	// Return gives: GET / HTTP/1.1..
-	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", sslLibPathDocker)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", sslLibPathDocker)
+	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
 
 	// kprobe connect
 	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
@@ -67,39 +69,40 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, dockerRootPath string) *BP
 
 	return &BPFAgent{
 		bpfProg:              bpfProg,
+		sockets:              models.NewSocketMap(),
+		interuptChan:         make(chan int),
 		dataEventsChan:       make(chan []byte),
 		socketAddrEventsChan: make(chan []byte),
 		debugEventsChan:      make(chan []byte),
-		interuptChan:         make(chan int),
-		sockets:              models.NewSocketMap(),
 	}
 }
 
 func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 	// DataEvents ring buffer
-	dataEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.dataEventsChan)
+	var err error
+	agent.dataEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.dataEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
 	// SocketAddrEvents ring buffer
-	socketAddrEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("socket_addr_events", agent.socketAddrEventsChan)
+	agent.socketAddrEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("socket_addr_events", agent.socketAddrEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
 	// DebugEvents ring buffer
-	debugEventsBuf, err := agent.bpfProg.BpfModule.InitRingBuf("debug_events", agent.debugEventsChan)
+	agent.debugEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("debug_events", agent.debugEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
-	dataEventsBuf.Poll(bufPollRateMs)
-	socketAddrEventsBuf.Poll(bufPollRateMs)
-	debugEventsBuf.Poll(bufPollRateMs)
+	agent.dataEventsBuf.Poll(bufPollRateMs)
+	agent.socketAddrEventsBuf.Poll(bufPollRateMs)
+	agent.debugEventsBuf.Poll(bufPollRateMs)
 
 	for {
 		// Check if the interrupt signal has been received
@@ -139,8 +142,18 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 }
 
 func (agent *BPFAgent) Close() {
-	agent.sockets.Debug()
-	agent.interuptChan <- 0
+	// agent.dataEventsBuf.Stop()
+	// agent.dataEventsBuf.Close()
+	// agent.debugEventsBuf.Stop()
+	// agent.debugEventsBuf.Close()
+	// agent.socketAddrEventsBuf.Stop()
+	// agent.socketAddrEventsBuf.Close()
+
+	agent.interuptChan <- 1
+	// close(agent.interuptChan)
+	// close(agent.socketAddrEventsChan)
+	// close(agent.dataEventsChan)
+
 	agent.bpfProg.Close()
 }
 
