@@ -8,19 +8,19 @@ DIV = "+------------------------------------------------+"
 
 all: build-bpf build
 
+# Install libbpf - clone libbpf-bootstrap which comes with extra tools we need, clone libbpfgo and link it to our
+# copy of libbpf from libbpf-bootstrap, then build libbpfgo statically
 install-libbpf: clean
 	git clone --recurse-submodules https://github.com/libbpf/libbpf-bootstrap ./third_party/libbpf-bootstrap
 	git clone https://github.com/aquasecurity/libbpfgo  ./third_party/libbpfgo
-# Use our own copy of libbpf:
 	cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./libbpf
-
-# Build libbpfgo static
 	cd third_party/libbpfgo && make libbpfgo-static
 
-# Compile the BPF binary to .output/dd_agent
+# Compile the BPF code to .output/ssl.bpf.o
 build-bpf:
 	make -C kernel ssl
 
+# Compile our Go binary using .output/ssl.bpf.o
 build:
 # Bundle the BPF binary into our Go code:
 	cp .output/ssl.bpf.o bundle/ssl.bpf.o
@@ -42,3 +42,4 @@ clean:
 	rm -rf .output
 	rm -rf third_party/libbpf-bootstrap
 	rm -rf third_party/libbpfgo
+	rm -f internal/bundle.go

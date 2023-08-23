@@ -2,7 +2,6 @@ package internal
 
 import "C"
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
@@ -18,15 +17,15 @@ const (
 )
 
 type BPFAgent struct {
-	bpfProg              *BPFProgram
-	sockets              models.SocketMap
-	interuptChan         chan int
-	dataEventsChan       chan []byte
-	socketAddrEventsChan chan []byte
-	debugEventsChan      chan []byte
-	dataEventsBuf        *libbpfgo.RingBuffer
-	socketAddrEventsBuf  *libbpfgo.RingBuffer
-	debugEventsBuf       *libbpfgo.RingBuffer
+	bpfProg           *BPFProgram
+	sockets           models.SocketMap
+	interuptChan      chan int
+	dataEventsChan    chan []byte
+	connectEventsChan chan []byte
+	debugEventsChan   chan []byte
+	dataEventsBuf     *libbpfgo.RingBuffer
+	connectEventsBuf  *libbpfgo.RingBuffer
+	debugEventsBuf    *libbpfgo.RingBuffer
 }
 
 func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAgent {
@@ -52,28 +51,15 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 	// kprobe connect
 	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
 	bpfProg.AttachToKProbe("probe_connect", funcName)
-
-	// // uprobe_connect
-	// bpfProg.AttachToUProbe("probe_connect", "connect", libcLibPathDocker)
-
-	// // uprobe socket
-	// bpfProg.AttachToURetProbe("probe_ret_socket", "socket", libcLibPathDocker)
-
-	// // uprobe getsockname
-	// bpfProg.AttachToURetProbe("probe_ret_getsockname", "getsockname", libcLibPathDocker)
-
-	// // uprobe send
-	// funcName := fmt.Sprintf("__%s_sys_sendto", ksymArch())
-	// bpfProg.AttachToKProbe("probe_entry_sendto", funcName)
-	// bpfProg.AttachToKRetProbe("probe_ret_send", funcName)
+	bpfProg.AttachToKRetProbe("probe_ret_connect", funcName)
 
 	return &BPFAgent{
-		bpfProg:              bpfProg,
-		sockets:              models.NewSocketMap(),
-		interuptChan:         make(chan int),
-		dataEventsChan:       make(chan []byte),
-		socketAddrEventsChan: make(chan []byte),
-		debugEventsChan:      make(chan []byte),
+		bpfProg:           bpfProg,
+		sockets:           models.NewSocketMap(),
+		interuptChan:      make(chan int),
+		dataEventsChan:    make(chan []byte),
+		connectEventsChan: make(chan []byte),
+		debugEventsChan:   make(chan []byte),
 	}
 }
 
@@ -87,7 +73,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 	}
 
 	// SocketAddrEvents ring buffer
-	agent.socketAddrEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("socket_addr_events", agent.socketAddrEventsChan)
+	agent.connectEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("connect_events", agent.connectEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -101,7 +87,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 	}
 
 	agent.dataEventsBuf.Poll(bufPollRateMs)
-	agent.socketAddrEventsBuf.Poll(bufPollRateMs)
+	agent.connectEventsBuf.Poll(bufPollRateMs)
 	agent.debugEventsBuf.Poll(bufPollRateMs)
 
 	for {
@@ -113,30 +99,32 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 		case payload := <-agent.dataEventsChan:
 			event := models.DataEvent{}
 			event.Decode(payload)
-			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// fmt.Println(hex.Dump(eventPayload))
 
 			eventPayload := event.Payload()
 			if len(eventPayload) > 256 {
 				eventPayload = eventPayload[0:128]
 			}
-			fmt.Println(hex.Dump(eventPayload))
-			// Fetch its corresponding connect event
+
+			// Fetch its socket
 			socket, exists := agent.sockets[event.Key()]
 			if !exists {
 				continue
 			}
 			outputChan <- models.NewMsgEvent(&event, socket)
 
-		case payload := <-agent.socketAddrEventsChan:
-			event := models.SocketAddrEvent{}
+		case payload := <-agent.connectEventsChan:
+			event := models.ConnectEvent{}
 			event.Decode(payload)
-			fmt.Println("[SocketAddrEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+			// fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
 			// Save the event to the map
-			agent.sockets.ParseAddrEvent(&event)
-		case payload := <-agent.debugEventsChan:
-			fmt.Println("[DebugEvent] Received", len(payload), "bytes")
-			fmt.Println(hex.Dump(payload))
+			agent.sockets.ParseConnectEvent(&event)
+		case _ = <-agent.debugEventsChan:
+			continue
+			// fmt.Println("[DebugEvent] Received", len(payload), "bytes")
+			// fmt.Println(hex.Dump(payload))
 		}
 	}
 }
@@ -167,28 +155,3 @@ func ksymArch() string {
 		panic("unsupported architecture")
 	}
 }
-
-// -----------------------------------------------------------------------------
-// getsockname attempt
-// -----------------------------------------------------------------------------
-
-// type SocketAddress struct {
-// 	Family uint16
-// 	Port   uint16
-// 	Addr   uint32
-// }
-// libcTLS := libc.NewTLS()
-
-// var addrObj SocketAddress
-// var addrLenRaw int
-
-// addrPtr := unsafe.Pointer(&addrObj)
-// addrLenPtr := unsafe.Pointer(&addrLenRaw)
-
-// _, _, err := unix.Syscall(unix.SYS_GETSOCKNAME, uintptr(event.Fd), uintptr(addrPtr), uintptr(addrLenPtr))
-// result := libc.Xgetsockname(libcTLS, int32(event.Fd), uintptr(addrPtr), uintptr(addrLenPtr))
-
-// fmt.Printf("------------------------> addr: %d addrLen: %d, result: %d\n", addrObj, addrLenRaw)
-
-// _, err := C.fn()
-// fmt.Println("err:", int(err))

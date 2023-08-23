@@ -9,7 +9,7 @@ func NewSocketMap() SocketMap {
 	return m
 }
 
-func (m SocketMap) ParseAddrEvent(event *SocketAddrEvent) *SocketDesc {
+func (m SocketMap) ParseConnectEvent(event *ConnectEvent) *SocketDesc {
 	socket, exists := m[event.Key()]
 	if !exists {
 		socket = NewSocketDesc(event.Pid, event.Fd)

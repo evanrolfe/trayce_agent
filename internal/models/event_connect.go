@@ -16,7 +16,7 @@ uint64_t timestamp_ns;
   char sa_data[SA_DATA_LEN];
   char Comm[TASK_COMM_LEN];
 */
-type SocketAddrEvent struct {
+type ConnectEvent struct {
 	TimestampNs uint64 `json:"timestampNs"`
 	Pid         uint32 `json:"pid"`
 	Tid         uint32 `json:"tid"`
@@ -26,7 +26,7 @@ type SocketAddrEvent struct {
 	Local       bool   `json:"local"`
 }
 
-func (ce *SocketAddrEvent) Decode(payload []byte) (err error) {
+func (ce *ConnectEvent) Decode(payload []byte) (err error) {
 	buf := bytes.NewBuffer(payload)
 	// TODO: Is this one little or big?
 	if err = binary.Read(buf, binary.LittleEndian, &ce.TimestampNs); err != nil {
@@ -54,7 +54,7 @@ func (ce *SocketAddrEvent) Decode(payload []byte) (err error) {
 	return nil
 }
 
-func (ce *SocketAddrEvent) IPAddr() string {
+func (ce *ConnectEvent) IPAddr() string {
 	ipBytes := make([]byte, 4)
 	ipBytes[0] = byte(ce.Ip >> 24)
 	ipBytes[1] = byte(ce.Ip >> 16)
@@ -65,7 +65,7 @@ func (ce *SocketAddrEvent) IPAddr() string {
 	return ipAddr.String()
 }
 
-func (ce *SocketAddrEvent) Key() string {
+func (ce *ConnectEvent) Key() string {
 	return fmt.Sprintf("%d-%d", ce.Pid, ce.Fd)
 }
 

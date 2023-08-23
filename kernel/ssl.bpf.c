@@ -78,7 +78,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024); // 256 KB
-} socket_addr_events SEC(".maps");
+} connect_events SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -120,6 +120,13 @@ struct {
     __type(value, struct active_buf);
     __uint(max_entries, 1024);
 } active_write_args_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, struct connect_event_t);
+    __uint(max_entries, 1024);
+} active_connect_args_map SEC(".maps");
 
 // Key is the file descriptor FD, Value is the protocol
 struct {
@@ -408,7 +415,7 @@ int probe_connect(struct pt_regs* ctx, int sockfd) {
     u32 fd;
     bpf_probe_read(&fd, sizeof(fd), fd_ptr);
 
-    // How the fuck did I know to do this ctx2 trick here? Credits to kubearmor:
+    // How the hell did I know to do this ctx2 trick here? Credits to kubearmor:
     // https://github.com/kubearmor/KubeArmor/blob/main/KubeArmor/BPF/system_monitor.c#L1332
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
@@ -426,12 +433,19 @@ int probe_connect(struct pt_regs* ctx, int sockfd) {
     u32 ip;
     u16 port;
     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
-    bpf_probe_read_user(&ip, sizeof(u32), &sin->sin_addr.s_addr);
-    bpf_probe_read_user(&port, sizeof(u16), &sin->sin_port);
 
-    bpf_printk("######################## probe_connect fd: %d, saddr: %d, port: %d", fd, address_family);
-    bpf_ringbuf_output(&debug_events, &ip, sizeof(u32), 0);
-    bpf_ringbuf_output(&debug_events, &port, sizeof(u16), 0);
+    // // Build the connect_event and save it to the map
+    struct connect_event_t conn_event;
+    __builtin_memset(&conn_event, 0, sizeof(conn_event));
+    conn_event.timestamp_ns = bpf_ktime_get_ns();
+    conn_event.pid = pid;
+    conn_event.tid = current_pid_tgid;
+    conn_event.fd = fd;
+    conn_event.local = false;
+    bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
+    bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
+
+    bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
 
     return 0;
 }
@@ -445,150 +459,19 @@ int probe_ret_connect(struct pt_regs* ctx, int sockfd) {
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
 
-    // Extract the pointer to the file descriptor from the argument
-    u32 *fd_ptr = (u32*)PT_REGS_PARM1(ctx);
-    u32 fd;
-    bpf_probe_read(&fd, sizeof(fd), fd_ptr);
-
-    int ret = (int)PT_REGS_RC(ctx);
-    if (ret != 0)
+    // Check the call to connect() was successful
+    int res = (int)PT_REGS_RC(ctx);
+    if (res != 0)
         return 0;
 
-    // if (saddr != NULL) {
-    bpf_printk("######################## probe_connect ret: %d, fd: %d", ret, fd);
-    // } else {
-    //     bpf_printk("saddr is NULL, fd: %d, saddr: %d", fd, saddr);
-    // }
-    // struct sockaddr* saddr = (struct sockaddr*)PT_REGS_PARM2(ctx);
-    // // if (!saddr) {
-    // //     bpf_printk("!saddr");
-    // //     return 0;
-    // // }
+    // Send entry data from map
+    struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
 
-    // sa_family_t address_family = 0;
-    // bpf_probe_read_user(&address_family, sizeof(address_family), &saddr->sa_family);
-
-    // if (address_family != AF_INET) {
-    //     bpf_printk("! address_family != AF_INET");
-    //     return 0;
-    // }
-
-    // // Get the IP Protocol
-    // bpf_printk("probe_connect pid: %d, current_pid_tgid: %d, fd: %d", pid, current_pid_tgid, fd);
-
-    // // Get the socket address
-    // struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
-
-    // // Build the connect_event
-    // struct connect_event_t conn_event;
-    // __builtin_memset(&conn_event, 0, sizeof(conn_event));
-    // conn_event.timestamp_ns = bpf_ktime_get_ns();
-    // conn_event.pid = pid;
-    // conn_event.tid = current_pid_tgid;
-    // conn_event.fd = fd;
-    // conn_event.local = false;
-
-    // bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
-    // bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-    // bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct connect_event_t), 0);
-
-    return 0;
-}
-
-// SEC("uretprobe/connect")
-// int probe_ret_connect(struct pt_regs* ctx) {
-//     u64 current_pid_tgid = bpf_get_current_pid_tgid();
-//     u32 pid = current_pid_tgid >> 32;
-//     u64 current_uid_gid = bpf_get_current_uid_gid();
-//     u32 uid = current_uid_gid;
-
-//     u32 fd = (u32)PT_REGS_PARM1(ctx);
-//     bpf_printk("RETURN: probe_connect fd: %d", fd);
-
-//     struct sockaddr* saddr = (struct sockaddr*)PT_REGS_PARM2(ctx);
-//     if (!saddr) {
-//         return 0;
-//     }
-
-//     sa_family_t address_family = 0;
-//     bpf_probe_read_user(&address_family, sizeof(address_family), &saddr->sa_family);
-
-//     if (address_family != AF_INET) {
-//         return 0;
-//     }
-
-//     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
-//     struct connect_event_t conn_event;
-//     __builtin_memset(&conn_event, 0, sizeof(conn_event));
-
-//     conn_event.timestamp_ns = bpf_ktime_get_ns();
-//     conn_event.pid = pid;
-//     conn_event.tid = current_pid_tgid;
-//     conn_event.fd = fd;
-
-//     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
-//     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-//     bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct connect_event_t), 0);
-
-//     return 0;
-// }
-
-// int getsockname(int sockfd, struct sockaddr *restrict addr, socklen_t *restrict addrlen);
-SEC("uretprobe/getsockname")
-int probe_ret_getsockname(struct pt_regs* ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
-
-    u32 fd = (u32)PT_REGS_PARM1(ctx);
-
-    struct sockaddr* saddr = (struct sockaddr*)PT_REGS_PARM2(ctx);
-    if (!saddr) {
-        return 0;
+    if (conn_event != NULL) {
+        bpf_ringbuf_output(&connect_events, conn_event, sizeof(struct connect_event_t), 0);
     }
 
-    sa_family_t address_family = 0;
-    bpf_probe_read_user(&address_family, sizeof(address_family), &saddr->sa_family);
-
-    if (address_family != AF_INET) {
-        return 0;
-    }
-
-    // Get the socket address
-    struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
-
-    // Build the connect_event
-    struct connect_event_t conn_event;
-    __builtin_memset(&conn_event, 0, sizeof(conn_event));
-    conn_event.timestamp_ns = bpf_ktime_get_ns();
-    conn_event.pid = pid;
-    conn_event.tid = current_pid_tgid;
-    conn_event.fd = fd;
-    conn_event.local = true;
-
-    bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
-    bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-    bpf_ringbuf_output(&socket_addr_events, &conn_event, sizeof(struct connect_event_t), 0);
-
-    // bpf_printk("!!!!!!!!> GETSOCKNAME fd: %d, pid: %d, current_pid_tgid: %d", fd, pid, current_pid_tgid);
-    // bpf_map_update_elem(&socket_src_addr_map, &fd, &saddr, BPF_ANY);
-
-    return 0;
-}
-
-// int socket(int domain, int type, int protocol);
-SEC("uretprobe/socket")
-int probe_ret_socket(struct pt_regs* ctx) {
-    int domain = (int)PT_REGS_PARM1(ctx);
-    int protocol = (int)PT_REGS_PARM3(ctx);
-    int fd = (int)PT_REGS_RC(ctx);
-
-    if (domain != AF_INET) {
-        return 0;
-    }
-
-    bpf_map_update_elem(&socket_protocol_map, &fd, &protocol, BPF_ANY);
+    bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
 
     return 0;
 }
@@ -643,21 +526,6 @@ int probe_ret_send(struct pt_regs* ctx) {
     }
 
     bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
-
-    return 0;
-}
-
-
-SEC("kprobe/sendto")
-int probe_entry_sendto(struct pt_regs* ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
-
-    int fd = (int)PT_REGS_PARM1(ctx);
-
-    bpf_printk("======> probe_entry_sendto pid: %d, current_pid_tgid: %d, fd: %d", pid, current_pid_tgid, fd);
 
     return 0;
 }
