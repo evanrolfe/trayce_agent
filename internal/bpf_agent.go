@@ -11,9 +11,7 @@ import (
 )
 
 const (
-	bufPollRateMs = 200
-	sslLibPath    = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
-	libcLibPath   = "/usr/lib/x86_64-linux-gnu/libc.so.6"
+	bufPollRateMs = 50
 )
 
 type BPFAgent struct {
@@ -22,9 +20,11 @@ type BPFAgent struct {
 	interuptChan      chan int
 	dataEventsChan    chan []byte
 	connectEventsChan chan []byte
+	closeEventsChan   chan []byte
 	debugEventsChan   chan []byte
 	dataEventsBuf     *libbpfgo.RingBuffer
 	connectEventsBuf  *libbpfgo.RingBuffer
+	closeEventsBuf    *libbpfgo.RingBuffer
 	debugEventsBuf    *libbpfgo.RingBuffer
 }
 
@@ -53,12 +53,18 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 	bpfProg.AttachToKProbe("probe_connect", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_connect", funcName)
 
+	// kprobe close
+	funcName = fmt.Sprintf("__%s_sys_close", ksymArch())
+	bpfProg.AttachToKProbe("probe_close", funcName)
+	bpfProg.AttachToKRetProbe("probe_ret_close", funcName)
+
 	return &BPFAgent{
 		bpfProg:           bpfProg,
 		sockets:           models.NewSocketMap(),
 		interuptChan:      make(chan int),
 		dataEventsChan:    make(chan []byte),
 		connectEventsChan: make(chan []byte),
+		closeEventsChan:   make(chan []byte),
 		debugEventsChan:   make(chan []byte),
 	}
 }
@@ -72,8 +78,15 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 		os.Exit(-1)
 	}
 
-	// SocketAddrEvents ring buffer
+	// ConnectEvents ring buffer
 	agent.connectEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("connect_events", agent.connectEventsChan)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	// CloseEvents ring buffer
+	agent.closeEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("close_events", agent.closeEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -88,6 +101,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 
 	agent.dataEventsBuf.Poll(bufPollRateMs)
 	agent.connectEventsBuf.Poll(bufPollRateMs)
+	agent.closeEventsBuf.Poll(bufPollRateMs)
 	agent.debugEventsBuf.Poll(bufPollRateMs)
 
 	for {
@@ -100,12 +114,6 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 			event := models.DataEvent{}
 			event.Decode(payload)
 			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-			// fmt.Println(hex.Dump(eventPayload))
-
-			eventPayload := event.Payload()
-			if len(eventPayload) > 256 {
-				eventPayload = eventPayload[0:128]
-			}
 
 			// Fetch its socket
 			socket, exists := agent.sockets[event.Key()]
@@ -121,6 +129,13 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 
 			// Save the event to the map
 			agent.sockets.ParseConnectEvent(&event)
+
+		case payload := <-agent.closeEventsChan:
+			event := models.CloseEvent{}
+			event.Decode(payload)
+
+			agent.sockets.ParseCloseEvent(&event)
+
 		case _ = <-agent.debugEventsChan:
 			continue
 			// fmt.Println("[DebugEvent] Received", len(payload), "bytes")
@@ -130,18 +145,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 }
 
 func (agent *BPFAgent) Close() {
-	// agent.dataEventsBuf.Stop()
-	// agent.dataEventsBuf.Close()
-	// agent.debugEventsBuf.Stop()
-	// agent.debugEventsBuf.Close()
-	// agent.socketAddrEventsBuf.Stop()
-	// agent.socketAddrEventsBuf.Close()
-
 	agent.interuptChan <- 1
-	// close(agent.interuptChan)
-	// close(agent.socketAddrEventsChan)
-	// close(agent.dataEventsChan)
-
 	agent.bpfProg.Close()
 }
 

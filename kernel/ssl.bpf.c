@@ -48,6 +48,7 @@ typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum data_event_type { kSSLRead, kSSLWrite };
 const u32 invalidFD = 0;
+
 struct data_event_t {
     enum data_event_type type;
     u64 timestamp_ns;
@@ -70,6 +71,13 @@ struct connect_event_t {
     bool local;
 };
 
+struct close_event_t {
+    u64 timestamp_ns;
+    u32 pid;
+    u32 tid;
+    u32 fd;
+};
+
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024); // 256 KB
@@ -79,6 +87,11 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024); // 256 KB
 } connect_events SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024); // 256 KB
+} close_events SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -94,11 +107,6 @@ struct active_buf {
     s32 version;
     u32 fd;
     const char* buf;
-};
-
-struct socket_args {
-    // The IP protocol (TCP/UDP)
-    u32 protocol;
 };
 
 /***********************************************************
@@ -128,21 +136,12 @@ struct {
     __uint(max_entries, 1024);
 } active_connect_args_map SEC(".maps");
 
-// Key is the file descriptor FD, Value is the protocol
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, u64);
-    __type(value, int);
+    __type(value, struct close_event_t);
     __uint(max_entries, 1024);
-} socket_protocol_map SEC(".maps");
-
-// Key is the file descriptor FD, Value is the addr
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u64);
-    __type(value, struct sockaddr);
-    __uint(max_entries, 1024);
-} socket_src_addr_map SEC(".maps");
+} active_close_args_map SEC(".maps");
 
 // BPF programs are limited to a 512-byte stack. We store this value per CPU
 // and use it as a heap allocated value.
@@ -403,8 +402,8 @@ int probe_ret_SSL_write(struct pt_regs* ctx) {
 
 // https://linux.die.net/man/3/connect
 // int connect(int socket, const struct sockaddr *address, socklen_t address_len);
-SEC("kprobe/__x64_connect")
-int probe_connect(struct pt_regs* ctx, int sockfd) {
+SEC("kprobe/connect")
+int probe_connect(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
@@ -434,7 +433,7 @@ int probe_connect(struct pt_regs* ctx, int sockfd) {
     u16 port;
     struct sockaddr_in* sin = (struct sockaddr_in*)saddr;
 
-    // // Build the connect_event and save it to the map
+    // Build the connect_event and save it to the map
     struct connect_event_t conn_event;
     __builtin_memset(&conn_event, 0, sizeof(conn_event));
     conn_event.timestamp_ns = bpf_ktime_get_ns();
@@ -450,10 +449,8 @@ int probe_connect(struct pt_regs* ctx, int sockfd) {
     return 0;
 }
 
-// https://linux.die.net/man/3/connect
-// int connect(int socket, const struct sockaddr *address, socklen_t address_len);
 SEC("kretprobe/connect")
-int probe_ret_connect(struct pt_regs* ctx, int sockfd) {
+int probe_ret_connect(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
@@ -476,56 +473,55 @@ int probe_ret_connect(struct pt_regs* ctx, int sockfd) {
     return 0;
 }
 
-// ssize_t sendto(int fd, const void *buf, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-SEC("kprobe/send")
-int probe_entry_send(struct pt_regs* ctx) {
+// https://linux.die.net/man/3/close
+// int connect(int fd);
+SEC("kprobe/close")
+int probe_close(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
 
-    u32 fd = (u32)PT_REGS_PARM1(ctx);
+    // Extract the pointer to the file descriptor from the argument
+    u32 *fd_ptr = (u32*)PT_REGS_PARM1(ctx);
+    u32 fd;
+    bpf_probe_read(&fd, sizeof(fd), fd_ptr);
 
-    size_t len = (size_t)PT_REGS_PARM3(ctx);
+    // Build the connect_event and save it to the map
+    struct close_event_t close_event;
+    __builtin_memset(&close_event, 0, sizeof(close_event));
+    close_event.timestamp_ns = bpf_ktime_get_ns();
+    close_event.pid = pid;
+    close_event.tid = current_pid_tgid;
+    close_event.fd = fd;
 
-    bpf_printk("======> entry_send pid: %d, current_pid_tgid: %d, fd: %d", pid, current_pid_tgid, fd);
-    bpf_printk("======> entry_send len: %d", len);
+    bpf_map_update_elem(&active_close_args_map, &current_pid_tgid, &close_event, BPF_ANY);
 
-    const char* buf = (const char*)PT_REGS_PARM2(ctx);
-    struct active_buf active_buf_t;
-    __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
-    active_buf_t.fd = fd;
-    active_buf_t.buf = buf;
-    bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
+    bpf_printk("--------------------> CLOSE: fd: %d", fd);
 
     return 0;
 }
 
-// ssize_t send(int fd, const void *buf, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-SEC("kretprobe/send")
-int probe_ret_send(struct pt_regs* ctx) {
+SEC("kretprobe/close")
+int probe_ret_close(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     u64 current_uid_gid = bpf_get_current_uid_gid();
     u32 uid = current_uid_gid;
 
-    int len = (int)PT_REGS_RC(ctx);
-    bpf_printk("====== >return_send current_pid_tgid: %d, len: %d", current_pid_tgid, len);
+    // Check the call to close() was successful
+    int res = (int)PT_REGS_RC(ctx);
+    if (res != 0)
+        return 0;
 
-    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
+    // Send entry data from map
+    struct close_event_t* conn_event = bpf_map_lookup_elem(&active_close_args_map, &current_pid_tgid);
 
-    if (active_buf_t != NULL) {
-        // bpf_printk("return_send current_pid_tgid: %d, fd: %d", current_pid_tgid, active_buf_t->fd);
-        const char* buf;
-        u32 fd = active_buf_t->fd;
-        s32 version = active_buf_t->version;
-        bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
-
-        // bpf_ringbuf_output(&debug_events, &bio_r, sizeof(struct BIO), 0);
-        process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version);
+    if (conn_event != NULL) {
+        bpf_ringbuf_output(&close_events, conn_event, sizeof(struct close_event_t), 0);
     }
 
-    bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
+    bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
 
     return 0;
 }

@@ -2,6 +2,7 @@ package models
 
 import "fmt"
 
+// SocketMap tracks sockets which have been observed in ebpf
 type SocketMap map[string]*SocketDesc
 
 func NewSocketMap() SocketMap {
@@ -25,6 +26,10 @@ func (m SocketMap) ParseConnectEvent(event *ConnectEvent) *SocketDesc {
 	}
 
 	return socket
+}
+
+func (m SocketMap) ParseCloseEvent(event *CloseEvent) {
+	delete(m, event.Key())
 }
 
 func (m SocketMap) AddProtocol() {

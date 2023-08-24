@@ -7,15 +7,7 @@ import (
 	"net"
 )
 
-//  connect_events map
-/*
-uint64_t timestamp_ns;
-  uint32_t pid;
-  uint32_t tid;
-  uint32_t fd;
-  char sa_data[SA_DATA_LEN];
-  char Comm[TASK_COMM_LEN];
-*/
+// ConnectEvent is sent from ebpf when a socket is connected, see corresponding: struct connect_event_t
 type ConnectEvent struct {
 	TimestampNs uint64 `json:"timestampNs"`
 	Pid         uint32 `json:"pid"`

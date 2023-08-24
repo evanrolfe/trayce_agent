@@ -8,8 +8,15 @@ import (
 	"github.com/evanrolfe/dockerdog/internal/utils"
 )
 
+const (
+	kSSLRead    = 0
+	kSSLWrite   = 1
+	TypeEgress  = "egress"
+	TypeIngress = "ingress"
+)
+
+// DataEvent is sent from ebpf when data is sent or received over a socket, see corresponding: struct data_event_t
 type DataEvent struct {
-	eventType EventType
 	DataType  int64             `json:"dataType"`
 	Timestamp uint64            `json:"timestamp"`
 	Pid       uint32            `json:"pid"`
@@ -68,12 +75,12 @@ func (se *DataEvent) PayloadLen() int {
 
 func (se *DataEvent) Type() string {
 	switch AttachType(se.DataType) {
-	case ProbeEntry:
-		return "ProbeEntry"
-	case ProbeRet:
-		return "ProbeReturn"
+	case kSSLRead:
+		return TypeIngress
+	case kSSLWrite:
+		return TypeEgress
 	default:
-		return "unknown"
+		return ""
 	}
 }
 

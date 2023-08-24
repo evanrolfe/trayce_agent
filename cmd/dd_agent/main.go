@@ -2,6 +2,7 @@ package main
 
 import "C"
 import (
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -75,8 +76,8 @@ func main() {
 				wg.Done()
 				return
 			case msgEvent := <-msgEventsChan:
-				fmt.Printf("[MsgEvent] Local: %s, Remote: %s\n", msgEvent.LocalAddr, msgEvent.RemoteAddr)
-				// fmt.Println(hex.Dump(msgEvent.Payload))
+				fmt.Printf("[MsgEvent] %s - Local: %s, Remote: %s\n", msgEvent.Type, msgEvent.LocalAddr, msgEvent.RemoteAddr)
+				fmt.Println(hex.Dump(msgEvent.Payload))
 			}
 		}
 	}()

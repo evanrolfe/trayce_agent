@@ -5,3 +5,5 @@ third_party/libbpfgo
 .DS_Store
 vendor
 tmp
+internal/bundle.go
+bundle/ssl.bpf.o
