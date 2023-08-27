@@ -7,17 +7,17 @@ import (
 )
 
 // SocketMap tracks sockets which have been observed in ebpf
-type SocketMap map[string]*SocketDesc
+type SocketMap map[string]*SocketHttp11
 
 func NewSocketMap() SocketMap {
 	m := make(SocketMap)
 	return m
 }
 
-func (m SocketMap) ProcessConnectEvent(event *bpf_events.ConnectEvent) *SocketDesc {
+func (m SocketMap) ProcessConnectEvent(event *bpf_events.ConnectEvent) *SocketHttp11 {
 	socket, exists := m[event.Key()]
 	if !exists {
-		socket = NewSocketDesc(event.Pid, event.Fd)
+		socket = NewSocketHttp11(event.Pid, event.Fd)
 		m[event.Key()] = socket
 	}
 
@@ -32,7 +32,7 @@ func (m SocketMap) ProcessConnectEvent(event *bpf_events.ConnectEvent) *SocketDe
 	return socket
 }
 
-func (m SocketMap) GetSocket(key string) (*SocketDesc, bool) {
+func (m SocketMap) GetSocket(key string) (*SocketHttp11, bool) {
 	socket, exists := m[key]
 	return socket, exists
 }

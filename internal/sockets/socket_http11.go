@@ -10,7 +10,7 @@ import (
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 )
 
-type SocketDesc struct {
+type SocketHttp11 struct {
 	LocalAddr   string
 	RemoteAddr  string
 	Protocol    string
@@ -21,8 +21,8 @@ type SocketDesc struct {
 	msgBuf      *SocketMsg
 }
 
-func NewSocketDesc(Pid uint32, Fd uint32) *SocketDesc {
-	m := &SocketDesc{
+func NewSocketHttp11(Pid uint32, Fd uint32) *SocketHttp11 {
+	m := &SocketHttp11{
 		Pid:     Pid,
 		Fd:      Fd,
 		dataBuf: []byte{},
@@ -30,15 +30,15 @@ func NewSocketDesc(Pid uint32, Fd uint32) *SocketDesc {
 	return m
 }
 
-func (socket *SocketDesc) IsComplete() bool {
+func (socket *SocketHttp11) IsComplete() bool {
 	return (socket.LocalAddr == "" || socket.RemoteAddr == "" || socket.Protocol == "")
 }
 
-func (socket *SocketDesc) Key() string {
+func (socket *SocketHttp11) Key() string {
 	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
 }
 
-func (socket *SocketDesc) ProcessDataEvent(event *bpf_events.DataEvent) *SocketMsg {
+func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *SocketMsg {
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
 	// Attempt to parse buffer as an HTTP request
@@ -75,7 +75,7 @@ func (socket *SocketDesc) ProcessDataEvent(event *bpf_events.DataEvent) *SocketM
 	return nil
 }
 
-func (socket *SocketDesc) parseHTTPRequest(buf []byte) *http.Request {
+func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 	// Try parsing the buffer to an HTTP response
 	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(buf)))
 	if err != nil {
@@ -97,7 +97,7 @@ func (socket *SocketDesc) parseHTTPRequest(buf []byte) *http.Request {
 	return req
 }
 
-func (socket *SocketDesc) parseHTTPResponse(buf []byte) *http.Response {
+func (socket *SocketHttp11) parseHTTPResponse(buf []byte) *http.Response {
 	// Try parsing the buffer to an HTTP response
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(buf)), nil)
 	if err != nil {
@@ -119,14 +119,14 @@ func (socket *SocketDesc) parseHTTPResponse(buf []byte) *http.Response {
 	return resp
 }
 
-func (socket *SocketDesc) clearDataBuffer() {
+func (socket *SocketHttp11) clearDataBuffer() {
 	socket.dataBuf = []byte{}
 }
 
-func (socket *SocketDesc) clearMsgBuffer() {
+func (socket *SocketHttp11) clearMsgBuffer() {
 	socket.msgBuf = nil
 }
 
-func (socket *SocketDesc) clearReqBuffer() {
+func (socket *SocketHttp11) clearReqBuffer() {
 	socket.bufferedReq = nil
 }
