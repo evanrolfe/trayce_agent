@@ -10,7 +10,7 @@ func NewSocketMap() SocketMap {
 	return m
 }
 
-func (m SocketMap) ParseConnectEvent(event *ConnectEvent) *SocketDesc {
+func (m SocketMap) ProcessConnectEvent(event *ConnectEvent) *SocketDesc {
 	socket, exists := m[event.Key()]
 	if !exists {
 		socket = NewSocketDesc(event.Pid, event.Fd)
@@ -28,17 +28,23 @@ func (m SocketMap) ParseConnectEvent(event *ConnectEvent) *SocketDesc {
 	return socket
 }
 
-func (m SocketMap) ParseCloseEvent(event *CloseEvent) {
-	delete(m, event.Key())
+func (m SocketMap) GetSocket(key string) (*SocketDesc, bool) {
+	socket, exists := m[key]
+	return socket, exists
 }
 
-func (m SocketMap) AddProtocol() {
+func (m SocketMap) ProcessDataEvent(event *DataEvent) (SocketMsgI, error) {
+	socket, exists := m.GetSocket(event.Key())
 
-}
-
-func (m SocketMap) Debug() {
-	fmt.Println("-------------------------------------------------------------\nSockets:")
-	for key, value := range m {
-		fmt.Printf("	%s => {Src: %s, Dst: %s, %s}\n", key, value.LocalAddr, value.RemoteAddr, value.Protocol)
+	if !exists {
+		return nil, fmt.Errorf("no socket found")
 	}
+
+	socketMsg := socket.ProcessDataEvent(event)
+
+	return socketMsg, nil
+}
+
+func (m SocketMap) ProcessCloseEvent(event *CloseEvent) {
+	delete(m, event.Key())
 }

@@ -78,6 +78,11 @@ func main() {
 			case msgEvent := <-msgEventsChan:
 				fmt.Printf("[MsgEvent] %s - Local: %s, Remote: %s\n", msgEvent.Type, msgEvent.LocalAddr, msgEvent.RemoteAddr)
 				fmt.Println(hex.Dump(msgEvent.Payload))
+
+				for _, b := range msgEvent.Payload {
+					fmt.Printf(`\x%02x`, b)
+				}
+				fmt.Printf("\n")
 			}
 		}
 	}()
@@ -85,7 +90,7 @@ func main() {
 	// For testing purposes:
 	// cmd := exec.Command("curl", "--parallel", "--parallel-immediate", "--config", "/app/urls.txt", "--http1.1")
 	// cmd.Output()
-	cmd := exec.Command("./request")
+	cmd := exec.Command("ruby", "tmp/request.rb")
 	cmd.Output()
 
 	wg.Wait()

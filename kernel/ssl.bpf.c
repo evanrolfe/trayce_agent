@@ -497,8 +497,6 @@ int probe_close(struct pt_regs* ctx) {
 
     bpf_map_update_elem(&active_close_args_map, &current_pid_tgid, &close_event, BPF_ANY);
 
-    bpf_printk("--------------------> CLOSE: fd: %d", fd);
-
     return 0;
 }
 

@@ -110,31 +110,32 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 		case <-agent.interuptChan:
 			return
 
-		case payload := <-agent.dataEventsChan:
-			event := models.DataEvent{}
-			event.Decode(payload)
-			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-
-			// Fetch its socket
-			socket, exists := agent.sockets[event.Key()]
-			if !exists {
-				continue
-			}
-			outputChan <- models.NewMsgEvent(&event, socket)
-
 		case payload := <-agent.connectEventsChan:
 			event := models.ConnectEvent{}
 			event.Decode(payload)
 			// fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
-			// Save the event to the map
-			agent.sockets.ParseConnectEvent(&event)
+			agent.sockets.ProcessConnectEvent(&event)
+
+		case payload := <-agent.dataEventsChan:
+			event := models.DataEvent{}
+			event.Decode(payload)
+			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+
+			socketMsg, err := agent.sockets.ProcessDataEvent(&event)
+			if err != nil {
+				fmt.Println("NO SOCKET FOUND")
+			}
+
+			if socketMsg != nil {
+				socketMsg.Debug()
+			}
 
 		case payload := <-agent.closeEventsChan:
 			event := models.CloseEvent{}
 			event.Decode(payload)
 
-			agent.sockets.ParseCloseEvent(&event)
+			// agent.sockets.ProcessCloseEvent(&event)
 
 		case _ = <-agent.debugEventsChan:
 			continue
