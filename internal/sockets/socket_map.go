@@ -1,7 +1,9 @@
-package models
+package sockets
 
 import (
 	"fmt"
+
+	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 )
 
 // SocketMap tracks sockets which have been observed in ebpf
@@ -12,7 +14,7 @@ func NewSocketMap() SocketMap {
 	return m
 }
 
-func (m SocketMap) ProcessConnectEvent(event *ConnectEvent) *SocketDesc {
+func (m SocketMap) ProcessConnectEvent(event *bpf_events.ConnectEvent) *SocketDesc {
 	socket, exists := m[event.Key()]
 	if !exists {
 		socket = NewSocketDesc(event.Pid, event.Fd)
@@ -35,7 +37,7 @@ func (m SocketMap) GetSocket(key string) (*SocketDesc, bool) {
 	return socket, exists
 }
 
-func (m SocketMap) ProcessDataEvent(event *DataEvent) (*SocketMsg, error) {
+func (m SocketMap) ProcessDataEvent(event *bpf_events.DataEvent) (*SocketMsg, error) {
 	socket, exists := m.GetSocket(event.Key())
 
 	if !exists {
@@ -47,6 +49,6 @@ func (m SocketMap) ProcessDataEvent(event *DataEvent) (*SocketMsg, error) {
 	return msg, nil
 }
 
-func (m SocketMap) ProcessCloseEvent(event *CloseEvent) {
+func (m SocketMap) ProcessCloseEvent(event *bpf_events.CloseEvent) {
 	delete(m, event.Key())
 }

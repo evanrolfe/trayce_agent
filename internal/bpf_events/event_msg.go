@@ -1,4 +1,4 @@
-package models
+package bpf_events
 
 // MsgEvent represents data being sent or received over a socket, its different from DataEvent in that each event contains
 // a full message of whatever protocol is being used. It also includes the local and remote addresses.
@@ -11,11 +11,11 @@ type MsgEvent struct {
 	Payload    []byte `json:"payload"`
 }
 
-func NewMsgEvent(dataEvent *DataEvent, socket *SocketDesc) MsgEvent {
+func NewMsgEvent(dataEvent *DataEvent, localAddr string, remoteAddr string) MsgEvent {
 	return MsgEvent{
 		Payload:    dataEvent.Data[0:dataEvent.DataLen],
-		LocalAddr:  socket.LocalAddr,
-		RemoteAddr: socket.RemoteAddr,
+		LocalAddr:  localAddr,
+		RemoteAddr: remoteAddr,
 		Type:       dataEvent.Type(),
 	}
 }

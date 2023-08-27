@@ -1,4 +1,4 @@
-package models
+package bpf_events
 
 type AttachType int64
 

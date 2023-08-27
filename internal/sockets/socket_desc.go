@@ -1,12 +1,13 @@
-package models
+package sockets
 
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 )
 
 type SocketDesc struct {
@@ -37,7 +38,7 @@ func (socket *SocketDesc) Key() string {
 	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
 }
 
-func (socket *SocketDesc) ProcessDataEvent(event *DataEvent) *SocketMsg {
+func (socket *SocketDesc) ProcessDataEvent(event *bpf_events.DataEvent) *SocketMsg {
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
 	// Attempt to parse buffer as an HTTP request
@@ -69,41 +70,6 @@ func (socket *SocketDesc) ProcessDataEvent(event *DataEvent) *SocketMsg {
 		socket.clearMsgBuffer()
 
 		return &finalMsg
-	}
-
-	return nil
-}
-
-func (socket *SocketDesc) ProcessDataEvent3(event *DataEvent) *http.Request {
-	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
-
-	// Attempt to parse buffer as an HTTP request
-	req := socket.parseHTTPRequest(socket.dataBuf)
-	if req != nil {
-		socket.clearDataBuffer()
-		if socket.bufferedReq != nil {
-			fmt.Println("[WARNING] a request was received out-of-order")
-			return nil
-		}
-
-		socket.bufferedReq = req
-		return req
-	}
-
-	// Attempt to parse buffer as an HTTP response
-	resp := socket.parseHTTPResponse(socket.dataBuf)
-	if resp != nil {
-		socket.clearDataBuffer()
-		if socket.bufferedReq == nil {
-			fmt.Println("[WARNING] no buffered http request for response")
-			return nil
-		}
-
-		req := socket.bufferedReq.Clone(context.Background())
-		req.Response = resp
-		// socket.clearReqBuffer()
-
-		return socket.bufferedReq
 	}
 
 	return nil

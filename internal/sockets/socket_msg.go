@@ -1,4 +1,4 @@
-package models
+package sockets
 
 import (
 	"encoding/hex"

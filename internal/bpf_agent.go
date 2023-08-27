@@ -7,7 +7,8 @@ import (
 	"runtime"
 
 	"github.com/aquasecurity/libbpfgo"
-	"github.com/evanrolfe/dockerdog/internal/models"
+	"github.com/evanrolfe/dockerdog/internal/bpf_events"
+	"github.com/evanrolfe/dockerdog/internal/sockets"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 
 type BPFAgent struct {
 	bpfProg           *BPFProgram
-	sockets           models.SocketMap
+	sockets           sockets.SocketMap
 	interuptChan      chan int
 	dataEventsChan    chan []byte
 	connectEventsChan chan []byte
@@ -60,7 +61,7 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 
 	return &BPFAgent{
 		bpfProg:           bpfProg,
-		sockets:           models.NewSocketMap(),
+		sockets:           sockets.NewSocketMap(),
 		interuptChan:      make(chan int),
 		dataEventsChan:    make(chan []byte),
 		connectEventsChan: make(chan []byte),
@@ -69,7 +70,7 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 	}
 }
 
-func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
+func (agent *BPFAgent) ListenForEvents(outputChan chan bpf_events.MsgEvent) {
 	// DataEvents ring buffer
 	var err error
 	agent.dataEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.dataEventsChan)
@@ -111,14 +112,14 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 			return
 
 		case payload := <-agent.connectEventsChan:
-			event := models.ConnectEvent{}
+			event := bpf_events.ConnectEvent{}
 			event.Decode(payload)
 			// fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
 			agent.sockets.ProcessConnectEvent(&event)
 
 		case payload := <-agent.dataEventsChan:
-			event := models.DataEvent{}
+			event := bpf_events.DataEvent{}
 			event.Decode(payload)
 			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 
@@ -132,7 +133,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 			}
 
 		case payload := <-agent.closeEventsChan:
-			event := models.CloseEvent{}
+			event := bpf_events.CloseEvent{}
 			event.Decode(payload)
 
 			// agent.sockets.ProcessCloseEvent(&event)

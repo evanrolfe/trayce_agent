@@ -12,7 +12,7 @@ import (
 	"syscall"
 
 	"github.com/evanrolfe/dockerdog/internal"
-	"github.com/evanrolfe/dockerdog/internal/models"
+	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 )
 
 const (
@@ -58,7 +58,7 @@ func main() {
 
 	// Create a channel to receive interrupt signals
 	interrupt := make(chan os.Signal, 1)
-	msgEventsChan := make(chan models.MsgEvent)
+	msgEventsChan := make(chan bpf_events.MsgEvent)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("Agent listing...")
