@@ -122,13 +122,13 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan models.MsgEvent) {
 			event.Decode(payload)
 			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 
-			socketMsg, err := agent.sockets.ProcessDataEvent(&event)
+			msg, err := agent.sockets.ProcessDataEvent(&event)
 			if err != nil {
 				fmt.Println("NO SOCKET FOUND")
 			}
 
-			if socketMsg != nil {
-				socketMsg.Debug()
+			if msg != nil {
+				msg.Debug()
 			}
 
 		case payload := <-agent.closeEventsChan:

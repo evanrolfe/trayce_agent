@@ -1,6 +1,8 @@
 package models
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // SocketMap tracks sockets which have been observed in ebpf
 type SocketMap map[string]*SocketDesc
@@ -33,16 +35,16 @@ func (m SocketMap) GetSocket(key string) (*SocketDesc, bool) {
 	return socket, exists
 }
 
-func (m SocketMap) ProcessDataEvent(event *DataEvent) (SocketMsgI, error) {
+func (m SocketMap) ProcessDataEvent(event *DataEvent) (*SocketMsg, error) {
 	socket, exists := m.GetSocket(event.Key())
 
 	if !exists {
 		return nil, fmt.Errorf("no socket found")
 	}
 
-	socketMsg := socket.ProcessDataEvent(event)
+	msg := socket.ProcessDataEvent(event)
 
-	return socketMsg, nil
+	return msg, nil
 }
 
 func (m SocketMap) ProcessCloseEvent(event *CloseEvent) {
