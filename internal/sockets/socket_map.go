@@ -7,34 +7,27 @@ import (
 )
 
 // SocketMap tracks sockets which have been observed in ebpf
-type SocketMap map[string]*SocketHttp11
+type SocketMap map[string]SocketI
 
 func NewSocketMap() SocketMap {
 	m := make(SocketMap)
 	return m
 }
 
-func (m SocketMap) ProcessConnectEvent(event *bpf_events.ConnectEvent) *SocketHttp11 {
+func (m SocketMap) GetSocket(key string) (SocketI, bool) {
+	socket, exists := m[key]
+	return socket, exists
+}
+
+func (m SocketMap) ProcessConnectEvent(event *bpf_events.ConnectEvent) SocketI {
 	socket, exists := m[event.Key()]
 	if !exists {
-		socket = NewSocketHttp11(event.Pid, event.Fd)
-		m[event.Key()] = socket
-	}
-
-	addr := fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
-
-	if event.Local && socket.LocalAddr == "" {
-		socket.LocalAddr = addr
-	} else if !event.Local && socket.RemoteAddr == "" {
-		socket.RemoteAddr = addr
+		// TODO: This should first create an SocketUnknown, then change it to SocketHttp11 once we can detect the protocol
+		socket := NewSocketHttp11(event)
+		m[event.Key()] = &socket
 	}
 
 	return socket
-}
-
-func (m SocketMap) GetSocket(key string) (*SocketHttp11, bool) {
-	socket, exists := m[key]
-	return socket, exists
 }
 
 func (m SocketMap) ProcessDataEvent(event *bpf_events.DataEvent) (*SocketMsg, error) {

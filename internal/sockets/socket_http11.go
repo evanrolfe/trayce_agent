@@ -21,21 +21,22 @@ type SocketHttp11 struct {
 	msgBuf      *SocketMsg
 }
 
-func NewSocketHttp11(Pid uint32, Fd uint32) *SocketHttp11 {
-	m := &SocketHttp11{
-		Pid:     Pid,
-		Fd:      Fd,
+func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
+	socket := SocketHttp11{
+		Pid:     event.Pid,
+		Fd:      event.Fd,
 		dataBuf: []byte{},
 	}
-	return m
-}
 
-func (socket *SocketHttp11) IsComplete() bool {
-	return (socket.LocalAddr == "" || socket.RemoteAddr == "" || socket.Protocol == "")
-}
+	addr := fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 
-func (socket *SocketHttp11) Key() string {
-	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
+	if event.Local && socket.LocalAddr == "" {
+		socket.LocalAddr = addr
+	} else if !event.Local && socket.RemoteAddr == "" {
+		socket.RemoteAddr = addr
+	}
+
+	return socket
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *SocketMsg {
