@@ -3,9 +3,12 @@ package sockets
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/http/httputil"
 
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 )
@@ -62,9 +65,9 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Socke
 	}
 
 	// Attempt to parse buffer as an HTTP response
-	resp := socket.parseHTTPResponse(socket.dataBuf)
+	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf)
 	if resp != nil {
-		socket.msgBuf.AddResponse(socket.dataBuf)
+		socket.msgBuf.AddResponse(decompressedBuf)
 		finalMsg := socket.msgBuf.Clone()
 
 		socket.clearDataBuffer()
@@ -85,39 +88,57 @@ func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 	}
 
 	// Readall from the body to ensure its complete
-	body, err := io.ReadAll(req.Body)
+	_, err = io.ReadAll(req.Body)
 	if err != nil {
 		// fmt.Println("Error reading response body:", err)
 		return nil
 	}
 	req.Body.Close()
 
-	// Re-add the body so it can be read again later
-	req.Body = io.NopCloser(bytes.NewReader(body))
-
 	return req
 }
 
-func (socket *SocketHttp11) parseHTTPResponse(buf []byte) *http.Response {
+func (socket *SocketHttp11) parseHTTPResponse(buf []byte) (*http.Response, []byte) {
 	// Try parsing the buffer to an HTTP response
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(buf)), nil)
 	if err != nil {
 		// fmt.Println("Error parsing response:", err)
-		return nil
+		return nil, []byte{}
 	}
 
 	// Readall from the body to ensure its complete
 	body, err := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
 	if err != nil {
 		// fmt.Println("Error reading response body:", err)
-		return nil
+		return nil, []byte{}
 	}
-	resp.Body.Close()
 
-	// Re-add the body so it can be read again later
-	resp.Body = io.NopCloser(bytes.NewReader(body))
+	if resp.Header.Get("Content-Encoding") != "gzip" {
+		return resp, buf
+	}
 
-	return resp
+	// Decompress if the body is gzip compressed
+	gzipReader, err := gzip.NewReader(bytes.NewReader(body))
+	if err != nil {
+		fmt.Println("ERROR", err)
+	}
+	defer gzipReader.Close()
+
+	decompressedBody, err := io.ReadAll(gzipReader)
+	if err != nil {
+		fmt.Println("ERROR", err)
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(decompressedBody))
+	defer resp.Body.Close()
+
+	buf2, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	return resp, buf2
+
 }
 
 func (socket *SocketHttp11) clearDataBuffer() {
@@ -126,8 +147,4 @@ func (socket *SocketHttp11) clearDataBuffer() {
 
 func (socket *SocketHttp11) clearMsgBuffer() {
 	socket.msgBuf = nil
-}
-
-func (socket *SocketHttp11) clearReqBuffer() {
-	socket.bufferedReq = nil
 }
