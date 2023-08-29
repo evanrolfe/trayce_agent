@@ -1,7 +1,6 @@
 package sockets
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net/http"
 )
@@ -13,17 +12,30 @@ type SocketMsgI interface {
 
 // TODO: Rename this to SocketFLow
 type SocketMsg struct {
-	request  []byte
-	response []byte
+	LocalAddr  string
+	RemoteAddr string
+	request    []byte
+	response   []byte
 }
 
-func NewSocketMsg(request []byte) *SocketMsg {
-	m := &SocketMsg{request: request, response: nil}
+// TODO: This should probably accept a SocketI instead of primitive args
+func NewSocketMsg(localAddr string, remoteAddr string, request []byte) *SocketMsg {
+	m := &SocketMsg{
+		LocalAddr:  localAddr,
+		RemoteAddr: remoteAddr,
+		request:    request,
+		response:   nil,
+	}
 	return m
 }
 
 func (msg *SocketMsg) Clone() SocketMsg {
-	m := SocketMsg{request: msg.request, response: msg.response}
+	m := SocketMsg{
+		LocalAddr:  msg.LocalAddr,
+		RemoteAddr: msg.RemoteAddr,
+		request:    msg.request,
+		response:   msg.response,
+	}
 	return m
 }
 
@@ -36,9 +48,10 @@ func (msg *SocketMsg) Debug() {
 	fmt.Printf("Request:\n%s\n", string(msg.request))
 
 	if msg.response != nil {
-		// fmt.Printf("Response:\n%s\n", string(msg.response))
 		fmt.Println("Response:")
-		fmt.Print(hex.Dump(msg.response))
+		fmt.Println(string(msg.response[0:256]))
+
+		// fmt.Print(hex.Dump(msg.response))
 	}
 
 	// if msg.request != nil {

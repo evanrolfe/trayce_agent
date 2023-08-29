@@ -5,7 +5,7 @@ VOLUME [ "/app" ]
 
 # Build dependencies:
 RUN apt update -y
-RUN apt install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget gcc-multilib binutils git libssl-dev
+RUN apt install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget gcc-multilib binutils git libssl-dev protobuf-compiler
 
 # Debugging tools:
 RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
@@ -18,5 +18,7 @@ ENV PATH "$PATH:/usr/local/go/bin:/root/go/bin"
 
 # Go Build dependencies
 RUN go install github.com/shuLhan/go-bindata/cmd/go-bindata@latest
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
 
 CMD mount -t debugfs debugfs /sys/kernel/debug && bash

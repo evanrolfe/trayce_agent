@@ -26,20 +26,19 @@ type SocketHttp11 struct {
 
 func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 	socket := SocketHttp11{
-		Pid:     event.Pid,
-		Fd:      event.Fd,
-		dataBuf: []byte{},
+		LocalAddr: "unknown",
+		Pid:       event.Pid,
+		Fd:        event.Fd,
+		dataBuf:   []byte{},
 	}
 
-	addr := fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
-
-	if event.Local && socket.LocalAddr == "" {
-		socket.LocalAddr = addr
-	} else if !event.Local && socket.RemoteAddr == "" {
-		socket.RemoteAddr = addr
-	}
+	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 
 	return socket
+}
+
+func (socket *SocketHttp11) GetRemoteAddr() string {
+	return socket.RemoteAddr
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *SocketMsg {
@@ -53,7 +52,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Socke
 			return nil
 		}
 
-		socket.msgBuf = NewSocketMsg(socket.dataBuf)
+		socket.msgBuf = NewSocketMsg(socket.LocalAddr, socket.RemoteAddr, socket.dataBuf)
 		socket.clearDataBuffer()
 
 		return socket.msgBuf

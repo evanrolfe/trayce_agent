@@ -70,7 +70,7 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 	}
 }
 
-func (agent *BPFAgent) ListenForEvents(outputChan chan bpf_events.MsgEvent) {
+func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.SocketMsg) {
 	// DataEvents ring buffer
 	var err error
 	agent.dataEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.dataEventsChan)
@@ -130,6 +130,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan bpf_events.MsgEvent) {
 
 			if msg != nil {
 				msg.Debug()
+				outputChan <- *msg
 			}
 
 		case payload := <-agent.closeEventsChan:

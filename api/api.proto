@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = "github.com/evanrolfe/dockerdog/api";
+
+package api;
+
+service DockerDogAgent {
+    rpc SendRequestObserved (RequestObserved) returns (Reply) {}
+}
+
+message RequestObserved {
+    string method = 1;
+    string url = 2;
+}
+
+
+message Reply {
+    string status = 1;
+}
