@@ -37,10 +37,6 @@ func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 	return socket
 }
 
-func (socket *SocketHttp11) GetRemoteAddr() string {
-	return socket.RemoteAddr
-}
-
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *SocketMsg {
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 

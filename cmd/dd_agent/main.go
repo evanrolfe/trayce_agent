@@ -2,6 +2,7 @@ package main
 
 import "C"
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -10,7 +11,9 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
+	pb "github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
 	"google.golang.org/grpc"
@@ -80,7 +83,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	// grpcClient := pb.NewDockerDogAgentClient(conn)
+	grpcClient := pb.NewDockerDogAgentClient(conn)
 
 	go func() {
 		for {
@@ -91,15 +94,16 @@ func main() {
 				return
 			case socketMsg := <-socketMsgChan:
 				fmt.Printf("[MsgEvent] %s - Local: %s, Remote: %s\n", "", socketMsg.LocalAddr, socketMsg.RemoteAddr)
+				socketMsg.Debug()
 
 				// Contact the server and print out its response.
-				// ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-				// defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
 
-				// _, err := grpcClient.SendRequestObserved(ctx, &pb.RequestObserved{Method: "GET", Url: msgEvent.RemoteAddr})
-				// if err != nil {
-				// 	log.Fatalf("could not greet: %v", err)
-				// }
+				_, err := grpcClient.SendRequestObserved(ctx, &pb.RequestObserved{Method: "GET", Url: socketMsg.RemoteAddr})
+				if err != nil {
+					log.Fatalf("could not greet: %v", err)
+				}
 			}
 		}
 	}()

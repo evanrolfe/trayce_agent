@@ -127,9 +127,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.SocketMsg) {
 			if err != nil {
 				fmt.Println("NO SOCKET FOUND")
 			}
-
 			if msg != nil {
-				msg.Debug()
 				outputChan <- *msg
 			}
 
