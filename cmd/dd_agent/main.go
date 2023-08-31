@@ -5,9 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -58,6 +56,7 @@ func main() {
 	btfBytes := internal.MustAsset(btfFilePath)
 	btfDestFile := "./5.8.0-23-generic.btf"
 	extractFile(btfBytes, btfDestFile)
+	defer os.Remove(btfDestFile)
 
 	// Start the agent
 	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, libSslPath)
@@ -79,7 +78,8 @@ func main() {
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(grpcServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		fmt.Println("[ERROR] could not connect to GRPC server: %v", err)
+		return
 	}
 	defer conn.Close()
 
@@ -102,22 +102,15 @@ func main() {
 
 				_, err := grpcClient.SendRequestObserved(ctx, &pb.RequestObserved{Method: "GET", Url: socketMsg.RemoteAddr})
 				if err != nil {
-					log.Fatalf("could not greet: %v", err)
+					fmt.Println("[ERROR] could not request: %v", err)
 				}
 			}
 		}
 	}()
 
-	// For testing purposes:
-	// cmd := exec.Command("curl", "--parallel", "--parallel-immediate", "--config", "/app/urls.txt", "--http1.1")
-	// cmd.Output()
-	cmd := exec.Command("ruby", "tmp/request.rb")
-	cmd.Output()
-
 	wg.Wait()
 
 	fmt.Println("Done, closing agent.")
-	os.Remove(btfDestFile)
 
 	// agent.Close()
 }
