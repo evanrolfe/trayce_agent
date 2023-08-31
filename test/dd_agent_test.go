@@ -18,29 +18,18 @@ import (
 )
 
 const (
+	mockHttpPort      = 4123
 	grpcPort          = 50051
 	requestRubyScript = "/app/test/scripts/request_ruby"
 )
 
+var grpcHandler *support.GRPCHandler
+
 func TestMain(m *testing.M) {
-	fmt.Println("SETUP!")
-	// call flag.Parse() here if TestMain uses flags
-	code := m.Run()
-	fmt.Println("Teardown!")
-	os.Exit(code)
-}
+	// Setup
 
-func Test_dd_agent(t *testing.T) {
-	// TODO: Make this handle https
-	// // Create a new HTTP request handler
-	// handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	// 	w.WriteHeader(http.StatusOK)
-	// 	fmt.Fprintf(w, "Hello, world!")
-	// })
-
-	// // Create a test HTTP server using httptest
-	// server := httptest.NewServer(handler)
-	// defer server.Close()
+	// Start HTTP(S) Mock Server
+	go support.StartMockServer(mockHttpPort, "./support")
 
 	// Start GRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
@@ -48,7 +37,7 @@ func Test_dd_agent(t *testing.T) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	grpcHandler := support.NewGRPCHandler()
+	grpcHandler = support.NewGRPCHandler()
 	grpcServer := grpc.NewServer()
 	api.RegisterDockerDogAgentServer(grpcServer, grpcHandler)
 
@@ -58,8 +47,17 @@ func Test_dd_agent(t *testing.T) {
 			log.Fatalf("failed to serve: %v", err)
 		}
 	}()
-	log.Printf("server listening at %v", lis.Addr())
+	log.Printf("GRPC server listening at %v", lis.Addr())
 
+	// Run Tests
+	code := m.Run()
+
+	// Teardown
+
+	os.Exit(code)
+}
+
+func Test_dd_agent(t *testing.T) {
 	// Start dd_agent
 	cmd := exec.Command("/app/dd_agent")
 
@@ -95,7 +93,7 @@ func Test_dd_agent(t *testing.T) {
 				}
 			})
 
-			reqCmd := exec.Command(requestRubyScript, "https://www.pntest.io")
+			reqCmd := exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/", mockHttpPort))
 			reqCmd.Start()
 			fmt.Println("dd_agent started, request started, waiting to hear back from dd_agent...")
 
@@ -114,7 +112,7 @@ func Test_dd_agent(t *testing.T) {
 
 			assert.Greater(t, len(requests[1].RemoteAddr), 0)
 			assert.Equal(t, "GET / HTTP/1.1", string(requests[1].Request[0:14]))
-			assert.Equal(t, "HTTP/1.1 301 Moved Permanently", string(requests[1].Response[0:30]))
+			assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
 		})
 	}
 }

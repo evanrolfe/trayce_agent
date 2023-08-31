@@ -49,7 +49,12 @@ func (msg *SocketMsg) Debug() {
 
 	if msg.Response != nil {
 		fmt.Println("Response:")
-		fmt.Println(string(msg.Response[0:256]))
+
+		if len(msg.Response) >= 256 {
+			fmt.Println(string(msg.Response[0:256]))
+		} else {
+			fmt.Println(string(msg.Response))
+		}
 
 		// fmt.Print(hex.Dump(msg.response))
 	}
