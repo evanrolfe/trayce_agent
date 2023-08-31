@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	pb "github.com/evanrolfe/dockerdog/api"
+	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
 	"google.golang.org/grpc"
@@ -83,7 +83,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	grpcClient := pb.NewDockerDogAgentClient(conn)
+	grpcClient := api.NewDockerDogAgentClient(conn)
 
 	go func() {
 		for {
@@ -100,7 +100,14 @@ func main() {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
 
-				_, err := grpcClient.SendRequestObserved(ctx, &pb.RequestObserved{Method: "GET", Url: socketMsg.RemoteAddr})
+				apiReq := &api.RequestObserved{
+					LocalAddr:  socketMsg.LocalAddr,
+					RemoteAddr: socketMsg.RemoteAddr,
+					Request:    socketMsg.Request,
+					Response:   socketMsg.Response,
+				}
+
+				_, err := grpcClient.SendRequestObserved(ctx, apiReq)
 				if err != nil {
 					fmt.Println("[ERROR] could not request: %v", err)
 				}

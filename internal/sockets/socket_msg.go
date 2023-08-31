@@ -14,8 +14,8 @@ type SocketMsgI interface {
 type SocketMsg struct {
 	LocalAddr  string
 	RemoteAddr string
-	request    []byte
-	response   []byte
+	Request    []byte
+	Response   []byte
 }
 
 // TODO: This should probably accept a SocketI instead of primitive args
@@ -23,8 +23,8 @@ func NewSocketMsg(localAddr string, remoteAddr string, request []byte) *SocketMs
 	m := &SocketMsg{
 		LocalAddr:  localAddr,
 		RemoteAddr: remoteAddr,
-		request:    request,
-		response:   nil,
+		Request:    request,
+		Response:   nil,
 	}
 	return m
 }
@@ -33,23 +33,23 @@ func (msg *SocketMsg) Clone() SocketMsg {
 	m := SocketMsg{
 		LocalAddr:  msg.LocalAddr,
 		RemoteAddr: msg.RemoteAddr,
-		request:    msg.request,
-		response:   msg.response,
+		Request:    msg.Request,
+		Response:   msg.Response,
 	}
 	return m
 }
 
 func (msg *SocketMsg) AddResponse(response []byte) {
-	msg.response = response
+	msg.Response = response
 }
 
 func (msg *SocketMsg) Debug() {
 	fmt.Println("------------------------------------------------")
-	fmt.Printf("Request:\n%s\n", string(msg.request))
+	fmt.Printf("Request:\n%s\n", string(msg.Request))
 
-	if msg.response != nil {
+	if msg.Response != nil {
 		fmt.Println("Response:")
-		fmt.Println(string(msg.response[0:256]))
+		fmt.Println(string(msg.Response[0:256]))
 
 		// fmt.Print(hex.Dump(msg.response))
 	}

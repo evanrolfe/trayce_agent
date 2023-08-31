@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+
+require 'uri'
+require 'net/http'
+
+url = ARGV[0]
+puts "Requesting URL: #{url}"
+uri = URI(url)
+res = Net::HTTP.get_response(uri)
+puts res

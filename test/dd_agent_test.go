@@ -11,35 +11,16 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/evanrolfe/dockerdog/api"
+	"github.com/evanrolfe/dockerdog/api"
+	"github.com/evanrolfe/dockerdog/test/support"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 )
 
 const (
-	port = 50051
+	grpcPort          = 50051
+	requestRubyScript = "/app/test/scripts/request_ruby"
 )
-
-type testServer struct {
-	pb.UnimplementedDockerDogAgentServer
-	callback func(input *pb.RequestObserved)
-}
-
-func NewTestServer() *testServer {
-	return &testServer{
-		callback: func(input *pb.RequestObserved) {},
-	}
-}
-
-func (ts *testServer) SetCallback(callback func(input *pb.RequestObserved)) {
-	ts.callback = callback
-}
-
-// SendRequestObserved implements helloworld.GreeterServer
-func (ts *testServer) SendRequestObserved(ctx context.Context, input *pb.RequestObserved) (*pb.Reply, error) {
-	log.Printf("Request: %s %s", input.Method, input.Url)
-	ts.callback(input)
-	return &pb.Reply{Status: "success "}, nil
-}
 
 func TestMain(m *testing.M) {
 	fmt.Println("SETUP!")
@@ -50,15 +31,26 @@ func TestMain(m *testing.M) {
 }
 
 func Test_dd_agent(t *testing.T) {
+	// TODO: Make this handle https
+	// // Create a new HTTP request handler
+	// handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 	w.WriteHeader(http.StatusOK)
+	// 	fmt.Fprintf(w, "Hello, world!")
+	// })
+
+	// // Create a test HTTP server using httptest
+	// server := httptest.NewServer(handler)
+	// defer server.Close()
+
 	// Start GRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	testServ := NewTestServer()
+	grpcHandler := support.NewGRPCHandler()
 	grpcServer := grpc.NewServer()
-	pb.RegisterDockerDogAgentServer(grpcServer, testServ)
+	api.RegisterDockerDogAgentServer(grpcServer, grpcHandler)
 
 	go func() {
 		err = grpcServer.Serve(lis)
@@ -80,9 +72,6 @@ func Test_dd_agent(t *testing.T) {
 	// TODO: This should wait for a request lfrom the client like "dd_agent_started"
 	time.Sleep(2 * time.Second)
 
-	// fmt.Println(stdoutBuf.String())
-	// fmt.Println(stderrBuf.String())
-
 	// Run tests
 	tests := []struct {
 		name string
@@ -97,29 +86,35 @@ func Test_dd_agent(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			var inputResult *pb.RequestObserved
-			testServ.SetCallback(func(input *pb.RequestObserved) {
-				fmt.Println("Callback has been triggered!")
-				inputResult = input
-				cancel()
+			var requests []*api.RequestObserved
+			grpcHandler.SetCallback(func(input *api.RequestObserved) {
+				requests = append(requests, input)
+
+				if len(requests) == 2 {
+					cancel()
+				}
 			})
 
-			reqCmd := exec.Command("ruby", "/app/tmp/request.rb")
+			reqCmd := exec.Command(requestRubyScript, "https://www.pntest.io")
 			reqCmd.Start()
 			fmt.Println("dd_agent started, request started, waiting to hear back from dd_agent...")
 
 			// Wait for the context to complete
 			<-ctx.Done()
 
-			if inputResult == nil {
-				t.Errorf("no inputResult received!")
-				return
-			}
+			// fmt.Println("-------------------------------------------------------------------------")
+			// fmt.Println(stdoutBuf.String())
+			// fmt.Println(stderrBuf.String())
 
-			// fmt.Println("RESULT:", inputResult.Method, inputResult.Url)
-			// if inputResult.Url != "104.21.63.103:443" {
-			// 	t.Errorf("inputResult.Url  expected: %s, actual: %s", "104.21.63.103:443", inputResult.Url)
-			// }
+			assert.Equal(t, 2, len(requests))
+
+			assert.Greater(t, len(requests[0].RemoteAddr), 0)
+			assert.Equal(t, "GET / HTTP/1.1", string(requests[0].Request[0:14]))
+			assert.Empty(t, requests[0].Response)
+
+			assert.Greater(t, len(requests[1].RemoteAddr), 0)
+			assert.Equal(t, "GET / HTTP/1.1", string(requests[1].Request[0:14]))
+			assert.Equal(t, "HTTP/1.1 301 Moved Permanently", string(requests[1].Response[0:30]))
 		})
 	}
 }
