@@ -22,8 +22,10 @@ docker run --pid=host --privileged -it dd
 ```
 
 ### Test
-
-TODO!
+Run tests with:
+```
+make test
+```
 
 ### Commands
 

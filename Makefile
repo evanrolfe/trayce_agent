@@ -6,6 +6,8 @@ CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output"
 ARCH_FOR_CGO := $(shell uname -m | sed 's/x86_64/amd64/g; s/aarch64/arm64/g')
 DIV = "+------------------------------------------------+"
 
+.PHONY: all test clean
+
 all: build-bpf build
 
 # Install libbpf - clone libbpf-bootstrap which comes with extra tools we need, clone libbpfgo and link it to our
@@ -41,6 +43,9 @@ build: generate
 		-o dd_agent ./cmd/dd_agent/main.go
 
 	@echo "\n$(DIV)\n+ Build complete. Binary file at: ./dd_agent\n$(DIV)"
+
+test:
+	go test ./test -v -count=1
 
 clean:
 	rm -rf .output

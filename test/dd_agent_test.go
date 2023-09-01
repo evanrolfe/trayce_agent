@@ -72,10 +72,35 @@ func Test_dd_agent(t *testing.T) {
 
 	// Run tests
 	tests := []struct {
-		name string
+		name   string
+		cmd    *exec.Cmd
+		verify func(requests []*api.RequestObserved)
 	}{
 		{
-			name: "an HTTPS request with ruby",
+			name: "[Ruby] an HTTPS request",
+			cmd:  exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/", mockHttpPort)),
+			verify: func(requests []*api.RequestObserved) {
+				assert.Greater(t, len(requests[0].RemoteAddr), 0)
+				assert.Equal(t, "GET / HTTP/1.1", string(requests[0].Request[0:14]))
+				assert.Empty(t, requests[0].Response)
+
+				assert.Greater(t, len(requests[1].RemoteAddr), 0)
+				assert.Equal(t, "GET / HTTP/1.1", string(requests[1].Request[0:14]))
+				assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
+			},
+		},
+		{
+			name: "[Ruby] an HTTPS request with a chunked-response",
+			cmd:  exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/chunked", mockHttpPort)),
+			verify: func(requests []*api.RequestObserved) {
+				assert.Greater(t, len(requests[0].RemoteAddr), 0)
+				assert.Equal(t, "GET /chunked HTTP/1.1", string(requests[0].Request[0:21]))
+				assert.Empty(t, requests[0].Response)
+
+				assert.Greater(t, len(requests[1].RemoteAddr), 0)
+				assert.Equal(t, "GET /chunked HTTP/1.1", string(requests[1].Request[0:21]))
+				assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -84,6 +109,7 @@ func Test_dd_agent(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
+			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
 			var requests []*api.RequestObserved
 			grpcHandler.SetCallback(func(input *api.RequestObserved) {
 				requests = append(requests, input)
@@ -93,9 +119,8 @@ func Test_dd_agent(t *testing.T) {
 				}
 			})
 
-			reqCmd := exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/", mockHttpPort))
-			reqCmd.Start()
-			fmt.Println("dd_agent started, request started, waiting to hear back from dd_agent...")
+			// Make the request
+			tt.cmd.Start()
 
 			// Wait for the context to complete
 			<-ctx.Done()
@@ -104,15 +129,9 @@ func Test_dd_agent(t *testing.T) {
 			// fmt.Println(stdoutBuf.String())
 			// fmt.Println(stderrBuf.String())
 
+			// Verify the result
 			assert.Equal(t, 2, len(requests))
-
-			assert.Greater(t, len(requests[0].RemoteAddr), 0)
-			assert.Equal(t, "GET / HTTP/1.1", string(requests[0].Request[0:14]))
-			assert.Empty(t, requests[0].Response)
-
-			assert.Greater(t, len(requests[1].RemoteAddr), 0)
-			assert.Equal(t, "GET / HTTP/1.1", string(requests[1].Request[0:14]))
-			assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
+			tt.verify(requests)
 		})
 	}
 }
