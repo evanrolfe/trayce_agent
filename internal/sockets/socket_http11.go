@@ -48,7 +48,13 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Socke
 			return nil
 		}
 
-		socket.msgBuf = NewSocketMsg(socket.LocalAddr, socket.RemoteAddr, socket.dataBuf)
+		socket.msgBuf = NewSocketMsg(
+			socket.LocalAddr,
+			socket.RemoteAddr,
+			"tcp", // TODO Use constants here instead
+			"http",
+			socket.dataBuf,
+		)
 		socket.clearDataBuffer()
 
 		return socket.msgBuf

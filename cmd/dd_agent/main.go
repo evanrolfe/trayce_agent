@@ -103,6 +103,8 @@ func main() {
 				apiReq := &api.RequestObserved{
 					LocalAddr:  socketMsg.LocalAddr,
 					RemoteAddr: socketMsg.RemoteAddr,
+					L4Protocol: socketMsg.L4Protocol,
+					L7Protocol: socketMsg.L7Protocol,
 					Request:    socketMsg.Request,
 					Response:   socketMsg.Response,
 				}

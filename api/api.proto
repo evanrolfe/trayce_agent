@@ -11,8 +11,10 @@ service DockerDogAgent {
 message RequestObserved {
     string local_addr = 1;
     string remote_addr = 2;
-	bytes request = 3;
-	bytes response = 4;
+    string l4_protocol = 3;
+    string l7_protocol = 4;
+	bytes request = 5;
+	bytes response = 6;
 }
 
 message Reply {
