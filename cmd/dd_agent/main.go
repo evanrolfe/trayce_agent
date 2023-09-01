@@ -117,6 +117,11 @@ func main() {
 		}
 	}()
 
+	_, err = grpcClient.SendAgentStarted(context.Background(), &api.AgentStarted{})
+	if err != nil {
+		fmt.Println("[ERROR] could not request: %v", err)
+	}
+
 	wg.Wait()
 
 	fmt.Println("Done, closing agent.")

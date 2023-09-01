@@ -6,6 +6,7 @@ package api;
 
 service DockerDogAgent {
     rpc SendRequestObserved (RequestObserved) returns (Reply) {}
+    rpc SendAgentStarted (AgentStarted) returns (Reply) {}
 }
 
 message RequestObserved {
@@ -20,3 +21,5 @@ message RequestObserved {
 message Reply {
     string status = 1;
 }
+
+message AgentStarted {}

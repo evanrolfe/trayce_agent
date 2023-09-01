@@ -65,10 +65,14 @@ func Test_dd_agent(t *testing.T) {
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	cmd.Start()
+	// Wait for dd_agent to start, timeout of 5secs:
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
 
-	// TODO: This should wait for a request lfrom the client like "dd_agent_started"
-	time.Sleep(2 * time.Second)
+	// Trigger the command and then wait for the context to complete
+	cmd.Start()
+	<-ctx.Done()
 
 	// Run tests
 	tests := []struct {

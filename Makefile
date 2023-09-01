@@ -24,8 +24,8 @@ build-bpf:
 
 generate:
 # Bundle the BPF binary into our Go code:
-# cp .output/ssl.bpf.o bundle/ssl.bpf.o
-# go-bindata -o ./internal/bundle.go ./bundle
+	cp .output/ssl.bpf.o bundle/ssl.bpf.o
+	go-bindata -o ./internal/bundle.go ./bundle
 
 # Generate the grpc code
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative api/api.proto

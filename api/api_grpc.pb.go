@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DockerDogAgentClient interface {
 	SendRequestObserved(ctx context.Context, in *RequestObserved, opts ...grpc.CallOption) (*Reply, error)
+	SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error)
 }
 
 type dockerDogAgentClient struct {
@@ -42,11 +43,21 @@ func (c *dockerDogAgentClient) SendRequestObserved(ctx context.Context, in *Requ
 	return out, nil
 }
 
+func (c *dockerDogAgentClient) SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error) {
+	out := new(Reply)
+	err := c.cc.Invoke(ctx, "/api.DockerDogAgent/SendAgentStarted", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DockerDogAgentServer is the server API for DockerDogAgent service.
 // All implementations must embed UnimplementedDockerDogAgentServer
 // for forward compatibility
 type DockerDogAgentServer interface {
 	SendRequestObserved(context.Context, *RequestObserved) (*Reply, error)
+	SendAgentStarted(context.Context, *AgentStarted) (*Reply, error)
 	mustEmbedUnimplementedDockerDogAgentServer()
 }
 
@@ -56,6 +67,9 @@ type UnimplementedDockerDogAgentServer struct {
 
 func (UnimplementedDockerDogAgentServer) SendRequestObserved(context.Context, *RequestObserved) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendRequestObserved not implemented")
+}
+func (UnimplementedDockerDogAgentServer) SendAgentStarted(context.Context, *AgentStarted) (*Reply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendAgentStarted not implemented")
 }
 func (UnimplementedDockerDogAgentServer) mustEmbedUnimplementedDockerDogAgentServer() {}
 
@@ -88,6 +102,24 @@ func _DockerDogAgent_SendRequestObserved_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DockerDogAgent_SendAgentStarted_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AgentStarted)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DockerDogAgentServer).SendAgentStarted(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.DockerDogAgent/SendAgentStarted",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DockerDogAgentServer).SendAgentStarted(ctx, req.(*AgentStarted))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DockerDogAgent_ServiceDesc is the grpc.ServiceDesc for DockerDogAgent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -98,6 +130,10 @@ var DockerDogAgent_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendRequestObserved",
 			Handler:    _DockerDogAgent_SendRequestObserved_Handler,
+		},
+		{
+			MethodName: "SendAgentStarted",
+			Handler:    _DockerDogAgent_SendAgentStarted_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
