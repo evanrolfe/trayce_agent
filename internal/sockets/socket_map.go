@@ -30,7 +30,7 @@ func (m SocketMap) ProcessConnectEvent(event *bpf_events.ConnectEvent) SocketI {
 	return socket
 }
 
-func (m SocketMap) ProcessDataEvent(event *bpf_events.DataEvent) (*SocketMsg, error) {
+func (m SocketMap) ProcessDataEvent(event *bpf_events.DataEvent) (*Flow, error) {
 	socket, exists := m.GetSocket(event.Key())
 
 	if !exists {

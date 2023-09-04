@@ -42,7 +42,7 @@ build: generate
 		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
 		-o dd_agent ./cmd/dd_agent/main.go
 
-	@echo "\n$(DIV)\n+ Build complete. Binary file at: ./dd_agent\n$(DIV)"
+	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./dd_agent\n$(DIV)"
 
 test:
 	go test ./test -v -count=1

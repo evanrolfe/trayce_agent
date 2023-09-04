@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	mockHttpPort      = 4123
+	mockHttpsPort     = 4123
 	grpcPort          = 50051
 	requestRubyScript = "/app/test/scripts/request_ruby"
 )
@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 	// Setup
 
 	// Start HTTP(S) Mock Server
-	go support.StartMockServer(mockHttpPort, "./support")
+	go support.StartMockServer(mockHttpsPort, "./support")
 
 	// Start GRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
@@ -75,15 +75,18 @@ func Test_dd_agent(t *testing.T) {
 	<-ctx.Done()
 
 	// Run tests
+	// Set focus: true in order to only run a single test case
 	tests := []struct {
 		name   string
 		cmd    *exec.Cmd
-		verify func(requests []*api.RequestObserved)
+		focus  bool
+		verify func(requests []*api.FlowObserved)
 	}{
 		{
-			name: "[Ruby] an HTTPS request",
-			cmd:  exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/", mockHttpPort)),
-			verify: func(requests []*api.RequestObserved) {
+			name:  "[Ruby] an HTTPS request",
+			cmd:   exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort)),
+			focus: true,
+			verify: func(requests []*api.FlowObserved) {
 				assert.Greater(t, len(requests[0].RemoteAddr), 0)
 				assert.Equal(t, "GET / HTTP/1.1", string(requests[0].Request[0:14]))
 				assert.Empty(t, requests[0].Response)
@@ -98,9 +101,9 @@ func Test_dd_agent(t *testing.T) {
 			},
 		},
 		{
-			name: "[Ruby] an HTTPS request with a chunked-response",
-			cmd:  exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/chunked", mockHttpPort)),
-			verify: func(requests []*api.RequestObserved) {
+			name: "[Ruby] an HTTPS request with a chunked response",
+			cmd:  exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/chunked", mockHttpsPort)),
+			verify: func(requests []*api.FlowObserved) {
 				assert.Greater(t, len(requests[0].RemoteAddr), 0)
 				assert.Equal(t, "GET /chunked HTTP/1.1", string(requests[0].Request[0:21]))
 				assert.Empty(t, requests[0].Response)
@@ -115,15 +118,27 @@ func Test_dd_agent(t *testing.T) {
 			},
 		},
 	}
+
+	hasFocus := false
 	for _, tt := range tests {
+		if tt.focus {
+			hasFocus = true
+		}
+	}
+
+	for _, tt := range tests {
+		if hasFocus && !tt.focus {
+			continue
+		}
+
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a context with a timeout
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
-			var requests []*api.RequestObserved
-			grpcHandler.SetCallback(func(input *api.RequestObserved) {
+			var requests []*api.FlowObserved
+			grpcHandler.SetCallback(func(input *api.FlowObserved) {
 				requests = append(requests, input)
 
 				if len(requests) == 2 {
@@ -137,8 +152,9 @@ func Test_dd_agent(t *testing.T) {
 			// Wait for the context to complete
 			<-ctx.Done()
 
-			// fmt.Println("-------------------------------------------------------------------------")
-			// fmt.Println(stdoutBuf.String())
+			fmt.Println("-------------------------------------------------------------------------")
+			fmt.Println(stdoutBuf.String())
+			fmt.Println("-------------------------------------------------------------------------")
 			// fmt.Println(stderrBuf.String())
 
 			// Verify the result

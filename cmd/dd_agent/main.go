@@ -1,6 +1,5 @@
 package main
 
-import "C"
 import (
 	"context"
 	"flag"
@@ -64,11 +63,11 @@ func main() {
 
 	// Create a channel to receive interrupt signals
 	interrupt := make(chan os.Signal, 1)
-	socketMsgChan := make(chan sockets.SocketMsg)
+	socketFlowChan := make(chan sockets.Flow)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("Agent listing...")
-	go agent.ListenForEvents(socketMsgChan)
+	go agent.ListenForEvents(socketFlowChan)
 
 	// Start a goroutine to handle the interrupt signal
 	var wg sync.WaitGroup
@@ -92,24 +91,24 @@ func main() {
 			case <-interrupt:
 				wg.Done()
 				return
-			case socketMsg := <-socketMsgChan:
-				fmt.Printf("[MsgEvent] %s - Local: %s, Remote: %s\n", "", socketMsg.LocalAddr, socketMsg.RemoteAddr)
-				socketMsg.Debug()
+			case flow := <-socketFlowChan:
+				fmt.Printf("[MsgEvent] %s - Local: %s, Remote: %s\n", "", flow.LocalAddr, flow.RemoteAddr)
+				flow.Debug()
 
 				// Contact the server and print out its response.
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
 
-				apiReq := &api.RequestObserved{
-					LocalAddr:  socketMsg.LocalAddr,
-					RemoteAddr: socketMsg.RemoteAddr,
-					L4Protocol: socketMsg.L4Protocol,
-					L7Protocol: socketMsg.L7Protocol,
-					Request:    socketMsg.Request,
-					Response:   socketMsg.Response,
+				apiReq := &api.FlowObserved{
+					LocalAddr:  flow.LocalAddr,
+					RemoteAddr: flow.RemoteAddr,
+					L4Protocol: flow.L4Protocol,
+					L7Protocol: flow.L7Protocol,
+					Request:    flow.Request,
+					Response:   flow.Response,
 				}
 
-				_, err := grpcClient.SendRequestObserved(ctx, apiReq)
+				_, err := grpcClient.SendFlowObserved(ctx, apiReq)
 				if err != nil {
 					fmt.Println("[ERROR] could not request: %v", err)
 				}

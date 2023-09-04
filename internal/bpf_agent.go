@@ -1,6 +1,5 @@
 package internal
 
-import "C"
 import (
 	"fmt"
 	"os"
@@ -70,7 +69,7 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 	}
 }
 
-func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.SocketMsg) {
+func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.Flow) {
 	// DataEvents ring buffer
 	var err error
 	agent.dataEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.dataEventsChan)
@@ -123,12 +122,12 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.SocketMsg) {
 			event.Decode(payload)
 			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 
-			msg, err := agent.sockets.ProcessDataEvent(&event)
+			flow, err := agent.sockets.ProcessDataEvent(&event)
 			if err != nil {
 				fmt.Println("NO SOCKET FOUND")
 			}
-			if msg != nil {
-				outputChan <- *msg
+			if flow != nil {
+				outputChan <- *flow
 			}
 
 		case payload := <-agent.closeEventsChan:

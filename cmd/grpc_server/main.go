@@ -19,8 +19,8 @@ type server struct {
 	pb.UnimplementedDockerDogAgentServer
 }
 
-// SendRequestObserved implements helloworld.GreeterServer
-func (s *server) SendRequestObserved(ctx context.Context, in *pb.RequestObserved) (*pb.Reply, error) {
+// SendFlowObserved implements helloworld.GreeterServer
+func (s *server) SendFlowObserved(ctx context.Context, in *pb.FlowObserved) (*pb.Reply, error) {
 	log.Printf("Request to: %s", in.RemoteAddr)
 	return &pb.Reply{Status: "success "}, nil
 }

@@ -21,7 +21,7 @@ type SocketHttp11 struct {
 	Fd          uint32
 	dataBuf     []byte
 	bufferedReq *http.Request
-	msgBuf      *SocketMsg
+	msgBuf      *Flow
 }
 
 func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
@@ -37,7 +37,7 @@ func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 	return socket
 }
 
-func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *SocketMsg {
+func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow {
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
 	// Attempt to parse buffer as an HTTP request
@@ -48,7 +48,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Socke
 			return nil
 		}
 
-		socket.msgBuf = NewSocketMsg(
+		socket.msgBuf = NewFlow(
 			socket.LocalAddr,
 			socket.RemoteAddr,
 			"tcp", // TODO Use constants here instead

@@ -5,11 +5,11 @@ option go_package = "github.com/evanrolfe/dockerdog/api";
 package api;
 
 service DockerDogAgent {
-    rpc SendRequestObserved (RequestObserved) returns (Reply) {}
+    rpc SendFlowObserved (FlowObserved) returns (Reply) {}
     rpc SendAgentStarted (AgentStarted) returns (Reply) {}
 }
 
-message RequestObserved {
+message FlowObserved {
     string local_addr = 1;
     string remote_addr = 2;
     string l4_protocol = 3;

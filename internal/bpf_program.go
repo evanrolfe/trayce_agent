@@ -1,7 +1,5 @@
 package internal
 
-import "C"
-
 import (
 	"fmt"
 	"os"
