@@ -17,17 +17,30 @@ const (
 	keyFile = "server.key"
 )
 
-func StartMockServer(port int, keyDir string) {
+func StartMockServer(httpPort int, httpsPort int, keyDir string) {
+	// Handlers
 	http.HandleFunc("/", serverHandler)
 	http.HandleFunc("/chunked", serverHandlerChunked)
 
+	// HTTP server
+	go func() {
+		fmt.Println("Starting HTTP server on port", httpPort)
+		err := http.ListenAndServe(fmt.Sprintf(":%d", httpPort), nil)
+		if err != nil {
+			log.Fatal("ListenAndServe: ", err)
+		}
+	}()
+
+	// HTTPS server
 	crtPath := filepath.Join(keyDir, crtFile)
 	keyPath := filepath.Join(keyDir, keyFile)
 
-	err := http.ListenAndServeTLS(":4123", crtPath, keyPath, nil)
+	fmt.Println("Starting HTTPS server on port", httpsPort)
+	err := http.ListenAndServeTLS(fmt.Sprintf(":%d", httpsPort), crtPath, keyPath, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
+	fmt.Println("Started HTTPS server")
 }
 
 // GET /

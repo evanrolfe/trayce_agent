@@ -18,6 +18,7 @@ import (
 )
 
 const (
+	mockHttpPort      = 4122
 	mockHttpsPort     = 4123
 	grpcPort          = 50051
 	requestRubyScript = "/app/test/scripts/request_ruby"
@@ -29,7 +30,7 @@ func TestMain(m *testing.M) {
 	// Setup
 
 	// Start HTTP(S) Mock Server
-	go support.StartMockServer(mockHttpsPort, "./support")
+	go support.StartMockServer(mockHttpPort, mockHttpsPort, "./support")
 
 	// Start GRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
