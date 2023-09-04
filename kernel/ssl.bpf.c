@@ -198,7 +198,7 @@ static __inline struct data_event_t* create_data_event(
 }
 
 /***********************************************************
- * BPF syscall processing functions
+ * Helpers
  ***********************************************************/
 
 static int process_data(
@@ -244,9 +244,6 @@ SEC("uprobe/SSL_read")
 int probe_entry_SSL_read(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
-    // bpf_printk("openssl uprobe/SSL_read pid :%d\n", pid);
 
     void* ssl = (void*)PT_REGS_PARM1(ctx);
     // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
@@ -273,8 +270,6 @@ SEC("uretprobe/SSL_read")
 int probe_ret_SSL_read(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
     // bpf_printk("openssl uretprobe/SSL_read pid :%d\n", pid);
 
     struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
@@ -296,8 +291,6 @@ SEC("uprobe/SSL_read_ex")
 int probe_entry_SSL_read_ex(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
     bpf_printk("openssl uprobe/SSL_read_ex pid :%d\n", pid);
 
     void* ssl = (void*)PT_REGS_PARM1(ctx);
@@ -325,8 +318,6 @@ SEC("uretprobe/SSL_read_ex")
 int probe_ret_SSL_read_ex(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
     bpf_printk("openssl uretprobe/SSL_read_ex pid :%d\n", pid);
 
     struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
@@ -350,8 +341,6 @@ SEC("uprobe/SSL_write")
 int probe_entry_SSL_write(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
 
     // bpf_printk("openssl uprobe/SSL_write pid :%d\n", pid);
 
@@ -382,8 +371,6 @@ SEC("uretprobe/SSL_write")
 int probe_ret_SSL_write(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
 
     // Send entry data from map
     // bpf_printk("openssl uretprobe/SSL_write pid :%d\n", pid);
@@ -406,8 +393,6 @@ SEC("kprobe/connect")
 int probe_connect(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
 
     // Extract the pointer to the file descriptor from the argument
     u32 *fd_ptr = (u32*)PT_REGS_PARM1(ctx);
@@ -453,8 +438,6 @@ SEC("kretprobe/connect")
 int probe_ret_connect(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
 
     // Check the call to connect() was successful
     int res = (int)PT_REGS_RC(ctx);
@@ -479,8 +462,6 @@ SEC("kprobe/close")
 int probe_close(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
 
     // Extract the pointer to the file descriptor from the argument
     u32 *fd_ptr = (u32*)PT_REGS_PARM1(ctx);
@@ -504,8 +485,6 @@ SEC("kretprobe/close")
 int probe_ret_close(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    u64 current_uid_gid = bpf_get_current_uid_gid();
-    u32 uid = current_uid_gid;
 
     // Check the call to close() was successful
     int res = (int)PT_REGS_RC(ctx);
