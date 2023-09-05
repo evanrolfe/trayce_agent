@@ -46,7 +46,7 @@ typedef short unsigned int __kernel_sa_family_t;
 
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
-enum data_event_type { kSSLRead, kSSLWrite };
+enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite };
 const u32 invalidFD = 0;
 
 struct data_event_t {
@@ -236,7 +236,7 @@ static int process_data(
 }
 
 /***********************************************************
- * BPF probe function entry-points
+ * BPF uprobes
  ***********************************************************/
 // Function signature being probed:
 // int SSL_read(SSL *s, void *buf, int num)
@@ -387,6 +387,10 @@ int probe_ret_SSL_write(struct pt_regs* ctx) {
     return 0;
 }
 
+/***********************************************************
+ * BPF kprobes
+ ***********************************************************/
+
 // https://linux.die.net/man/3/connect
 // int connect(int socket, const struct sockaddr *address, socklen_t address_len);
 SEC("kprobe/connect")
@@ -500,6 +504,117 @@ int probe_ret_close(struct pt_regs* ctx) {
 
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
 
+    return 0;
+}
+
+SEC("kprobe/sendto")
+int probe_sendto(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
+
+    // Get the socket file descriptor
+    int fd;
+    bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
+
+    // Get the buffer
+    const char* buf;
+    bpf_probe_read(&buf, sizeof(buf), &PT_REGS_PARM2(ctx2));
+
+    // Get the Address family (important to filter out netlink messages)
+    struct sockaddr *saddr;
+    bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM5(ctx2));
+
+    // Get the address family
+    sa_family_t address_family = 0;
+    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
+
+    if (address_family != AF_INET && address_family != 0)
+        return 0;
+
+    struct active_buf active_buf_t;
+    __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
+    active_buf_t.fd = fd;
+    active_buf_t.version = 0;
+    active_buf_t.buf = buf;
+    bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/sendto")
+int probe_ret_sendto(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
+
+    if (active_buf_t != NULL) {
+        const char* buf;
+        u32 fd = active_buf_t->fd;
+        s32 version = active_buf_t->version;
+        bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
+
+        process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version);
+    }
+    bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
+
+    return 0;
+}
+
+SEC("kprobe/recvfrom")
+int probe_recvfrom(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
+
+    // Get the socket file descriptor
+    int fd;
+    bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
+
+    // Get the buffer
+    const char* buf;
+    bpf_probe_read(&buf, sizeof(buf), &PT_REGS_PARM2(ctx2));
+
+    // Get the Address family (important to filter out netlink messages)
+    struct sockaddr *saddr;
+    bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM5(ctx2));
+
+    // Get the address family
+    sa_family_t address_family = 0;
+    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
+
+    if (address_family != AF_INET && address_family != 0)
+        return 0;
+
+    struct active_buf active_buf_t;
+    __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
+    active_buf_t.fd = fd;
+    active_buf_t.version = 1;
+    active_buf_t.buf = buf;
+    bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/recvfrom")
+int probe_ret_recvfrom(struct pt_regs* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
+
+    if (active_buf_t != NULL) {
+        const char* buf;
+        u32 fd = active_buf_t->fd;
+        bpf_printk("recvfrom pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
+        s32 version = active_buf_t->version;
+        bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
+        process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version);
+    }
+    bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
     return 0;
 }
 

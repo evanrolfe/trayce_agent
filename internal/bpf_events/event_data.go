@@ -11,6 +11,8 @@ import (
 const (
 	kSSLRead    = 0
 	kSSLWrite   = 1
+	kRead       = 2
+	kWrite      = 3
 	TypeEgress  = "egress"
 	TypeIngress = "ingress"
 )
@@ -79,6 +81,11 @@ func (se *DataEvent) Type() string {
 		return TypeIngress
 	case kSSLWrite:
 		return TypeEgress
+	case kRead:
+		return TypeIngress
+	case kWrite:
+		return TypeEgress
+
 	default:
 		return ""
 	}
@@ -86,6 +93,10 @@ func (se *DataEvent) Type() string {
 
 func (se *DataEvent) Key() string {
 	return fmt.Sprintf("%d-%d", se.Pid, se.Fd)
+}
+
+func (se *DataEvent) SSL() bool {
+	return se.DataType == kSSLRead || se.DataType == kSSLWrite
 }
 
 // func (se *SSLDataEvent) StringHex() string {

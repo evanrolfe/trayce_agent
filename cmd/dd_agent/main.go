@@ -92,7 +92,7 @@ func main() {
 				wg.Done()
 				return
 			case flow := <-socketFlowChan:
-				fmt.Printf("[MsgEvent] %s - Local: %s, Remote: %s\n", "", flow.LocalAddr, flow.RemoteAddr)
+				fmt.Printf("[Flow] %s - Local: %s, Remote: %s\n", "", flow.LocalAddr, flow.RemoteAddr)
 				flow.Debug()
 
 				// Contact the server and print out its response.

@@ -58,6 +58,16 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 	bpfProg.AttachToKProbe("probe_close", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_close", funcName)
 
+	// kprobe sendto
+	funcName = fmt.Sprintf("__%s_sys_sendto", ksymArch())
+	bpfProg.AttachToKProbe("probe_sendto", funcName)
+	bpfProg.AttachToKRetProbe("probe_ret_sendto", funcName)
+
+	// kprobe recvfrom
+	funcName = fmt.Sprintf("__%s_sys_recvfrom", ksymArch())
+	bpfProg.AttachToKProbe("probe_recvfrom", funcName)
+	bpfProg.AttachToKRetProbe("probe_ret_recvfrom", funcName)
+
 	return &BPFAgent{
 		bpfProg:           bpfProg,
 		sockets:           sockets.NewSocketMap(),
@@ -113,19 +123,22 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.Flow) {
 		case payload := <-agent.connectEventsChan:
 			event := bpf_events.ConnectEvent{}
 			event.Decode(payload)
-			// fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+			if event.Fd == 5 {
+				fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+			}
 
 			agent.sockets.ProcessConnectEvent(&event)
 
 		case payload := <-agent.dataEventsChan:
 			event := bpf_events.DataEvent{}
 			event.Decode(payload)
-			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// 	fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// 	fmt.Println(hex.Dump(event.Payload()))
 
-			flow, err := agent.sockets.ProcessDataEvent(&event)
-			if err != nil {
-				fmt.Println("NO SOCKET FOUND")
-			}
+			flow, _ := agent.sockets.ProcessDataEvent(&event)
+			// if err != nil {
+			// 	fmt.Println("NO SOCKET FOUND")
+			// }
 			if flow != nil {
 				outputChan <- *flow
 			}
