@@ -23,6 +23,7 @@ const (
 	grpcPort              = 50051
 	requestRubyScript     = "/app/test/scripts/request_ruby"
 	requestRubyScriptHttp = "/app/test/scripts/request_ruby_http"
+	requestPythonScript   = "/app/test/scripts/request_python"
 )
 
 var grpcHandler *support.GRPCHandler
@@ -152,6 +153,40 @@ func Test_dd_agent(t *testing.T) {
 				assert.Equal(t, "http", requests[1].L7Protocol)
 			},
 		},
+		{
+			name: "[Python] an HTTP/1.1 request",
+			cmd:  exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort)),
+			verify: func(requests []*api.FlowObserved) {
+				assert.Greater(t, len(requests[0].RemoteAddr), 0)
+				assert.Equal(t, "GET / HTTP/1.1", string(requests[0].Request[0:14]))
+				assert.Empty(t, requests[0].Response)
+				assert.Equal(t, "tcp", requests[0].L4Protocol)
+				assert.Equal(t, "http", requests[0].L7Protocol)
+
+				assert.Greater(t, len(requests[1].RemoteAddr), 0)
+				assert.Equal(t, "GET / HTTP/1.1", string(requests[1].Request[0:14]))
+				assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
+				assert.Equal(t, "tcp", requests[1].L4Protocol)
+				assert.Equal(t, "http", requests[1].L7Protocol)
+			},
+		},
+		{
+			name: "[Python] an HTTPS/1.1 request",
+			cmd:  exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort)),
+			verify: func(requests []*api.FlowObserved) {
+				assert.Greater(t, len(requests[0].RemoteAddr), 0)
+				assert.Equal(t, "GET / HTTP/1.1", string(requests[0].Request[0:14]))
+				assert.Empty(t, requests[0].Response)
+				assert.Equal(t, "tcp", requests[0].L4Protocol)
+				assert.Equal(t, "http", requests[0].L7Protocol)
+
+				assert.Greater(t, len(requests[1].RemoteAddr), 0)
+				assert.Equal(t, "GET / HTTP/1.1", string(requests[1].Request[0:14]))
+				assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
+				assert.Equal(t, "tcp", requests[1].L4Protocol)
+				assert.Equal(t, "http", requests[1].L7Protocol)
+			},
+		},
 	}
 
 	hasFocus := false
@@ -168,7 +203,7 @@ func Test_dd_agent(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a context with a timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
@@ -187,9 +222,9 @@ func Test_dd_agent(t *testing.T) {
 			// Wait for the context to complete
 			<-ctx.Done()
 
-			// fmt.Println("-------------------------------------------------------------------------")
-			// fmt.Println(stdoutBuf.String())
-			// fmt.Println("-------------------------------------------------------------------------")
+			fmt.Println("-------------------------------------------------------------------------")
+			fmt.Println(stdoutBuf.String())
+			fmt.Println("-------------------------------------------------------------------------")
 			// fmt.Println(stderrBuf.String())
 
 			// Verify the result

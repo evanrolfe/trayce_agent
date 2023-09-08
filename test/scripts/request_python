@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+import sys
+import requests
+
+url = sys.argv[1]
+resp1 = requests.get(url, verify=False)
+print(f"status1 : {resp1.status_code}")
+

@@ -48,6 +48,9 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
 
+	bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
+
 	// kprobe connect
 	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
 	bpfProg.AttachToKProbe("probe_connect", funcName)
@@ -123,17 +126,16 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.Flow) {
 		case payload := <-agent.connectEventsChan:
 			event := bpf_events.ConnectEvent{}
 			event.Decode(payload)
-			if event.Fd == 5 {
-				fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
-			}
+			// fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
 			agent.sockets.ProcessConnectEvent(&event)
 
 		case payload := <-agent.dataEventsChan:
 			event := bpf_events.DataEvent{}
 			event.Decode(payload)
-			// 	fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.Type(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-			// 	fmt.Println(hex.Dump(event.Payload()))
+
+			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// fmt.Println(hex.Dump(event.Payload()))
 
 			flow, _ := agent.sockets.ProcessDataEvent(&event)
 			// if err != nil {
