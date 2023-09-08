@@ -233,13 +233,7 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     return 0;
 }
 
-/***********************************************************
- * BPF uprobes
- ***********************************************************/
-// Function signature being probed:
-// int SSL_read(SSL *s, void *buf, int num)
-SEC("uprobe/SSL_read")
-int probe_entry_SSL_read(struct pt_regs* ctx) {
+int process_ssl_read_entry(struct pt_regs* ctx, bool is_ex_call) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
@@ -250,7 +244,6 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
 
     struct BIO bio_r;
     bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
-    // bpf_ringbuf_output(&debug_events, &bio_r, sizeof(struct BIO), 0);
 
     u32 fd = bio_r.num;
 
@@ -260,61 +253,17 @@ int probe_entry_SSL_read(struct pt_regs* ctx) {
     active_buf_t.fd = fd;
     active_buf_t.version = ssl_info.version;
     active_buf_t.buf = buf;
-    bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
-    return 0;
-}
 
-SEC("uretprobe/SSL_read")
-int probe_ret_SSL_read(struct pt_regs* ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-    // bpf_printk("openssl uretprobe/SSL_read pid :%d\n", pid);
-
-    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
-
-    if (active_buf_t != NULL) {
-        const char* buf;
-        u32 fd = active_buf_t->fd;
-        bpf_printk("SSL_read pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
-        s32 version = active_buf_t->version;
-        bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
-        process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, 0);
+    if (is_ex_call) {
+        size_t* ssl_ex_len_ptr = (size_t*)PT_REGS_PARM4(ctx);
+        active_buf_t.ssl_ex_len_ptr = ssl_ex_len_ptr;
     }
-    bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
-    return 0;
-}
 
-// int SSL_read_ex(SSL *ssl, void *buf, size_t num, size_t *readbytes);
-SEC("uprobe/SSL_read_ex")
-int probe_entry_SSL_read_ex(struct pt_regs* ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-
-    void* ssl = (void*)PT_REGS_PARM1(ctx);
-    // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
-    struct ssl_st ssl_info;
-    bpf_probe_read_user(&ssl_info, sizeof(ssl_info), ssl);
-
-    struct BIO bio_r;
-    bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
-
-    u32 fd = bio_r.num;
-    size_t* ssl_ex_len_ptr = (size_t*)PT_REGS_PARM4(ctx);
-
-    const char* buf = (const char*)PT_REGS_PARM2(ctx);
-    struct active_buf active_buf_t;
-    __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
-    active_buf_t.fd = fd;
-    active_buf_t.version = ssl_info.version;
-    active_buf_t.buf = buf;
-    active_buf_t.ssl_ex_len_ptr = ssl_ex_len_ptr;
     bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
     return 0;
 }
 
-SEC("uretprobe/SSL_read_ex")
-// int SSL_read_ex(SSL *ssl, void *buf, size_t num, size_t *readbytes);
-int probe_ret_SSL_read_ex(struct pt_regs* ctx) {
+int process_ssl_read_return(struct pt_regs* ctx, bool is_ex_call) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
     // bpf_printk("openssl uretprobe/SSL_read pid :%d\n", pid);
@@ -327,70 +276,23 @@ int probe_ret_SSL_read_ex(struct pt_regs* ctx) {
         bpf_printk("SSL_read pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
+
         size_t ssl_ex_len;
-        bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), active_buf_t->ssl_ex_len_ptr);
+
+        if (is_ex_call) {
+            bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), active_buf_t->ssl_ex_len_ptr);
+        } else {
+            ssl_ex_len = 0;
+        }
 
         process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, ssl_ex_len);
     }
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
-    return 0;
-}
-
-// Function signature being probed:
-// int SSL_write(SSL *ssl, const void *buf, int num);
-// SSL_write() writes num bytes from the buffer buf into the specified ssl connection
-SEC("uprobe/SSL_write")
-int probe_entry_SSL_write(struct pt_regs* ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-
-    // bpf_printk("openssl uprobe/SSL_write pid :%d\n", pid);
-
-    void* ssl = (void*)PT_REGS_PARM1(ctx);
-    // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
-    struct ssl_st ssl_info;
-    bpf_probe_read_user(&ssl_info, sizeof(ssl_info), ssl);
-
-    struct BIO bio_w;
-    bpf_probe_read_user(&bio_w, sizeof(bio_w), ssl_info.wbio);
-
-    // get fd ssl->wbio->num
-    u32 fd = bio_w.num;
-    bpf_printk("SSL_write FD:%d\n", fd);
-
-    const char* buf = (const char*)PT_REGS_PARM2(ctx);
-    struct active_buf active_buf_t;
-    __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
-    active_buf_t.fd = fd;
-    active_buf_t.version = ssl_info.version;
-    active_buf_t.buf = buf;
-    bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
     return 0;
 }
 
-SEC("uretprobe/SSL_write")
-int probe_ret_SSL_write(struct pt_regs* ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-
-    // Send entry data from map
-    // bpf_printk("openssl uretprobe/SSL_write pid :%d\n", pid);
-    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
-
-    if (active_buf_t != NULL) {
-        const char* buf;
-        u32 fd = active_buf_t->fd;
-        s32 version = active_buf_t->version;
-        bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
-        process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, 0);
-    }
-    bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
-    return 0;
-}
-
-SEC("uprobe/SSL_write_ex")
-int probe_entry_SSL_write_ex(struct pt_regs* ctx) {
+int process_ssl_write_entry(struct pt_regs* ctx, bool is_ex_call) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
@@ -406,26 +308,27 @@ int probe_entry_SSL_write_ex(struct pt_regs* ctx) {
 
     u32 fd = bio_w.num;
 
-    size_t* ssl_ex_len_ptr = (size_t*)PT_REGS_PARM4(ctx);
-    size_t ssl_ex_len;
-    bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), ssl_ex_len_ptr);
-
-    bpf_printk("SSL_write_ex FD:%d, ex_len: %d\n", fd, ssl_ex_len);
-
     const char* buf = (const char*)PT_REGS_PARM2(ctx);
     struct active_buf active_buf_t;
     __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
     active_buf_t.fd = fd;
     active_buf_t.version = ssl_info.version;
     active_buf_t.buf = buf;
-    active_buf_t.ssl_ex_len_ptr = ssl_ex_len_ptr;
+
+    if (is_ex_call) {
+        size_t* ssl_ex_len_ptr = (size_t*)PT_REGS_PARM4(ctx);
+        size_t ssl_ex_len;
+        bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), ssl_ex_len_ptr);
+        bpf_printk("SSL_write_ex FD:%d, ex_len: %d\n", fd, ssl_ex_len);
+        active_buf_t.ssl_ex_len_ptr = ssl_ex_len_ptr;
+    }
+
     bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
     return 0;
 }
 
-SEC("uretprobe/SSL_write_ex")
-int probe_ret_SSL_write_ex(struct pt_regs* ctx) {
+int process_ssl_write_return(struct pt_regs* ctx, bool is_ex_call) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
@@ -440,13 +343,62 @@ int probe_ret_SSL_write_ex(struct pt_regs* ctx) {
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
 
         size_t ssl_ex_len;
-        bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), active_buf_t->ssl_ex_len_ptr);
-        bpf_printk("SSL_write_ex return FD:%d, ex_len: %d\n", fd, ssl_ex_len);
+        if (is_ex_call) {
+            bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), active_buf_t->ssl_ex_len_ptr);
+        } else {
+            ssl_ex_len = 0;
+        }
 
         process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, ssl_ex_len);
     }
     bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
     return 0;
+}
+/***********************************************************
+ * BPF uprobes
+ ***********************************************************/
+// int SSL_read(SSL *s, void *buf, int num)
+SEC("uprobe/SSL_read")
+int probe_entry_SSL_read(struct pt_regs* ctx) {
+    return process_ssl_read_entry(ctx, false);
+}
+
+SEC("uretprobe/SSL_read")
+int probe_ret_SSL_read(struct pt_regs* ctx) {
+    return process_ssl_read_return(ctx, false);
+}
+
+// int SSL_read_ex(SSL *ssl, void *buf, size_t num, size_t *readbytes);
+SEC("uprobe/SSL_read_ex")
+int probe_entry_SSL_read_ex(struct pt_regs* ctx) {
+    return process_ssl_read_entry(ctx, true);
+}
+
+SEC("uretprobe/SSL_read_ex")
+// int SSL_read_ex(SSL *ssl, void *buf, size_t num, size_t *readbytes);
+int probe_ret_SSL_read_ex(struct pt_regs* ctx) {
+    return process_ssl_read_return(ctx, true);
+}
+
+// int SSL_write(SSL *ssl, const void *buf, int num);
+SEC("uprobe/SSL_write")
+int probe_entry_SSL_write(struct pt_regs* ctx) {
+    return process_ssl_write_entry(ctx, false);
+}
+
+SEC("uretprobe/SSL_write")
+int probe_ret_SSL_write(struct pt_regs* ctx) {
+    return process_ssl_write_return(ctx, false);
+}
+
+SEC("uprobe/SSL_write_ex")
+int probe_entry_SSL_write_ex(struct pt_regs* ctx) {
+    return process_ssl_write_entry(ctx, true);
+}
+
+SEC("uretprobe/SSL_write_ex")
+int probe_ret_SSL_write_ex(struct pt_regs* ctx) {
+    return process_ssl_write_return(ctx, true);
 }
 
 /***********************************************************
