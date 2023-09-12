@@ -61,6 +61,9 @@ From the dd container:
 nsenter -t {PID} -n
 ```
 
+To strace Go you need use -f because of the way it uses threads:
+`strace -f ./go_request`
+
 ### Installing curl:
 
 Download tag from github
@@ -77,3 +80,13 @@ make install
 Try: `/usr/local/bin/curl --version`
 
 May need to run `ldconfig`
+
+### Links
+https://www.linuxjournal.com/article/7905
+https://lwn.net/Articles/132196/
+https://sungju.github.io/kernel/internals/debugging.html
+
+https://github.com/weaveworks/tcptracer-bpf
+https://github.com/yuuki/go-conntracer-bpf
+
+https://www.grant.pizza/blog/tracing-go-functions-with-ebpf-part-2/
