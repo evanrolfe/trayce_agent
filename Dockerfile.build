@@ -9,12 +9,12 @@ RUN apt install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz
 
 # Debugging tools:
 RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
-# RUN apt install python3-pip ruby
-# RUN pip3 install requests
+RUN apt install python3-pip ruby
+RUN pip3 install requests
 
 # Install Go
-RUN wget https://go.dev/dl/go1.20.4.linux-386.tar.gz
-RUN tar -C /usr/local -xf go1.20.4.linux-386.tar.gz
+RUN wget https://go.dev/dl/go1.20.4.linux-amd64.tar.gz
+RUN tar -C /usr/local -xf go1.20.4.linux-amd64.tar.gz
 ENV PATH "$PATH:/usr/local/go/bin:/root/go/bin"
 
 # Go Build dependencies

@@ -204,7 +204,7 @@ static __inline struct data_event_t* create_data_event(
 
 static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len) {
     int len = (int)PT_REGS_RC(ctx);
-    bpf_printk("-> process_data len: %d", len);
+    // bpf_printk("-> process_data len: %d", len);
     if (len < 0) {
         return 0;
     }
@@ -412,14 +412,13 @@ int probe_connect(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Extract the pointer to the file descriptor from the argument
-    u32 *fd_ptr = (u32*)PT_REGS_PARM1(ctx);
-    u32 fd;
-    bpf_probe_read(&fd, sizeof(fd), fd_ptr);
-
     // How the hell did I know to do this ctx2 trick here? Credits to kubearmor:
     // https://github.com/kubearmor/KubeArmor/blob/main/KubeArmor/BPF/system_monitor.c#L1332
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
+
+    // Get the socket file descriptor
+    int fd;
+    bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
 
     struct sockaddr *saddr;
     bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
@@ -459,13 +458,14 @@ int probe_ret_connect(struct pt_regs* ctx) {
 
     // Check the call to connect() was successful
     int res = (int)PT_REGS_RC(ctx);
-    if (res != 0)
+    if (res > 0)
         return 0;
 
     // Send entry data from map
     struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
 
     if (conn_event != NULL) {
+        bpf_printk("-----> connect() fd: %d, port: %d", conn_event->fd, bpf_htons(conn_event->port));
         bpf_ringbuf_output(&connect_events, conn_event, sizeof(struct connect_event_t), 0);
     }
 
@@ -623,7 +623,7 @@ int probe_ret_recvfrom(struct pt_regs* ctx) {
     if (active_buf_t != NULL) {
         const char* buf;
         u32 fd = active_buf_t->fd;
-        bpf_printk("recvfrom pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
+        // bpf_printk("recvfrom pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
         process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, 0);
