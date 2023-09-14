@@ -26,28 +26,29 @@ type BPFAgent struct {
 	connectEventsBuf  *libbpfgo.RingBuffer
 	closeEventsBuf    *libbpfgo.RingBuffer
 	debugEventsBuf    *libbpfgo.RingBuffer
+	pid               int
 }
 
-func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAgent {
+func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string, pid int) *BPFAgent {
 	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
-	// probe_entry_SSL_read
-	// Entry gives: HTTP/1.1 301 Moved Permanently..
+	// uprobe SSL_read
 	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
 
+	// uprobe SSL_read_ex
 	bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
 
-	// probe_entry_SSL_write
-	// Return gives: GET / HTTP/1.1..
+	// uprobe SSL_write
 	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
 
+	// uprobe SSL_write_ex
 	bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 
@@ -71,6 +72,22 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 	bpfProg.AttachToKProbe("probe_recvfrom", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_recvfrom", funcName)
 
+	// // kprobe write
+	// funcName = fmt.Sprintf("__%s_sys_write", ksymArch())
+	// bpfProg.AttachToKProbe("probe_write", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_write", funcName)
+
+	// // kprobe read
+	// funcName = fmt.Sprintf("__%s_sys_read", ksymArch())
+	// bpfProg.AttachToKProbe("probe_read", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_read", funcName)
+
+	// kprobe security_socket_sendmsg
+	// bpfProg.AttachToKProbe("probe_entry_security_socket_sendmsg", "security_socket_sendmsg")
+
+	// kprobe security_socket_recvmsg
+	// bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
+
 	return &BPFAgent{
 		bpfProg:           bpfProg,
 		sockets:           sockets.NewSocketMap(),
@@ -79,6 +96,7 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAge
 		connectEventsChan: make(chan []byte),
 		closeEventsChan:   make(chan []byte),
 		debugEventsChan:   make(chan []byte),
+		pid:               pid,
 	}
 }
 

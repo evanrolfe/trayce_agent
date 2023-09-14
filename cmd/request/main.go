@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// go build -o go_request -buildvcs=false ./cmd/request/
+// go build -o test/sripts/go_request -buildvcs=false ./cmd/request/
 
 func makeRequest(num int) {
 	uid, _ := uuid.NewRandom()
@@ -30,7 +30,7 @@ func main() {
 	// url := os.Args[1]
 	fmt.Println("PID:", os.Getpid())
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 999; i++ {
 		makeRequest(420)
 		time.Sleep(time.Second)
 	}

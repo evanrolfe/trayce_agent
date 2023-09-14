@@ -24,6 +24,7 @@ const (
 	requestRubyScript     = "/app/test/scripts/request_ruby"
 	requestRubyScriptHttp = "/app/test/scripts/request_ruby_http"
 	requestPythonScript   = "/app/test/scripts/request_python"
+	requestGoScript       = "/app/test/scripts/go_request"
 )
 
 var grpcHandler *support.GRPCHandler
@@ -143,6 +144,12 @@ func Test_dd_agent(t *testing.T) {
 			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort)),
 			verify: AssertFlows,
 		},
+		// {
+		// 	name:   "[Go] an HTTP/1.1 request",
+		// 	focus:  true,
+		// 	cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort)),
+		// 	verify: AssertFlows,
+		// },
 	}
 
 	hasFocus := false
