@@ -57,14 +57,14 @@ func main() {
 	extractFile(btfBytes, btfDestFile)
 	defer os.Remove(btfDestFile)
 
+	// Create a channel to receive interrupt signals
+	interruptChan := make(chan os.Signal, 1)
+	socketFlowChan := make(chan sockets.Flow)
+	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
+
 	// Start the agent
 	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, libSslPath)
 	defer agent.Close()
-
-	// Create a channel to receive interrupt signals
-	interrupt := make(chan os.Signal, 1)
-	socketFlowChan := make(chan sockets.Flow)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("Agent listing...")
 	go agent.ListenForEvents(socketFlowChan)
@@ -88,7 +88,7 @@ func main() {
 		for {
 			// Check if the interrupt signal has been received
 			select {
-			case <-interrupt:
+			case <-interruptChan:
 				wg.Done()
 				return
 			case flow := <-socketFlowChan:
@@ -124,6 +124,4 @@ func main() {
 	wg.Wait()
 
 	fmt.Printf("Done, closing agent. PID: %d. GID: %d. EGID: %d \n", os.Getpid(), os.Getgid(), os.Getegid())
-
-	// agent.Close()
 }
