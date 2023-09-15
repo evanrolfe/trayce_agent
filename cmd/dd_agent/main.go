@@ -58,7 +58,7 @@ func main() {
 	defer os.Remove(btfDestFile)
 
 	// Start the agent
-	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, libSslPath, pid)
+	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, libSslPath)
 	defer agent.Close()
 
 	// Create a channel to receive interrupt signals

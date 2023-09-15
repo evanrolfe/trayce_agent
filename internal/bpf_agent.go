@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
@@ -15,21 +16,26 @@ const (
 )
 
 type BPFAgent struct {
-	bpfProg           *BPFProgram
-	sockets           sockets.SocketMap
+	bpfProg *BPFProgram
+	sockets *sockets.SocketMap
+
+	dataEventsBuf    *libbpfgo.RingBuffer
+	connectEventsBuf *libbpfgo.RingBuffer
+	closeEventsBuf   *libbpfgo.RingBuffer
+	debugEventsBuf   *libbpfgo.RingBuffer
+
 	interuptChan      chan int
 	dataEventsChan    chan []byte
 	connectEventsChan chan []byte
 	closeEventsChan   chan []byte
 	debugEventsChan   chan []byte
-	dataEventsBuf     *libbpfgo.RingBuffer
-	connectEventsBuf  *libbpfgo.RingBuffer
-	closeEventsBuf    *libbpfgo.RingBuffer
-	debugEventsBuf    *libbpfgo.RingBuffer
-	pid               int
+
+	connectCallbacks []func(bpf_events.ConnectEvent)
+	dataCallbacks    []func(bpf_events.DataEvent)
+	closeCallbacks   []func(bpf_events.CloseEvent)
 }
 
-func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string, pid int) *BPFAgent {
+func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string) *BPFAgent {
 	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -96,8 +102,19 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string, pid int
 		connectEventsChan: make(chan []byte),
 		closeEventsChan:   make(chan []byte),
 		debugEventsChan:   make(chan []byte),
-		pid:               pid,
 	}
+}
+
+func (agent *BPFAgent) RegisterConnectEventCallback(event string, callback func(bpf_events.ConnectEvent)) {
+	agent.connectCallbacks = append(agent.connectCallbacks, callback)
+}
+
+func (agent *BPFAgent) RegisterDataEventCallback(event string, callback func(bpf_events.DataEvent)) {
+	agent.dataCallbacks = append(agent.dataCallbacks, callback)
+}
+
+func (agent *BPFAgent) RegisterCloseEventCallback(event string, callback func(bpf_events.CloseEvent)) {
+	agent.closeCallbacks = append(agent.closeCallbacks, callback)
 }
 
 func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.Flow) {
@@ -144,7 +161,7 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.Flow) {
 		case payload := <-agent.connectEventsChan:
 			event := bpf_events.ConnectEvent{}
 			event.Decode(payload)
-			// fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+			fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
 			agent.sockets.ProcessConnectEvent(&event)
 
@@ -152,13 +169,17 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.Flow) {
 			event := bpf_events.DataEvent{}
 			event.Decode(payload)
 
-			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-			// fmt.Println(hex.Dump(event.Payload()))
+			if event.DataLen != 104 {
+				fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+				fmt.Println(hex.Dump(event.Payload()))
+			}
 
 			flow, _ := agent.sockets.ProcessDataEvent(&event)
-			// if err != nil {
-			// 	fmt.Println("NO SOCKET FOUND")
-			// }
+
+			if err != nil {
+				fmt.Println("NO SOCKET FOUND")
+			}
+
 			if flow != nil {
 				outputChan <- *flow
 			}

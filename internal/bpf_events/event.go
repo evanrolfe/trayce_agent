@@ -13,15 +13,6 @@ const (
 	EventTypeEventProcessor
 )
 
-type IEventStruct interface {
-	Decode(payload []byte) (err error)
-	Payload() []byte
-	PayloadLen() int
-	String() string
-	StringHex() string
-	Clone() IEventStruct
-	//Module() IModule
-	//SetModule(IModule)
-	EventType() EventType
-	GetUUID() string
+type IEvent interface {
+	Key() string
 }

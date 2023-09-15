@@ -38,6 +38,27 @@ func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 	return socket
 }
 
+// TODO: Make NewSocketHttp11 accept an IEvent interface and then decide how to make the socket based on its type
+func NewSocketHttp11FromData(event *bpf_events.DataEvent) SocketHttp11 {
+	socket := SocketHttp11{
+		LocalAddr: "unknown",
+		Pid:       event.Pid,
+		Fd:        event.Fd,
+		dataBuf:   []byte{},
+	}
+
+	return socket
+}
+
+func (socket *SocketHttp11) Key() string {
+	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
+}
+
+// ProcessConnectEvent is called when the connect event arrives after the data event
+func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
+	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
+}
+
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow {
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
@@ -64,6 +85,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow 
 	if socket.msgBuf == nil {
 		fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
 		fmt.Println(hex.Dump(event.Payload()))
+
 		return nil
 	}
 
