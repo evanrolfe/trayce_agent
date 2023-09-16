@@ -1,4 +1,4 @@
-package internal
+package bpf_events
 
 import (
 	"fmt"
@@ -174,23 +174,24 @@ func (prog *BPFProgram) LoadProgram() error {
 
 func (prog *BPFProgram) Close() {
 	fmt.Println("Dettaching TC program(s)...")
-	defer prog.BpfModule.Close()
+	prog.BpfModule.Close()
+	// defer prog.BpfModule.Close()
 
-	for hook, tcOpts := range prog.hooksAndOpts {
-		fmt.Println("Detaching hook:", hook, " from handle:", tcOpts.Handle, "Priority:", tcOpts.Priority)
-		tcOpts.ProgFd = 0
-		tcOpts.ProgId = 0
-		tcOpts.Flags = 0
+	// for hook, tcOpts := range prog.hooksAndOpts {
+	// 	fmt.Println("Detaching hook:", hook, " from handle:", tcOpts.Handle, "Priority:", tcOpts.Priority)
+	// 	tcOpts.ProgFd = 0
+	// 	tcOpts.ProgId = 0
+	// 	tcOpts.Flags = 0
 
-		err := hook.Detach(tcOpts)
-		if err != nil {
-			fmt.Println(err)
-			break
-		}
+	// 	err := hook.Detach(tcOpts)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		break
+	// 	}
 
-		err = hook.Destroy()
-		if err != nil {
-			fmt.Println("failed to destroy hook:", err)
-		}
-	}
+	// 	err = hook.Destroy()
+	// 	if err != nil {
+	// 		fmt.Println("failed to destroy hook:", err)
+	// 	}
+	// }
 }

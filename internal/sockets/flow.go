@@ -12,6 +12,7 @@ type Flow struct {
 	L7Protocol string
 	Request    []byte
 	Response   []byte
+	ConnId     string
 }
 
 func NewFlow(

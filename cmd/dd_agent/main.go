@@ -57,17 +57,17 @@ func main() {
 	extractFile(btfBytes, btfDestFile)
 	defer os.Remove(btfDestFile)
 
-	// Start the agent
-	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, libSslPath, pid)
-	defer agent.Close()
-
 	// Create a channel to receive interrupt signals
-	interrupt := make(chan os.Signal, 1)
+	interruptChan := make(chan os.Signal, 1)
 	socketFlowChan := make(chan sockets.Flow)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
+
+	// Start the listener
+	listener := internal.NewListener(bpfBytes, btfFilePath, libSslPath)
+	defer listener.Close()
 
 	fmt.Println("Agent listing...")
-	go agent.ListenForEvents(socketFlowChan)
+	go listener.Start(socketFlowChan)
 
 	// Start a goroutine to handle the interrupt signal
 	var wg sync.WaitGroup
@@ -88,7 +88,7 @@ func main() {
 		for {
 			// Check if the interrupt signal has been received
 			select {
-			case <-interrupt:
+			case <-interruptChan:
 				wg.Done()
 				return
 			case flow := <-socketFlowChan:
@@ -124,6 +124,4 @@ func main() {
 	wg.Wait()
 
 	fmt.Printf("Done, closing agent. PID: %d. GID: %d. EGID: %d \n", os.Getpid(), os.Getgid(), os.Getegid())
-
-	// agent.Close()
 }

@@ -1,4 +1,4 @@
-package internal
+package bpf_events
 
 import (
 	"fmt"
@@ -6,30 +6,32 @@ import (
 	"runtime"
 
 	"github.com/aquasecurity/libbpfgo"
-	"github.com/evanrolfe/dockerdog/internal/bpf_events"
-	"github.com/evanrolfe/dockerdog/internal/sockets"
 )
 
 const (
 	bufPollRateMs = 50
 )
 
-type BPFAgent struct {
-	bpfProg           *BPFProgram
-	sockets           sockets.SocketMap
-	interuptChan      chan int
+type Stream struct {
+	bpfProg *BPFProgram
+
+	dataEventsBuf    *libbpfgo.RingBuffer
+	connectEventsBuf *libbpfgo.RingBuffer
+	closeEventsBuf   *libbpfgo.RingBuffer
+	debugEventsBuf   *libbpfgo.RingBuffer
+
 	dataEventsChan    chan []byte
 	connectEventsChan chan []byte
 	closeEventsChan   chan []byte
 	debugEventsChan   chan []byte
-	dataEventsBuf     *libbpfgo.RingBuffer
-	connectEventsBuf  *libbpfgo.RingBuffer
-	closeEventsBuf    *libbpfgo.RingBuffer
-	debugEventsBuf    *libbpfgo.RingBuffer
-	pid               int
+	interruptChan     chan int
+
+	connectCallbacks []func(ConnectEvent)
+	dataCallbacks    []func(DataEvent)
+	closeCallbacks   []func(CloseEvent)
 }
 
-func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string, pid int) *BPFAgent {
+func NewStream(bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
 	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -88,88 +90,100 @@ func NewBPFAgent(bpfBytes []byte, btfFilePath string, libSslPath string, pid int
 	// kprobe security_socket_recvmsg
 	// bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
-	return &BPFAgent{
-		bpfProg:           bpfProg,
-		sockets:           sockets.NewSocketMap(),
-		interuptChan:      make(chan int),
+	return &Stream{
+		bpfProg:       bpfProg,
+		interruptChan: make(chan int),
+
 		dataEventsChan:    make(chan []byte),
 		connectEventsChan: make(chan []byte),
 		closeEventsChan:   make(chan []byte),
 		debugEventsChan:   make(chan []byte),
-		pid:               pid,
 	}
 }
 
-func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.Flow) {
+func (stream *Stream) AddConnectCallback(callback func(ConnectEvent)) {
+	stream.connectCallbacks = append(stream.connectCallbacks, callback)
+}
+
+func (stream *Stream) AddDataCallback(callback func(DataEvent)) {
+	stream.dataCallbacks = append(stream.dataCallbacks, callback)
+}
+
+func (stream *Stream) AddCloseCallback(callback func(CloseEvent)) {
+	stream.closeCallbacks = append(stream.closeCallbacks, callback)
+}
+
+func (stream *Stream) Start() {
 	// DataEvents ring buffer
 	var err error
-	agent.dataEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("data_events", agent.dataEventsChan)
+	stream.dataEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("data_events", stream.dataEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
 	// ConnectEvents ring buffer
-	agent.connectEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("connect_events", agent.connectEventsChan)
+	stream.connectEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("connect_events", stream.connectEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
 	// CloseEvents ring buffer
-	agent.closeEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("close_events", agent.closeEventsChan)
+	stream.closeEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("close_events", stream.closeEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
 	// DebugEvents ring buffer
-	agent.debugEventsBuf, err = agent.bpfProg.BpfModule.InitRingBuf("debug_events", agent.debugEventsChan)
+	stream.debugEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("debug_events", stream.debugEventsChan)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
-	agent.dataEventsBuf.Poll(bufPollRateMs)
-	agent.connectEventsBuf.Poll(bufPollRateMs)
-	agent.closeEventsBuf.Poll(bufPollRateMs)
-	agent.debugEventsBuf.Poll(bufPollRateMs)
+	stream.dataEventsBuf.Poll(bufPollRateMs)
+	stream.connectEventsBuf.Poll(bufPollRateMs)
+	stream.closeEventsBuf.Poll(bufPollRateMs)
+	stream.debugEventsBuf.Poll(bufPollRateMs)
 
 	for {
 		// Check if the interrupt signal has been received
 		select {
-		case <-agent.interuptChan:
+		case <-stream.interruptChan:
 			return
 
-		case payload := <-agent.connectEventsChan:
-			event := bpf_events.ConnectEvent{}
+		case payload := <-stream.connectEventsChan:
+			event := ConnectEvent{}
 			event.Decode(payload)
-			// fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
-
-			agent.sockets.ProcessConnectEvent(&event)
-
-		case payload := <-agent.dataEventsChan:
-			event := bpf_events.DataEvent{}
-			event.Decode(payload)
-
-			// fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-			// fmt.Println(hex.Dump(event.Payload()))
-
-			flow, _ := agent.sockets.ProcessDataEvent(&event)
-			// if err != nil {
-			// 	fmt.Println("NO SOCKET FOUND")
+			// if event.Fd < 10 {
+			// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 			// }
-			if flow != nil {
-				outputChan <- *flow
+			for _, callback := range stream.connectCallbacks {
+				callback(event)
+			}
+		case payload := <-stream.dataEventsChan:
+			event := DataEvent{}
+			event.Decode(payload)
+			// if event.Fd < 10 {
+			// 	fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// 	fmt.Println(hex.Dump(event.Payload()))
+			// }
+			for _, callback := range stream.dataCallbacks {
+				callback(event)
 			}
 
-		case payload := <-agent.closeEventsChan:
-			event := bpf_events.CloseEvent{}
+		case payload := <-stream.closeEventsChan:
+			event := CloseEvent{}
 			event.Decode(payload)
-
-			// agent.sockets.ProcessCloseEvent(&event)
-
-		case _ = <-agent.debugEventsChan:
+			// if event.Fd < 10 && event.Fd > 0 {
+			// 	fmt.Println("[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// }
+			for _, callback := range stream.closeCallbacks {
+				callback(event)
+			}
+		case _ = <-stream.debugEventsChan:
 			continue
 			// fmt.Println("[DebugEvent] Received", len(payload), "bytes")
 			// fmt.Println(hex.Dump(payload))
@@ -177,9 +191,9 @@ func (agent *BPFAgent) ListenForEvents(outputChan chan sockets.Flow) {
 	}
 }
 
-func (agent *BPFAgent) Close() {
-	agent.interuptChan <- 1
-	agent.bpfProg.Close()
+func (stream *Stream) Close() {
+	stream.interruptChan <- 1
+	stream.bpfProg.Close()
 }
 
 func ksymArch() string {
