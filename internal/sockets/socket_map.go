@@ -9,8 +9,9 @@ import (
 
 // SocketMap tracks sockets which have been observed in ebpf
 type SocketMap struct {
-	mu      sync.Mutex
-	sockets map[string]SocketI
+	mu            sync.Mutex
+	sockets       map[string]SocketI
+	flowCallbacks []func(Flow)
 }
 
 func NewSocketMap() *SocketMap {
@@ -25,57 +26,64 @@ func (m *SocketMap) GetSocket(key string) (SocketI, bool) {
 	return socket, exists
 }
 
+func (m *SocketMap) AddFlowCallback(callback func(Flow)) {
+	m.flowCallbacks = append(m.flowCallbacks, callback)
+}
+
 // func (m *SocketMap) SetSocket(key string) (SocketI, bool) {
 // 	socket, exists := m.sockets[key]
 // 	return socket, exists
 // }
 
-func (m *SocketMap) ProcessConnectEvent(event *bpf_events.ConnectEvent) SocketI {
+func (m *SocketMap) ProcessConnectEvent(event bpf_events.ConnectEvent) {
 	m.mu.Lock()
-	// fmt.Println("[SocketMap] ProcessConnectEvent got a lock")
-	defer m.mu.Unlock() // defer func() { fmt.Println("[SocketMap] ProcessConnectEvent releasing lock"); m.mu.Unlock() }()
+	defer m.mu.Unlock()
 
 	socket, exists := m.GetSocket(event.Key())
 
 	if !exists {
 		m.Debug()
-		fmt.Println("[SocketMap] Connect - creating socket for:", event.Key())
+		// fmt.Println("[SocketMap] Connect - creating socket for:", event.Key())
 		// TODO: This should first create an SocketUnknown, then change it to SocketHttp11 once we can detect the protocol
-		socket := NewSocketHttp11(event)
+		socket := NewSocketHttp11(&event)
 		m.sockets[event.Key()] = &socket
-		m.Debug()
+		// m.Debug()
 	} else {
-		fmt.Println("[SocketMap] Connect - found socket for:", event.Key())
-		socket.ProcessConnectEvent(event)
+		// fmt.Println("[SocketMap] Connect - found socket for:", event.Key())
+		socket.ProcessConnectEvent(&event)
 	}
-
-	return socket
 }
 
-func (m *SocketMap) ProcessDataEvent(event *bpf_events.DataEvent) (*Flow, error) {
+func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 	m.mu.Lock()
-	// fmt.Println("[SocketMap] ProcessDataEvent got a lock")
-	defer m.mu.Unlock() // defer func() { fmt.Println("[SocketMap] ProcessDataEvent releasing lock"); m.mu.Unlock() }()
+	defer m.mu.Unlock()
 
 	socket, exists := m.GetSocket(event.Key())
-	var msg *Flow
+	var flow *Flow
 
 	if !exists {
-		m.Debug()
-		fmt.Println("[SocketMap] DataEvent - creating socket for:", event.Key())
-		socket := NewSocketHttp11FromData(event)
-		msg = socket.ProcessDataEvent(event)
+		// m.Debug()
+		// fmt.Println("[SocketMap] DataEvent - creating socket for:", event.Key())
+		socket := NewSocketHttp11FromData(&event)
+		flow = socket.ProcessDataEvent(&event)
 		m.sockets[event.Key()] = &socket
-		m.Debug()
+		// m.Debug()
 	} else {
-		fmt.Println("[SocketMap] DataEvent - found socket for:", event.Key())
-		msg = socket.ProcessDataEvent(event)
+		// fmt.Println("[SocketMap] DataEvent - found socket for:", event.Key())
+		flow = socket.ProcessDataEvent(&event)
 	}
 
-	return msg, nil
+	if flow != nil {
+		for _, callback := range m.flowCallbacks {
+			callback(*flow)
+		}
+	}
 }
 
-func (m *SocketMap) ProcessCloseEvent(event *bpf_events.CloseEvent) {
+func (m *SocketMap) ProcessCloseEvent(event bpf_events.CloseEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	delete(m.sockets, event.Key())
 }
 

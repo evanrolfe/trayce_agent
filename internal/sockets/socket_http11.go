@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -83,8 +82,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow 
 	}
 
 	if socket.msgBuf == nil {
-		fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
-		fmt.Println(hex.Dump(event.Payload()))
+		// fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
+		// fmt.Println(hex.Dump(event.Payload()))
 
 		return nil
 	}

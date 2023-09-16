@@ -62,12 +62,12 @@ func main() {
 	socketFlowChan := make(chan sockets.Flow)
 	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 
-	// Start the agent
-	agent := internal.NewBPFAgent(bpfBytes, btfFilePath, libSslPath)
-	defer agent.Close()
+	// Start the listener
+	listener := internal.NewListener(bpfBytes, btfFilePath, libSslPath)
+	defer listener.Close()
 
 	fmt.Println("Agent listing...")
-	go agent.ListenForEvents(socketFlowChan)
+	go listener.Start(socketFlowChan)
 
 	// Start a goroutine to handle the interrupt signal
 	var wg sync.WaitGroup

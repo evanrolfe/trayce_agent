@@ -25,9 +25,13 @@ type Stream struct {
 	closeEventsChan   chan []byte
 	debugEventsChan   chan []byte
 	interruptChan     chan int
+
+	connectCallbacks []func(ConnectEvent)
+	dataCallbacks    []func(DataEvent)
+	closeCallbacks   []func(CloseEvent)
 }
 
-func NeStream(bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
+func NewStream(bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
 	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -97,7 +101,19 @@ func NeStream(bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
 	}
 }
 
-func (stream *Stream) Start(outputChan chan IEvent) {
+func (stream *Stream) AddConnectCallback(callback func(ConnectEvent)) {
+	stream.connectCallbacks = append(stream.connectCallbacks, callback)
+}
+
+func (stream *Stream) AddDataCallback(callback func(DataEvent)) {
+	stream.dataCallbacks = append(stream.dataCallbacks, callback)
+}
+
+func (stream *Stream) AddCloseCallback(callback func(CloseEvent)) {
+	stream.closeCallbacks = append(stream.closeCallbacks, callback)
+}
+
+func (stream *Stream) Start() {
 	// DataEvents ring buffer
 	var err error
 	stream.dataEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("data_events", stream.dataEventsChan)
@@ -141,19 +157,32 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 		case payload := <-stream.connectEventsChan:
 			event := ConnectEvent{}
 			event.Decode(payload)
-			fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
-			// outputChan <- &event
+			// if event.Fd < 10 {
+			// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+			// }
+			for _, callback := range stream.connectCallbacks {
+				callback(event)
+			}
 		case payload := <-stream.dataEventsChan:
 			event := DataEvent{}
 			event.Decode(payload)
-
-			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-			// outputChan <- &event
+			// if event.Fd < 10 {
+			// 	fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// 	fmt.Println(hex.Dump(event.Payload()))
+			// }
+			for _, callback := range stream.dataCallbacks {
+				callback(event)
+			}
 
 		case payload := <-stream.closeEventsChan:
 			event := CloseEvent{}
 			event.Decode(payload)
-
+			// if event.Fd < 10 && event.Fd > 0 {
+			// 	fmt.Println("[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			// }
+			for _, callback := range stream.closeCallbacks {
+				callback(event)
+			}
 		case _ = <-stream.debugEventsChan:
 			continue
 			// fmt.Println("[DebugEvent] Received", len(payload), "bytes")
