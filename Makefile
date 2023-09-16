@@ -47,6 +47,17 @@ build: generate
 test:
 	go test ./test -v -count=1
 
+testunit: generate
+# Compile the Go app to our final executable ./dd_agent
+	CC=$(CLANG) \
+		CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
+		CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
+		GOOS=linux GOARCH=$(ARCH_FOR_CGO) \
+		CGO_ENABLED=1 \
+		go test \
+		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
+		-v ./internal/sockets
+
 clean:
 	rm -rf .output
 	rm -rf third_party/libbpf-bootstrap

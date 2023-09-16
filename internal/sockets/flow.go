@@ -12,20 +12,18 @@ type Flow struct {
 	L7Protocol string
 	Request    []byte
 	Response   []byte
-	ConnId     string
+	Pid        int
+	Fd         int
 }
 
-func NewFlow(
-	localAddr string,
-	remoteAddr string,
-	l4protocol string,
-	l7protocol string,
-	request []byte) *Flow {
+func NewFlow(localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request []byte) *Flow {
 	m := &Flow{
 		LocalAddr:  localAddr,
 		RemoteAddr: remoteAddr,
 		L4Protocol: l4protocol,
 		L7Protocol: l7protocol,
+		Pid:        pid,
+		Fd:         fd,
 		Request:    request,
 		Response:   nil,
 	}

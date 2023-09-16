@@ -74,6 +74,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow 
 			socket.RemoteAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
+			int(socket.Pid),
+			int(socket.Fd),
 			socket.dataBuf,
 		)
 		socket.clearDataBuffer()
