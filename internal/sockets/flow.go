@@ -36,6 +36,8 @@ func (flow *Flow) Clone() Flow {
 		RemoteAddr: flow.RemoteAddr,
 		L4Protocol: flow.L4Protocol,
 		L7Protocol: flow.L7Protocol,
+		Pid:        flow.Pid,
+		Fd:         flow.Fd,
 		Request:    flow.Request,
 		Response:   flow.Response,
 	}

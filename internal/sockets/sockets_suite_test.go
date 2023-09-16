@@ -34,3 +34,10 @@ func hexDumpToBytes(hexDump string) ([]byte, error) {
 
 	return decoded, nil
 }
+
+func convertSliceToArray(slice []byte) [4096]byte {
+	var arr [4096]byte
+	copy(arr[:], slice)
+
+	return arr
+}
