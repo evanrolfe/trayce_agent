@@ -14,14 +14,15 @@ import (
 )
 
 type SocketHttp11 struct {
-	LocalAddr   string
-	RemoteAddr  string
-	Protocol    string
-	Pid         uint32
-	Fd          uint32
-	dataBuf     []byte
-	bufferedReq *http.Request
-	msgBuf      *Flow
+	LocalAddr     string
+	RemoteAddr    string
+	Protocol      string
+	Pid           uint32
+	Fd            uint32
+	dataBuf       []byte
+	bufferedReq   *http.Request
+	msgBuf        *Flow
+	flowCallbacks []func(Flow)
 }
 
 func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
@@ -53,12 +54,16 @@ func (socket *SocketHttp11) Key() string {
 	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
 }
 
+func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
+	socket.flowCallbacks = append(socket.flowCallbacks, callback)
+}
+
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 }
 
-func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow {
+func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
 	// Attempt to parse buffer as an HTTP request
@@ -66,7 +71,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow 
 	if req != nil {
 		if socket.msgBuf != nil {
 			fmt.Println("[WARNING] a request was received out-of-order")
-			return nil
+			return
 		}
 
 		socket.msgBuf = NewFlow(
@@ -79,15 +84,15 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow 
 			socket.dataBuf,
 		)
 		socket.clearDataBuffer()
-
-		return socket.msgBuf
+		fmt.Println("[SocketHttp11] Flow (requset) observed!")
+		for _, callback := range socket.flowCallbacks {
+			callback(*socket.msgBuf)
+		}
 	}
 
 	if socket.msgBuf == nil {
-		// fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
+		fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
 		// fmt.Println(hex.Dump(event.Payload()))
-
-		return nil
 	}
 
 	// Attempt to parse buffer as an HTTP response
@@ -98,11 +103,11 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) *Flow 
 
 		socket.clearDataBuffer()
 		socket.clearMsgBuffer()
-
-		return &finalMsg
+		fmt.Println("[SocketHttp11] Flow (requset+response) observed!")
+		for _, callback := range socket.flowCallbacks {
+			callback(finalMsg)
+		}
 	}
-
-	return nil
 }
 
 func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {

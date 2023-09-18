@@ -26,14 +26,19 @@ func (m *SocketMap) GetSocket(key string) (SocketI, bool) {
 	return socket, exists
 }
 
+func (m *SocketMap) AddSocket(socket SocketI) {
+	socket.AddFlowCallback(func(flow Flow) {
+		for _, callback := range m.flowCallbacks {
+			callback(flow)
+		}
+	})
+
+	m.sockets[socket.Key()] = socket
+}
+
 func (m *SocketMap) AddFlowCallback(callback func(Flow)) {
 	m.flowCallbacks = append(m.flowCallbacks, callback)
 }
-
-// func (m *SocketMap) SetSocket(key string) (SocketI, bool) {
-// 	socket, exists := m.sockets[key]
-// 	return socket, exists
-// }
 
 func (m *SocketMap) ProcessConnectEvent(event bpf_events.ConnectEvent) {
 	m.mu.Lock()
@@ -46,7 +51,7 @@ func (m *SocketMap) ProcessConnectEvent(event bpf_events.ConnectEvent) {
 		// fmt.Println("[SocketMap] Connect - creating socket for:", event.Key())
 		// TODO: This should first create an SocketUnknown, then change it to SocketHttp11 once we can detect the protocol
 		socket := NewSocketHttp11(&event)
-		m.sockets[event.Key()] = &socket
+		m.AddSocket(&socket)
 		// m.Debug()
 	} else {
 		// fmt.Println("[SocketMap] Connect - found socket for:", event.Key())
@@ -59,24 +64,17 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 	defer m.mu.Unlock()
 
 	socket, exists := m.GetSocket(event.Key())
-	var flow *Flow
 
 	if !exists {
 		// m.Debug()
 		// fmt.Println("[SocketMap] DataEvent - creating socket for:", event.Key())
 		socket := NewSocketHttp11FromData(&event)
-		flow = socket.ProcessDataEvent(&event)
-		m.sockets[event.Key()] = &socket
+		m.AddSocket(&socket)
+		socket.ProcessDataEvent(&event)
 		// m.Debug()
 	} else {
 		// fmt.Println("[SocketMap] DataEvent - found socket for:", event.Key())
-		flow = socket.ProcessDataEvent(&event)
-	}
-
-	if flow != nil {
-		for _, callback := range m.flowCallbacks {
-			callback(*flow)
-		}
+		socket.ProcessDataEvent(&event)
 	}
 }
 
