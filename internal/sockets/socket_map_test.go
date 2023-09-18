@@ -134,4 +134,62 @@ var _ = Describe("SocketMap", func() {
 			Expect(flows[1].Response).To(Equal(event2Payload))
 		})
 	})
+
+	Context("Receiving a Data (request), Data (response), Connect events [out of order]", Ordered, func() {
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
+
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+				Pid:      123,
+				Tid:      123,
+				Fd:       5,
+				DataType: 1,
+				Data:     convertSliceToArray(event1Payload),
+				DataLen:  int32(len(event1Payload)),
+			})
+			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+				Pid:      123,
+				Tid:      123,
+				Fd:       5,
+				DataType: 0,
+				Data:     convertSliceToArray(event2Payload),
+				DataLen:  int32(len(event2Payload)),
+			})
+			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+				Pid:  123,
+				Tid:  123,
+				Fd:   5,
+				Ip:   2130706433,
+				Port: 80,
+			})
+		})
+
+		It("returns two flows", func() {
+			Expect(flows).To(HaveLen(2))
+
+			for _, flow := range flows {
+				Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("http"))
+				Expect(flow.Pid).To(Equal(123))
+				Expect(flow.Fd).To(Equal(5))
+			}
+		})
+
+		It("the first flow contains an HTTP request", func() {
+			flow := flows[0]
+			Expect(flow.Request).To(Equal(event1Payload))
+			Expect(flow.Response).To(HaveLen(0))
+		})
+
+		It("the second flow contains an HTTP request and response", func() {
+			Expect(flows[1].Request).To(Equal(event1Payload))
+			Expect(flows[1].Response).To(Equal(event2Payload))
+		})
+	})
 })

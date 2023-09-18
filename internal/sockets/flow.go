@@ -44,6 +44,10 @@ func (flow *Flow) Clone() Flow {
 	return m
 }
 
+func (flow *Flow) Complete() bool {
+	return flow.L4Protocol != "" && flow.L7Protocol != "" && flow.RemoteAddr != "" && len(flow.Request) > 0
+}
+
 func (flow *Flow) AddResponse(response []byte) {
 	flow.Response = response
 }
