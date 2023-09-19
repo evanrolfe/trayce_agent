@@ -128,6 +128,8 @@ func main() {
 		}
 	}()
 
+	// IMPORTANT: This seems to block the entire thing if it doesn't receive the set_settings message from the server!!!
+	// TODO: Figure this out
 	go func() {
 		for {
 			// Recieve on the stream
