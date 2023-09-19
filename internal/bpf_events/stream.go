@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/evanrolfe/dockerdog/internal/docker"
 )
 
 const (
@@ -31,7 +32,7 @@ type Stream struct {
 	closeCallbacks   []func(CloseEvent)
 }
 
-func NewStream(bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
+func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
 	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

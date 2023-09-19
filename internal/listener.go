@@ -1,34 +1,44 @@
 package internal
 
 import (
+	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
+	"github.com/evanrolfe/dockerdog/internal/docker"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
 )
 
 type Listener struct {
-	EventStream *bpf_events.Stream
+	containers  *docker.Containers
+	eventStream *bpf_events.Stream
 	sockets     *sockets.SocketMap
 }
 
 func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string) *Listener {
-	eventStream := bpf_events.NewStream(bpfBytes, btfFilePath, libSslPath)
+	containers := docker.NewContainers()
 
 	return &Listener{
-		EventStream: eventStream,
+		containers:  containers,
+		eventStream: bpf_events.NewStream(containers, bpfBytes, btfFilePath, libSslPath),
 		sockets:     sockets.NewSocketMap(),
 	}
 }
 
 func (listener *Listener) Start(outputChan chan sockets.Flow) {
-	listener.EventStream.AddConnectCallback(listener.sockets.ProcessConnectEvent)
-	listener.EventStream.AddDataCallback(listener.sockets.ProcessDataEvent)
-	listener.EventStream.AddCloseCallback(listener.sockets.ProcessCloseEvent)
+	// TODO: Would probably be better to do this with an interface and accept the SocketsMap as a dependency injection
+	// rather than with callbacks
+	listener.eventStream.AddConnectCallback(listener.sockets.ProcessConnectEvent)
+	listener.eventStream.AddDataCallback(listener.sockets.ProcessDataEvent)
+	listener.eventStream.AddCloseCallback(listener.sockets.ProcessCloseEvent)
 
 	listener.sockets.AddFlowCallback(func(flow sockets.Flow) { outputChan <- flow })
 
-	listener.EventStream.Start()
+	listener.eventStream.Start()
+}
+
+func (listener *Listener) SetSettings(settings *api.Settings) {
+	listener.containers.SetSettings(settings)
 }
 
 func (listener *Listener) Close() {
-	listener.EventStream.Close()
+	listener.eventStream.Close()
 }

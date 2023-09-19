@@ -4,9 +4,12 @@ option go_package = "github.com/evanrolfe/dockerdog/api";
 
 package api;
 
+import "google/protobuf/any.proto";
+
 service DockerDogAgent {
     rpc SendFlowObserved (FlowObserved) returns (Reply) {}
     rpc SendAgentStarted (AgentStarted) returns (Reply) {}
+    rpc OpenCommandStream (stream NooP) returns (stream Command) {}
 }
 
 message FlowObserved {
@@ -23,3 +26,21 @@ message Reply {
 }
 
 message AgentStarted {}
+message NooP {}
+
+message Command {
+    string type = 1;
+    Settings settings = 2;
+}
+
+message Settings {
+    repeated string container_ids = 1;
+}
+
+message Request {
+    int32 num = 1;
+}
+
+message Response {
+    int32 result = 1;
+}

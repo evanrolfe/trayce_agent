@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
+	"github.com/evanrolfe/dockerdog/internal/utils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -24,18 +27,8 @@ const (
 	grpcServerDefault = "localhost:50051"
 )
 
-func extractFile(data []byte, destPath string) {
-	f, err := os.Create(destPath)
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = f.Write(data)
-	if err != nil {
-		panic(err)
-	}
-
-	f.Close()
+type Settings struct {
+	ContainerIds []string
 }
 
 func main() {
@@ -54,13 +47,15 @@ func main() {
 	bpfBytes := internal.MustAsset(bpfFilePath)
 	btfBytes := internal.MustAsset(btfFilePath)
 	btfDestFile := "./5.8.0-23-generic.btf"
-	extractFile(btfBytes, btfDestFile)
+	utils.ExtractFile(btfBytes, btfDestFile)
 	defer os.Remove(btfDestFile)
 
 	// Create a channel to receive interrupt signals
 	interruptChan := make(chan os.Signal, 1)
+	interruptChan2 := make(chan os.Signal, 2)
 	socketFlowChan := make(chan sockets.Flow)
 	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
+	signal.Notify(interruptChan2, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 
 	// Start the listener
 	listener := internal.NewListener(bpfBytes, btfFilePath, libSslPath)
@@ -80,17 +75,34 @@ func main() {
 		fmt.Println("[ERROR] could not connect to GRPC server: %v", err)
 		return
 	}
-	defer conn.Close()
+	defer func() { fmt.Println("closing grpc conn"); conn.Close() }()
 
 	grpcClient := api.NewDockerDogAgentClient(conn)
+
+	// Open command stream via GRPC
+	stream, err := grpcClient.OpenCommandStream(context.Background())
+	if err != nil {
+		fmt.Println("[ERROR] openn stream error %v", err)
+	}
+
+	go func() {
+		for {
+			<-interruptChan
+			fmt.Println("Interrupt received")
+			// Tell the Server to close this Stream, used to clean up running on the server
+			err := stream.CloseSend()
+			if err != nil {
+				log.Fatal("Failed to close stream: ", err.Error())
+			}
+			wg.Done()
+			return
+		}
+	}()
 
 	go func() {
 		for {
 			// Check if the interrupt signal has been received
 			select {
-			case <-interruptChan:
-				wg.Done()
-				return
 			case flow := <-socketFlowChan:
 				fmt.Printf("[Flow] %s - Local: %s, Remote: %s\n", "", flow.LocalAddr, flow.RemoteAddr)
 				flow.Debug()
@@ -112,6 +124,23 @@ func main() {
 				if err != nil {
 					fmt.Println("[ERROR] could not request: %v", err)
 				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			// Recieve on the stream
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				panic(err)
+			}
+			if resp.Type == "set_settings" {
+				fmt.Println(resp.Settings.ContainerIds)
+				listener.SetSettings(resp.Settings)
 			}
 		}
 	}()
