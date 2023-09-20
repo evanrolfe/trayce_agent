@@ -12,7 +12,7 @@ import (
 
 const (
 	bufPollRateMs              = 50
-	containerPIDsRefreshRateMs = 50
+	containerPIDsRefreshRateMs = 5
 )
 
 type Stream struct {
@@ -167,15 +167,27 @@ func (stream *Stream) Start() {
 		case payload := <-stream.connectEventsChan:
 			event := ConnectEvent{}
 			event.Decode(payload)
+
+			// NOTE: There is a potential race condition here, we refresh the PIDs every 5ms but if a process starts and connects
+			// a socket in < 5ms then this event would be dropped here. We could do this check in a go routine sleep 5ms to ensure
+			// we have the latest set of intercepted PIDs.
+			if !stream.isPIDIntercepted(int(event.Pid)) {
+				continue
+			}
 			// if event.Fd < 10 {
 			// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 			// }
+			fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+
 			for _, callback := range stream.connectCallbacks {
 				callback(event)
 			}
 		case payload := <-stream.dataEventsChan:
 			event := DataEvent{}
 			event.Decode(payload)
+			if !stream.isPIDIntercepted(int(event.Pid)) {
+				continue
+			}
 			// if event.Fd < 10 {
 			// 	fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 			// 	fmt.Println(hex.Dump(event.Payload()))
@@ -187,6 +199,9 @@ func (stream *Stream) Start() {
 		case payload := <-stream.closeEventsChan:
 			event := CloseEvent{}
 			event.Decode(payload)
+			if !stream.isPIDIntercepted(int(event.Pid)) {
+				continue
+			}
 			// if event.Fd < 10 && event.Fd > 0 {
 			// 	fmt.Println("[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 			// }
@@ -208,9 +223,18 @@ func (stream *Stream) Close() {
 
 func (stream *Stream) refreshPids() {
 	for {
-		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
 		stream.interceptedPIDs = stream.containers.GetPidsToIntercept()
+		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
 	}
+}
+
+func (stream *Stream) isPIDIntercepted(pid int) bool {
+	for _, interceptedPid := range stream.interceptedPIDs {
+		if pid == interceptedPid {
+			return true
+		}
+	}
+	return false
 }
 
 func ksymArch() string {
