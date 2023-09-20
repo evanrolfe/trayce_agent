@@ -47,12 +47,10 @@ func (m *SocketMap) ProcessConnectEvent(event bpf_events.ConnectEvent) {
 	socket, exists := m.GetSocket(event.Key())
 
 	if !exists {
-		m.Debug()
 		// fmt.Println("[SocketMap] Connect - creating socket for:", event.Key())
 		// TODO: This should first create an SocketUnknown, then change it to SocketHttp11 once we can detect the protocol
 		socket := NewSocketHttp11(&event)
 		m.AddSocket(&socket)
-		// m.Debug()
 	} else {
 		// fmt.Println("[SocketMap] Connect - found socket for:", event.Key())
 		socket.ProcessConnectEvent(&event)
@@ -66,12 +64,10 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 	socket, exists := m.GetSocket(event.Key())
 
 	if !exists {
-		// m.Debug()
 		// fmt.Println("[SocketMap] DataEvent - creating socket for:", event.Key())
 		socket := NewSocketHttp11FromData(&event)
 		m.AddSocket(&socket)
 		socket.ProcessDataEvent(&event)
-		// m.Debug()
 	} else {
 		// fmt.Println("[SocketMap] DataEvent - found socket for:", event.Key())
 		socket.ProcessDataEvent(&event)

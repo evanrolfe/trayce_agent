@@ -98,7 +98,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 	}
 
 	if socket.flowBuf == nil {
-		fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
+		// fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
 		// fmt.Println(hex.Dump(event.Payload()))
 	}
 

@@ -4,17 +4,21 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/evanrolfe/dockerdog/internal/docker"
 )
 
 const (
-	bufPollRateMs = 50
+	bufPollRateMs              = 50
+	containerPIDsRefreshRateMs = 50
 )
 
 type Stream struct {
-	bpfProg *BPFProgram
+	bpfProg         *BPFProgram
+	containers      *docker.Containers
+	interceptedPIDs []int
 
 	dataEventsBuf    *libbpfgo.RingBuffer
 	connectEventsBuf *libbpfgo.RingBuffer
@@ -92,7 +96,10 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	// bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
 	return &Stream{
-		bpfProg:       bpfProg,
+		bpfProg:         bpfProg,
+		containers:      containers,
+		interceptedPIDs: []int{},
+
 		interruptChan: make(chan int),
 
 		dataEventsChan:    make(chan []byte),
@@ -115,6 +122,8 @@ func (stream *Stream) AddCloseCallback(callback func(CloseEvent)) {
 }
 
 func (stream *Stream) Start() {
+	go stream.refreshPids()
+
 	// DataEvents ring buffer
 	var err error
 	stream.dataEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("data_events", stream.dataEventsChan)
@@ -195,6 +204,13 @@ func (stream *Stream) Start() {
 func (stream *Stream) Close() {
 	stream.interruptChan <- 1
 	stream.bpfProg.Close()
+}
+
+func (stream *Stream) refreshPids() {
+	for {
+		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
+		stream.interceptedPIDs = stream.containers.GetPidsToIntercept()
+	}
 }
 
 func ksymArch() string {

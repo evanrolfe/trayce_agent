@@ -3,6 +3,7 @@ package support
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/evanrolfe/dockerdog/api"
@@ -41,11 +42,15 @@ func (ts *GRPCHandler) SendAgentStarted(ctx context.Context, input *api.AgentSta
 
 func (ts *GRPCHandler) OpenCommandStream(srv api.DockerDogAgent_OpenCommandStreamServer) error {
 	log.Println("start new stream")
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
 
 	for i := 0; i < 3; i++ {
 		command := api.Command{
 			Type:     "set_settings",
-			Settings: &api.Settings{ContainerIds: []string{"724a0d7d2f06"}},
+			Settings: &api.Settings{ContainerIds: []string{hostname}},
 		}
 
 		if err := srv.Send(&command); err != nil {

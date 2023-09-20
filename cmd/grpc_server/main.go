@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	pb "github.com/evanrolfe/dockerdog/api"
@@ -32,11 +33,15 @@ func (s *server) SendFlowObserved(ctx context.Context, in *pb.FlowObserved) (*pb
 
 func (s *server) OpenCommandStream(srv pb.DockerDogAgent_OpenCommandStreamServer) error {
 	log.Println("start new stream")
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
 
 	for i := 0; i < 3; i++ {
 		command := pb.Command{
 			Type:     "set_settings",
-			Settings: &pb.Settings{ContainerIds: []string{"724a0d7d2f06"}},
+			Settings: &pb.Settings{ContainerIds: []string{hostname}},
 		}
 
 		if err := srv.Send(&command); err != nil {
