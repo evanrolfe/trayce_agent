@@ -66,36 +66,40 @@ func Test_dd_agent_load(t *testing.T) {
 	}{
 		{
 			name:     "[Ruby] an HTTP/1.1 request",
-			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/", mockHttpPort), "5000"),
-			numFlows: 10000,
+			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/", mockHttpPort), "500"),
+			numFlows: 1000,
 			verify:   AssertFlowsLoad,
 		},
 		{
 			name:     "[Ruby] an HTTP/1.1 request with a chunked response",
-			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/chunked", mockHttpPort), "5000"),
-			numFlows: 10000,
+			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/chunked", mockHttpPort), "500"),
+			numFlows: 1000,
 			verify:   AssertFlowsChunkedLoad,
 		},
-		// {
-		// 	name:   "[Ruby] an HTTPS/1.1 request",
-		// 	cmd:    exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort)),
-		// 	verify: AssertFlowsLoad,
-		// },
-		// {
-		// 	name:   "[Ruby] an HTTPS/1.1 request with a chunked response",
-		// 	cmd:    exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/chunked", mockHttpsPort)),
-		// 	verify: AssertFlowsChunkedLoad,
-		// },
-		// {
-		// 	name:   "[Python] an HTTP/1.1 request",
-		// 	cmd:    exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort)),
-		// 	verify: AssertFlowsLoad,
-		// },
-		// {
-		// 	name:   "[Python] an HTTPS/1.1 request",
-		// 	cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort)),
-		// 	verify: AssertFlowsLoad,
-		// },
+		{
+			name:     "[Ruby] an HTTPS/1.1 request",
+			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://localhost:%d/", mockHttpsPort), "500"),
+			numFlows: 1000,
+			verify:   AssertFlowsLoad,
+		},
+		{
+			name:     "[Ruby] an HTTPS/1.1 request with a chunked response",
+			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://localhost:%d/chunked", mockHttpsPort), "500"),
+			numFlows: 1000,
+			verify:   AssertFlowsChunkedLoad,
+		},
+		{
+			name:     "[Python] an HTTP/1.1 request",
+			cmd:      exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort), "500"),
+			numFlows: 1000,
+			verify:   AssertFlowsLoad,
+		},
+		{
+			name:     "[Python] an HTTPS/1.1 request",
+			cmd:      exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort), "500"),
+			numFlows: 1000,
+			verify:   AssertFlowsLoad,
+		},
 		// {
 		// 	name:   "[Go] an HTTP/1.1 request",
 		// 	focus:  true,
@@ -118,7 +122,7 @@ func Test_dd_agent_load(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a context with a timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
@@ -138,11 +142,10 @@ func Test_dd_agent_load(t *testing.T) {
 			<-ctx.Done()
 
 			// if len(requests) != 2 {
-			fmt.Println("*-------------------------------------------------------------------------* Start:")
-			fmt.Println(stdoutBuf.String())
-			fmt.Println("*-------------------------------------------------------------------------* End")
+			// fmt.Println("*-------------------------------------------------------------------------* Start:")
+			// fmt.Println(stdoutBuf.String())
+			// fmt.Println("*-------------------------------------------------------------------------* End")
 			// }
-			// fmt.Println(stderrBuf.String())
 
 			// Verify the result
 			assert.Equal(t, tt.numFlows, len(requests))

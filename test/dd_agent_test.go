@@ -133,12 +133,12 @@ func Test_dd_agent_single(t *testing.T) {
 		},
 		{
 			name:   "[Python] an HTTP/1.1 request",
-			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort)),
+			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort), "1"),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Python] an HTTPS/1.1 request",
-			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort)),
+			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort), "1"),
 			verify: AssertFlows,
 		},
 		// {

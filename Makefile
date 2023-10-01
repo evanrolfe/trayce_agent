@@ -34,13 +34,13 @@ generate:
 build: generate
 # Compile the Go app to our final executable ./dd_agent
 	CC=$(CLANG) \
-		CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
-		CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
-		GOOS=linux GOARCH=$(ARCH_FOR_CGO) \
-		CGO_ENABLED=1 \
-		go build \
-		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-		-o dd_agent ./cmd/dd_agent/main.go
+	CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
+	CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
+	GOOS=linux GOARCH=$(ARCH_FOR_CGO) \
+	CGO_ENABLED=1 \
+	go build \
+	-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
+	-o dd_agent ./cmd/dd_agent/main.go
 
 	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./dd_agent\n$(DIV)"
 
@@ -52,13 +52,13 @@ testload:
 
 testunit: generate
 	CC=$(CLANG) \
-		CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
-		CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
-		GOOS=linux GOARCH=$(ARCH_FOR_CGO) \
-		CGO_ENABLED=1 \
-		go test \
-		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-		-v ./internal/...
+	CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
+	CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
+	GOOS=linux GOARCH=$(ARCH_FOR_CGO) \
+	CGO_ENABLED=1 \
+	go test \
+	-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
+	-v ./internal/...
 
 clean:
 	rm -rf .output

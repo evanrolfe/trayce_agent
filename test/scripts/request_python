@@ -3,6 +3,9 @@ import sys
 import requests
 
 url = sys.argv[1]
-resp1 = requests.get(url, verify=False)
-print(f"status1 : {resp1.status_code}")
+n = int(sys.argv[2])
+
+for i in range(n):
+    resp1 = requests.get(url, verify=False)
+    print(f"status1 : {resp1.status_code}")
 
