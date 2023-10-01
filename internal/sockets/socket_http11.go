@@ -67,6 +67,9 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 
 	// Connect events came come after DataEvents, so we buffer those flows until we receive a ConnectEvent which sets
@@ -77,12 +80,14 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) 
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 	socket.mu.Lock()
 	defer socket.mu.Unlock()
+	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf))
 
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
 	// 1. Attempt to parse buffer as an HTTP request
 	req := socket.parseHTTPRequest(socket.dataBuf)
 	if req != nil {
+		fmt.Println("[SocketHttp1.1] HTTP request complete")
 		flow := NewFlow(
 			socket.LocalAddr,
 			socket.RemoteAddr,
@@ -99,6 +104,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 	// 2. Attempt to parse buffer as an HTTP response
 	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf)
 	if resp != nil {
+		fmt.Println("[SocketHttp1.1] HTTP response complete")
+
 		flow := NewFlowResponse(
 			socket.LocalAddr,
 			socket.RemoteAddr,

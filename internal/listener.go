@@ -26,13 +26,26 @@ func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string) *Listen
 func (listener *Listener) Start(outputChan chan sockets.Flow) {
 	// TODO: Would probably be better to do this with an interface and accept the SocketsMap as a dependency injection
 	// rather than with callbacks
-	listener.eventStream.AddConnectCallback(listener.sockets.ProcessConnectEvent)
-	listener.eventStream.AddDataCallback(listener.sockets.ProcessDataEvent)
-	listener.eventStream.AddCloseCallback(listener.sockets.ProcessCloseEvent)
 
 	listener.sockets.AddFlowCallback(func(flow sockets.Flow) { outputChan <- flow })
 
-	listener.eventStream.Start()
+	eventsChan := make(chan bpf_events.IEvent)
+	go listener.eventStream.Start(eventsChan)
+
+	for {
+		event := <-eventsChan
+
+		switch ev := event.(type) {
+		case *bpf_events.ConnectEvent:
+			listener.sockets.ProcessConnectEvent(*ev)
+		case *bpf_events.DataEvent:
+			listener.sockets.ProcessDataEvent(*ev)
+		case *bpf_events.CloseEvent:
+			listener.sockets.ProcessCloseEvent(*ev)
+		default:
+			panic("Listener.Start() event has to be ConnectEvent, DataEvent or CloseEvent")
+		}
+	}
 }
 
 func (listener *Listener) SetSettings(settings *api.Settings) {

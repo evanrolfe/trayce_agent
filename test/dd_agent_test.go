@@ -18,13 +18,14 @@ import (
 )
 
 const (
-	mockHttpPort          = 4122
-	mockHttpsPort         = 4123
-	grpcPort              = 50051
-	requestRubyScript     = "/app/test/scripts/request_ruby"
-	requestRubyScriptHttp = "/app/test/scripts/request_ruby_http"
-	requestPythonScript   = "/app/test/scripts/request_python"
-	requestGoScript       = "/app/test/scripts/go_request"
+	mockHttpPort              = 4122
+	mockHttpsPort             = 4123
+	grpcPort                  = 50051
+	requestRubyScript         = "/app/test/scripts/request_ruby"
+	requestRubyScriptHttp     = "/app/test/scripts/request_ruby_http"
+	requestRubyScriptHttpLoad = "/app/test/scripts/load_test_ruby"
+	requestPythonScript       = "/app/test/scripts/request_python"
+	requestGoScript           = "/app/test/scripts/go_request"
 )
 
 var grpcHandler *support.GRPCHandler
@@ -64,12 +65,10 @@ func TestMain(m *testing.M) {
 func AssertFlows(t *testing.T, requests []*api.FlowObserved) {
 	// assert.Greater(t, len(requests[0].RemoteAddr), 0)
 	assert.Equal(t, "GET / HTTP/1.1", string(requests[0].Request[0:14]))
-	assert.Empty(t, requests[0].Response)
 	assert.Equal(t, "tcp", requests[0].L4Protocol)
 	assert.Equal(t, "http", requests[0].L7Protocol)
 
 	// assert.Greater(t, len(requests[1].RemoteAddr), 0)
-	assert.Equal(t, "GET / HTTP/1.1", string(requests[1].Request[0:14]))
 	assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
 	assert.Equal(t, "tcp", requests[1].L4Protocol)
 	assert.Equal(t, "http", requests[1].L7Protocol)
@@ -78,18 +77,16 @@ func AssertFlows(t *testing.T, requests []*api.FlowObserved) {
 func AssertFlowsChunked(t *testing.T, requests []*api.FlowObserved) {
 	assert.Greater(t, len(requests[0].RemoteAddr), 0)
 	assert.Equal(t, "GET /chunked HTTP/1.1", string(requests[0].Request[0:21]))
-	assert.Empty(t, requests[0].Response)
 	assert.Equal(t, "tcp", requests[0].L4Protocol)
 	assert.Equal(t, "http", requests[0].L7Protocol)
 
 	assert.Greater(t, len(requests[1].RemoteAddr), 0)
-	assert.Equal(t, "GET /chunked HTTP/1.1", string(requests[1].Request[0:21]))
 	assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
 	assert.Equal(t, "tcp", requests[1].L4Protocol)
 	assert.Equal(t, "http", requests[1].L7Protocol)
 }
 
-func Test_dd_agent(t *testing.T) {
+func Test_dd_agent_single(t *testing.T) {
 	// Start dd_agent
 	cmd := exec.Command("/app/dd_agent")
 

@@ -42,11 +42,12 @@ struct data_event_t {
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
-    char data[MAX_DATA_SIZE_OPENSSL];
-    s32 data_len;
     char comm[TASK_COMM_LEN];
     u32 fd;
     s32 version;
+    u32 rand;
+    s32 data_len;
+    char data[MAX_DATA_SIZE_OPENSSL];
 };
 
 struct connect_event_t {
@@ -221,6 +222,7 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     event->type = type;
     event->fd = fd;
     event->version = version;
+    event->rand = bpf_get_prandom_u32();
 
     // This is a max function, but it is written in such a way to keep older BPF verifiers happy.
     if (ssl_ex_len > 0) {

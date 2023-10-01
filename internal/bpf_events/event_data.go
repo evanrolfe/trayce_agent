@@ -23,11 +23,12 @@ type DataEvent struct {
 	Timestamp uint64            `json:"timestamp"`
 	Pid       uint32            `json:"pid"`
 	Tid       uint32            `json:"tid"`
-	Data      [MaxDataSize]byte `json:"data"`
-	DataLen   int32             `json:"dataLen"`
 	Comm      [16]byte          `json:"Comm"`
 	Fd        uint32            `json:"fd"`
 	Version   int32             `json:"version"`
+	Rand      int32             `json:"version"`
+	DataLen   int32             `json:"dataLen"`
+	Data      [MaxDataSize]byte `json:"data"`
 }
 
 func (se *DataEvent) Decode(payload []byte) (err error) {
@@ -44,12 +45,6 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &se.Tid); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.Data); err != nil {
-		return
-	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.DataLen); err != nil {
-		return
-	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.Comm); err != nil {
 		return
 	}
@@ -57,6 +52,15 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.Version); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.Rand); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.DataLen); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.Data); err != nil {
 		return
 	}
 

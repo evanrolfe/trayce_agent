@@ -45,10 +45,12 @@ build: generate
 	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./dd_agent\n$(DIV)"
 
 test:
-	go test ./test -v -count=1
+	go test ./test -v -count=1 -run Test_dd_agent_single
+
+testload:
+	go test ./test -v -count=1 -run Test_dd_agent_load
 
 testunit: generate
-# Compile the Go app to our final executable ./dd_agent
 	CC=$(CLANG) \
 		CGO_CFLAGS=$(CGO_CFLAGS_STATIC) \
 		CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) \
@@ -56,7 +58,7 @@ testunit: generate
 		CGO_ENABLED=1 \
 		go test \
 		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-		-v ./internal/sockets
+		-v ./internal/...
 
 clean:
 	rm -rf .output

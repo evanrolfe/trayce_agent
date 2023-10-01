@@ -122,7 +122,7 @@ func (stream *Stream) AddCloseCallback(callback func(CloseEvent)) {
 	stream.closeCallbacks = append(stream.closeCallbacks, callback)
 }
 
-func (stream *Stream) Start() {
+func (stream *Stream) Start(outputChan chan IEvent) {
 	go stream.refreshPids()
 
 	// DataEvents ring buffer
@@ -181,9 +181,8 @@ func (stream *Stream) Start() {
 			// }
 			fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
-			for _, callback := range stream.connectCallbacks {
-				go callback(event)
-			}
+			outputChan <- &event
+
 		case payload := <-stream.dataEventsChan:
 			event := DataEvent{}
 			event.Decode(payload)
@@ -191,12 +190,10 @@ func (stream *Stream) Start() {
 				// fmt.Println("[ConnectEvent] DROPPING ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 				continue
 			}
-			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
 			fmt.Println(hex.Dump(event.Payload()))
 
-			for _, callback := range stream.dataCallbacks {
-				go callback(event)
-			}
+			outputChan <- &event
 
 		case payload := <-stream.closeEventsChan:
 			event := CloseEvent{}
@@ -208,9 +205,9 @@ func (stream *Stream) Start() {
 			// if event.Fd < 10 && event.Fd > 0 {
 			// 	fmt.Println("[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 			// }
-			for _, callback := range stream.closeCallbacks {
-				go callback(event)
-			}
+
+			outputChan <- &event
+
 		case _ = <-stream.debugEventsChan:
 			continue
 			// fmt.Println("[DebugEvent] Received", len(payload), "bytes")

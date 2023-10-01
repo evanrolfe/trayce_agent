@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+
+require 'uri'
+require 'net/http'
+
+puts "Process ID: #{Process.pid}"
+
+url = ARGV[0]
+n = ARGV[1].to_i
+puts "Requesting URL: #{url}"
+uri = URI(url)
+
+n.times do
+  http_session = Net::HTTP.new(uri.host, uri.port)
+  res = http_session.start do |http|
+    # do some requests here
+    res = http.get(uri.path)
+    puts res
+  end
+
+  # sleep 0.05
+end
+
