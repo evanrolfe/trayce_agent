@@ -56,7 +56,7 @@ testunit: generate
 		CGO_ENABLED=1 \
 		go test \
 		-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-		-v ./kernel
+		-v ./internal/sockets
 
 clean:
 	rm -rf .output

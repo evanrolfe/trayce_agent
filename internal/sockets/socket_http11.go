@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
+	"sync"
 
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 )
@@ -21,12 +22,12 @@ type SocketHttp11 struct {
 	Fd         uint32
 	// Stores the bytes being received from DataEvent until they form a full HTTP request or response
 	dataBuf []byte
-	// Stores the bufferred flow which only has a request set
-	flowBuf *Flow
 	// Store incomplete flows (no RemoteAddr set) which are buffered until we receive a ConnectEvent
 	bufferedFlows []Flow
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
+
+	mu sync.Mutex
 }
 
 func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
@@ -74,17 +75,15 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) 
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
-	// Attempt to parse buffer as an HTTP request
+	// 1. Attempt to parse buffer as an HTTP request
 	req := socket.parseHTTPRequest(socket.dataBuf)
 	if req != nil {
-		if socket.flowBuf != nil {
-			fmt.Println("[WARNING] a request was received out-of-order")
-			return
-		}
-
-		socket.flowBuf = NewFlow(
+		flow := NewFlow(
 			socket.LocalAddr,
 			socket.RemoteAddr,
 			"tcp", // TODO Use constants here instead
@@ -94,23 +93,26 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 			socket.dataBuf,
 		)
 		socket.clearDataBuffer()
-		socket.sendFlowBack(*socket.flowBuf)
+		socket.sendFlowBack(*flow)
 	}
 
-	if socket.flowBuf == nil {
-		// fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
-		// fmt.Println(hex.Dump(event.Payload()))
-	}
-
-	// Attempt to parse buffer as an HTTP response
+	// 2. Attempt to parse buffer as an HTTP response
 	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf)
 	if resp != nil {
-		socket.flowBuf.AddResponse(decompressedBuf)
-		finalMsg := socket.flowBuf.Clone()
+		flow := NewFlowResponse(
+			socket.LocalAddr,
+			socket.RemoteAddr,
+			"tcp", // TODO Use constants here instead
+			"http",
+			int(socket.Pid),
+			int(socket.Fd),
+			socket.dataBuf,
+		)
+
+		flow.AddResponse(decompressedBuf)
 
 		socket.clearDataBuffer()
-		socket.clearflowBuffer()
-		socket.sendFlowBack(finalMsg)
+		socket.sendFlowBack(*flow)
 	}
 }
 
@@ -203,8 +205,4 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte) (*http.Response, []byt
 
 func (socket *SocketHttp11) clearDataBuffer() {
 	socket.dataBuf = []byte{}
-}
-
-func (socket *SocketHttp11) clearflowBuffer() {
-	socket.flowBuf = nil
 }

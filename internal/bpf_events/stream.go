@@ -1,6 +1,7 @@
 package bpf_events
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
@@ -172,6 +173,7 @@ func (stream *Stream) Start() {
 			// a socket in < 5ms then this event would be dropped here. We could do this check in a go routine sleep 5ms to ensure
 			// we have the latest set of intercepted PIDs.
 			if !stream.isPIDIntercepted(int(event.Pid)) {
+				// fmt.Println("[ConnectEvent] DROPPING ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 				continue
 			}
 			// if event.Fd < 10 {
@@ -180,33 +182,34 @@ func (stream *Stream) Start() {
 			fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 
 			for _, callback := range stream.connectCallbacks {
-				callback(event)
+				go callback(event)
 			}
 		case payload := <-stream.dataEventsChan:
 			event := DataEvent{}
 			event.Decode(payload)
 			if !stream.isPIDIntercepted(int(event.Pid)) {
+				// fmt.Println("[ConnectEvent] DROPPING ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 				continue
 			}
-			// if event.Fd < 10 {
-			// 	fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-			// 	fmt.Println(hex.Dump(event.Payload()))
-			// }
+			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+			fmt.Println(hex.Dump(event.Payload()))
+
 			for _, callback := range stream.dataCallbacks {
-				callback(event)
+				go callback(event)
 			}
 
 		case payload := <-stream.closeEventsChan:
 			event := CloseEvent{}
 			event.Decode(payload)
 			if !stream.isPIDIntercepted(int(event.Pid)) {
+				// fmt.Println("[ConnectEvent] DROPPING ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 				continue
 			}
 			// if event.Fd < 10 && event.Fd > 0 {
 			// 	fmt.Println("[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 			// }
 			for _, callback := range stream.closeCallbacks {
-				callback(event)
+				go callback(event)
 			}
 		case _ = <-stream.debugEventsChan:
 			continue

@@ -30,6 +30,19 @@ func NewFlow(localAddr string, remoteAddr string, l4protocol string, l7protocol 
 	return m
 }
 
+func NewFlowResponse(localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, response []byte) *Flow {
+	m := &Flow{
+		LocalAddr:  localAddr,
+		RemoteAddr: remoteAddr,
+		L4Protocol: l4protocol,
+		L7Protocol: l7protocol,
+		Pid:        pid,
+		Fd:         fd,
+		Response:   response,
+	}
+	return m
+}
+
 func (flow *Flow) Clone() Flow {
 	m := Flow{
 		LocalAddr:  flow.LocalAddr,
@@ -45,7 +58,7 @@ func (flow *Flow) Clone() Flow {
 }
 
 func (flow *Flow) Complete() bool {
-	return flow.L4Protocol != "" && flow.L7Protocol != "" && flow.RemoteAddr != "" && len(flow.Request) > 0
+	return flow.L4Protocol != "" && flow.L7Protocol != "" && flow.RemoteAddr != ""
 }
 
 func (flow *Flow) AddResponse(response []byte) {
