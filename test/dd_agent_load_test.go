@@ -39,6 +39,10 @@ func AssertFlowsChunkedLoad(t *testing.T, flows []*api.FlowObserved) {
 }
 
 func Test_dd_agent_load(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	// Start dd_agent
 	cmd := exec.Command("/app/dd_agent")
 
