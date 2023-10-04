@@ -85,7 +85,7 @@ func (c *Containers) getPidsForContainer(containerId string) []int {
 			panic(err)
 		}
 
-		if c.filterCmd == "" || strings.Contains(cmd, c.filterCmd) {
+		if (c.filterCmd == "" || strings.Contains(cmd, c.filterCmd)) && !strings.Contains(cmd, "/app/dd_agent") {
 			pids = append(pids, pid)
 		}
 	}

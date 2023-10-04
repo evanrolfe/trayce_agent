@@ -65,12 +65,7 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 
 	socket, exists := m.GetSocket(event.Key())
 
-	if !exists {
-		fmt.Println("[SocketMap] DataEvent - creating socket for:", event.Key(), "/", event.Rand)
-		socket := NewSocketHttp11FromData(&event)
-		m.AddSocket(&socket)
-		socket.ProcessDataEvent(&event)
-	} else {
+	if exists {
 		fmt.Println("[SocketMap] DataEvent - found socket for:", event.Key(), "/", event.Rand)
 		socket.ProcessDataEvent(&event)
 	}

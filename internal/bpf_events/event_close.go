@@ -8,6 +8,7 @@ import (
 
 // CloseEvent is sent from ebpf when a socket is closed, see corresponding: struct close_event_t
 type CloseEvent struct {
+	EventType   uint64 `json:"eventType"`
 	TimestampNs uint64 `json:"timestampNs"`
 	Pid         uint32 `json:"pid"`
 	Tid         uint32 `json:"tid"`
@@ -16,7 +17,9 @@ type CloseEvent struct {
 
 func (ce *CloseEvent) Decode(payload []byte) (err error) {
 	buf := bytes.NewBuffer(payload)
-	// TODO: Is this one little or big?
+	if err = binary.Read(buf, binary.LittleEndian, &ce.EventType); err != nil {
+		return
+	}
 	if err = binary.Read(buf, binary.LittleEndian, &ce.TimestampNs); err != nil {
 		return
 	}

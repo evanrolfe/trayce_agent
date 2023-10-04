@@ -34,7 +34,7 @@ typedef short unsigned int __kernel_sa_family_t;
 
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
-enum event_type { eConnect, eData, eClose };
+enum event_type { eConnect, eData, eClose, eDebug };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite };
 const u32 invalidFD = 0;
 
@@ -70,6 +70,16 @@ struct close_event_t {
     u32 pid;
     u32 tid;
     u32 fd;
+};
+
+struct debug_event_t {
+    u64 eventtype;
+    u64 timestamp_ns;
+    u32 pid;
+    u32 tid;
+    u32 fd;
+    s32 data_len;
+    char data[300];
 };
 
 struct {
@@ -192,9 +202,9 @@ struct ssl_st {
  * General helper functions
  ***********************************************************/
 
-static __inline struct data_event_t* create_data_event(
-    u64 current_pid_tgid) {
+static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     u32 kZero = 0;
+
     struct data_event_t* event = bpf_map_lookup_elem(&data_buffer_heap, &kZero);
     if (event == NULL)
         return NULL;
@@ -299,7 +309,7 @@ int process_ssl_read_return(struct pt_regs* ctx, bool is_ex_call) {
         // Mark the connection as SSL
         struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
         if (conn_event != NULL) {
-            bpf_ringbuf_output(&debug_events, conn_event, sizeof(conn_event), 0);
+            // dog_debug(pid, current_pid_tgid, 0, "sslread");
             conn_event->ssl = true;
         }
 
@@ -370,7 +380,7 @@ int process_ssl_write_return(struct pt_regs* ctx, bool is_ex_call) {
         // Mark the connection as SSL
         struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
         if (conn_event != NULL) {
-            bpf_ringbuf_output(&debug_events, conn_event, sizeof(conn_event), 0);
+            // dog_debug(pid, current_pid_tgid, 0, "sslwrite");
             conn_event->ssl = true;
         }
 
@@ -495,6 +505,33 @@ int probe_connect(struct pt_regs* ctx) {
 
     bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
 
+    // Build the connect_event and save it to the map
+    // u32 kZero = 0;
+    // struct debug_event_t* debug_event = bpf_map_lookup_elem(&debug_buffer_heap, &kZero);
+    // if (debug_event == NULL)
+    //     return 0;
+
+    return 0;
+}
+
+int dog_debug(u32 pid, u64 tid, int fd, char *str) {
+    struct debug_event_t debug_event;
+    __builtin_memset(&debug_event, 0, sizeof(debug_event));
+
+    debug_event.eventtype = eDebug;
+    debug_event.timestamp_ns = bpf_ktime_get_ns();
+    debug_event.pid = pid;
+    debug_event.tid = tid;
+    debug_event.fd = fd;
+
+    // const char *str = "hello";
+    for (int i = 0; i < 5; i++) {
+        debug_event.data[i] = str[i];
+    }
+    debug_event.data_len = 5;
+
+    bpf_ringbuf_output(&data_events, &debug_event, sizeof(struct debug_event_t), 0);
+
     return 0;
 }
 
@@ -526,10 +563,11 @@ int probe_close(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Extract the pointer to the file descriptor from the argument
-    u32 *fd_ptr = (u32*)PT_REGS_PARM1(ctx);
-    u32 fd;
-    bpf_probe_read(&fd, sizeof(fd), fd_ptr);
+    struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
+
+    // Get the socket file descriptor
+    int fd;
+    bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
 
     // Build the connect_event and save it to the map
     struct close_event_t close_event;
@@ -556,10 +594,10 @@ int probe_ret_close(struct pt_regs* ctx) {
         return 0;
 
     // Send entry data from map
-    struct close_event_t* conn_event = bpf_map_lookup_elem(&active_close_args_map, &current_pid_tgid);
+    struct close_event_t* close_event = bpf_map_lookup_elem(&active_close_args_map, &current_pid_tgid);
 
-    if (conn_event != NULL) {
-        bpf_ringbuf_output(&data_events, conn_event, sizeof(struct close_event_t), 0);
+    if (close_event != NULL) {
+        bpf_ringbuf_output(&data_events, close_event, sizeof(struct close_event_t), 0);
     }
 
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
@@ -617,7 +655,7 @@ int probe_ret_sendto(struct pt_regs* ctx) {
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, 0);
+        process_data(ctx, current_pid_tgid, kWrite, buf, fd, version, 0);
     }
     bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
 
@@ -673,7 +711,7 @@ int probe_ret_recvfrom(struct pt_regs* ctx) {
         // bpf_printk("recvfrom pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
-        process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, 0);
+        process_data(ctx, current_pid_tgid, kRead, buf, fd, version, 0);
     }
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
     return 0;
@@ -703,7 +741,7 @@ int probe_write(struct pt_regs* ctx) {
 
     // Find the matching connect event so we can filter out non-socket write() calls
     struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-    if (conn_event == NULL || conn_event->ssl) {
+    if (conn_event == NULL || conn_event->ssl == true) {
         return 0;
     }
 
@@ -787,7 +825,7 @@ int probe_read(struct pt_regs* ctx) {
 
     // Find the matching connect event so we can filter out non-socket write() calls
     struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-    if (conn_event == NULL) {
+    if (conn_event == NULL || conn_event->ssl == true) {
         return 0;
     }
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/aquasecurity/libbpfgo"
@@ -93,10 +92,10 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	// bpfProg.AttachToKProbe("probe_read", funcName)
 	// bpfProg.AttachToKRetProbe("probe_ret_read", funcName)
 
-	// kprobe security_socket_sendmsg
+	// // kprobe security_socket_sendmsg
 	// bpfProg.AttachToKProbe("probe_entry_security_socket_sendmsg", "security_socket_sendmsg")
 
-	// kprobe security_socket_recvmsg
+	// // kprobe security_socket_recvmsg
 	// bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
 	return &Stream{
@@ -184,7 +183,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				// if event.Fd < 10 {
 				// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 				// }
-				fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+				fmt.Println("\n[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 				outputChan <- &event
 
 				// DataEvent
@@ -194,10 +193,10 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				if !stream.isPIDIntercepted(int(event.Pid)) || event.IsBlank() {
 					continue
 				}
-				fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
-				if strings.Contains(string(event.Payload()), "asdf") || strings.Contains(string(event.Payload()), "404") {
-					fmt.Println(hex.Dump(event.Payload()))
-				}
+				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
+				fmt.Print(hex.Dump(event.Payload()))
+				// if strings.Contains(string(event.Payload()), "asdf") || strings.Contains(string(event.Payload()), "404") {
+				// }
 				outputChan <- &event
 
 				// CloseEvent
@@ -207,14 +206,16 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				if !stream.isPIDIntercepted(int(event.Pid)) {
 					continue
 				}
-				// 	fmt.Println("[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-				outputChan <- &event
-			}
+				fmt.Println("\n[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+				// outputChan <- &event
 
-		case payload := <-stream.debugEventsChan:
-			// continue
-			fmt.Println("[DebugEvent] Received", len(payload), "bytes")
-			fmt.Println(hex.Dump(payload))
+				// DebugEvent
+			} else if eventType == 3 {
+				event := DebugEvent{}
+				event.Decode(payload)
+				fmt.Println("\n[DebugEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " - ", string(event.Payload()))
+				// fmt.Print(hex.Dump(payload))
+			}
 		}
 	}
 }
