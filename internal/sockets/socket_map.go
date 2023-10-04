@@ -77,10 +77,10 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 }
 
 func (m *SocketMap) ProcessCloseEvent(event bpf_events.CloseEvent) {
-	// m.mu.Lock()
-	// defer m.mu.Unlock()
-	// fmt.Println("[SocketMap] CloseEvent - deleting socket for:", event.Key())
-	// delete(m.sockets, event.Key())
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	fmt.Println("[SocketMap] CloseEvent - deleting socket for:", event.Key())
+	delete(m.sockets, event.Key())
 }
 
 // func (m *SocketMap) FindOrCreateSocket(event bpf_events.IEvent) SocketI {

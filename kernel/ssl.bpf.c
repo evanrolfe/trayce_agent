@@ -34,11 +34,13 @@ typedef short unsigned int __kernel_sa_family_t;
 
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
+enum event_type { eConnect, eData, eClose };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite };
 const u32 invalidFD = 0;
 
 struct data_event_t {
-    enum data_event_type type;
+    u64 eventtype;
+    u64 type;
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
@@ -51,6 +53,7 @@ struct data_event_t {
 };
 
 struct connect_event_t {
+    u64 eventtype;
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
@@ -58,9 +61,11 @@ struct connect_event_t {
     u32 ip;
     u16 port;
     bool local;
+    bool ssl;
 };
 
 struct close_event_t {
+    u64 eventtype;
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
@@ -195,6 +200,7 @@ static __inline struct data_event_t* create_data_event(
         return NULL;
 
     const u32 kMask32b = 0xffffffff;
+    event->eventtype = eData;
     event->timestamp_ns = bpf_ktime_get_ns();
     event->pid = current_pid_tgid >> 32;
     event->tid = current_pid_tgid & kMask32b;
@@ -218,7 +224,6 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     if (event == NULL) {
         return 0;
     }
-
     event->type = type;
     event->fd = fd;
     event->version = version;
@@ -291,6 +296,13 @@ int process_ssl_read_return(struct pt_regs* ctx, bool is_ex_call) {
             ssl_ex_len = 0;
         }
 
+        // Mark the connection as SSL
+        struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
+        if (conn_event != NULL) {
+            bpf_ringbuf_output(&debug_events, conn_event, sizeof(conn_event), 0);
+            conn_event->ssl = true;
+        }
+
         process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, ssl_ex_len);
     }
     bpf_map_delete_elem(&active_ssl_read_args_map, &current_pid_tgid);
@@ -353,6 +365,13 @@ int process_ssl_write_return(struct pt_regs* ctx, bool is_ex_call) {
             bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), active_buf_t->ssl_ex_len_ptr);
         } else {
             ssl_ex_len = 0;
+        }
+
+        // Mark the connection as SSL
+        struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
+        if (conn_event != NULL) {
+            bpf_ringbuf_output(&debug_events, conn_event, sizeof(conn_event), 0);
+            conn_event->ssl = true;
         }
 
         process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, ssl_ex_len);
@@ -464,11 +483,13 @@ int probe_connect(struct pt_regs* ctx) {
     // Build the connect_event and save it to the map
     struct connect_event_t conn_event;
     __builtin_memset(&conn_event, 0, sizeof(conn_event));
+    conn_event.eventtype = eConnect;
     conn_event.timestamp_ns = bpf_ktime_get_ns();
     conn_event.pid = pid;
     conn_event.tid = current_pid_tgid;
     conn_event.fd = fd;
     conn_event.local = false;
+    conn_event.ssl = false;
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
 
@@ -489,12 +510,11 @@ int probe_ret_connect(struct pt_regs* ctx) {
 
     // Send entry data from map
     struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-
     if (conn_event != NULL) {
-        bpf_ringbuf_output(&connect_events, conn_event, sizeof(struct connect_event_t), 0);
+        bpf_ringbuf_output(&data_events, conn_event, sizeof(struct connect_event_t), 0);
     }
 
-    bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
+    // bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
 
     return 0;
 }
@@ -514,6 +534,7 @@ int probe_close(struct pt_regs* ctx) {
     // Build the connect_event and save it to the map
     struct close_event_t close_event;
     __builtin_memset(&close_event, 0, sizeof(close_event));
+    close_event.eventtype = eClose;
     close_event.timestamp_ns = bpf_ktime_get_ns();
     close_event.pid = pid;
     close_event.tid = current_pid_tgid;
@@ -538,10 +559,11 @@ int probe_ret_close(struct pt_regs* ctx) {
     struct close_event_t* conn_event = bpf_map_lookup_elem(&active_close_args_map, &current_pid_tgid);
 
     if (conn_event != NULL) {
-        bpf_ringbuf_output(&close_events, conn_event, sizeof(struct close_event_t), 0);
+        bpf_ringbuf_output(&data_events, conn_event, sizeof(struct close_event_t), 0);
     }
 
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
+    bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
 
     return 0;
 }
@@ -681,7 +703,7 @@ int probe_write(struct pt_regs* ctx) {
 
     // Find the matching connect event so we can filter out non-socket write() calls
     struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-    if (conn_event == NULL) {
+    if (conn_event == NULL || conn_event->ssl) {
         return 0;
     }
 
@@ -708,7 +730,7 @@ int probe_ret_write(struct pt_regs* ctx) {
 
     struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
 
-    if (active_buf_t != NULL && active_buf_t->socket_event) {
+    if (active_buf_t != NULL) {
         const char* buf;
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
@@ -743,6 +765,11 @@ SEC("kprobe/read")
 int probe_read(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
+
+    // Make sure this isnt an SSL socket:
+    struct active_buf* active_buf_ssl = bpf_map_lookup_elem(&active_ssl_read_args_map, &current_pid_tgid);
+    if (active_buf_ssl != NULL)
+        return 0;
 
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
@@ -784,6 +811,7 @@ int probe_ret_read(struct pt_regs* ctx) {
     struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
 
     if (active_buf_t != NULL && active_buf_t->socket_event) {
+
         // TODO: DRY up the duplication here with probe_red_write()
         const char* buf;
         u32 fd = active_buf_t->fd;
@@ -842,7 +870,7 @@ int probe_entry_security_socket_recvmsg(struct pt_regs* ctx) {
         active_buf_t->socket_event = true;
     }
 
-  return 0;
+    return 0;
 }
 
 

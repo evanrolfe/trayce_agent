@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
-	"sync"
 
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 )
@@ -26,8 +26,6 @@ type SocketHttp11 struct {
 	bufferedFlows []Flow
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
-
-	mu sync.Mutex
 }
 
 func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
@@ -67,9 +65,6 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
-
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 
 	// Connect events came come after DataEvents, so we buffer those flows until we receive a ConnectEvent which sets
@@ -78,9 +73,18 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) 
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
 	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf))
+
+	if socket.RemoteAddr == "127.0.0.1:4123" {
+		fmt.Println(hex.Dump(event.Payload()))
+	}
+
+	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe
+	// this check fixes that because the encrypted data is dropped since it doesnt start with GET
+	// if string(event.Payload()[0:3]) == "GET" {
+	// 	socket.clearDataBuffer()
+	// 	fmt.Println("[SocketHttp1.1] clearing dataBuffer")
+	// }
 
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 

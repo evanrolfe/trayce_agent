@@ -1,10 +1,13 @@
 package bpf_events
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/aquasecurity/libbpfgo"
@@ -44,38 +47,38 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		os.Exit(-1)
 	}
 
-	// uprobe SSL_read
+	// uprobe/SSL_read
 	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
 
-	// uprobe SSL_read_ex
+	// uprobe/SSL_read_ex
 	bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
 
-	// uprobe SSL_write
+	// uprobe/SSL_write
 	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
 
-	// uprobe SSL_write_ex
+	// uprobe/SSL_write_ex
 	bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 
-	// kprobe connect
+	// kprobe/connect
 	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
 	bpfProg.AttachToKProbe("probe_connect", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_connect", funcName)
 
-	// kprobe close
+	// kprobe/close
 	funcName = fmt.Sprintf("__%s_sys_close", ksymArch())
 	bpfProg.AttachToKProbe("probe_close", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_close", funcName)
 
-	// kprobe sendto
+	// kprobe/sendto
 	funcName = fmt.Sprintf("__%s_sys_sendto", ksymArch())
 	bpfProg.AttachToKProbe("probe_sendto", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_sendto", funcName)
 
-	// kprobe recvfrom
+	// kprobe/recvfrom
 	funcName = fmt.Sprintf("__%s_sys_recvfrom", ksymArch())
 	bpfProg.AttachToKProbe("probe_recvfrom", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_recvfrom", funcName)
@@ -165,53 +168,53 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 		case <-stream.interruptChan:
 			return
 
-		case payload := <-stream.connectEventsChan:
-			event := ConnectEvent{}
-			event.Decode(payload)
-
-			// NOTE: There is a potential race condition here, we refresh the PIDs every 5ms but if a process starts and connects
-			// a socket in < 5ms then this event would be dropped here. We could do this check in a go routine sleep 5ms to ensure
-			// we have the latest set of intercepted PIDs.
-			if !stream.isPIDIntercepted(int(event.Pid)) {
-				// fmt.Println("[ConnectEvent] DROPPING ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-				continue
-			}
-			// if event.Fd < 10 {
-			// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
-			// }
-			fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
-
-			outputChan <- &event
-
 		case payload := <-stream.dataEventsChan:
-			event := DataEvent{}
-			event.Decode(payload)
-			if !stream.isPIDIntercepted(int(event.Pid)) {
-				// fmt.Println("[ConnectEvent] DROPPING ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-				continue
+			eventType := getEventType(payload)
+
+			// ConnectEvent
+			if eventType == 0 {
+				event := ConnectEvent{}
+				event.Decode(payload)
+				// NOTE: There is a potential race condition here, we refresh the PIDs every 5ms but if a process starts and connects
+				// a socket in < 5ms then this event would be dropped here. We could do this check in a go routine sleep 5ms to ensure
+				// we have the latest set of intercepted PIDs.
+				if !stream.isPIDIntercepted(int(event.Pid)) {
+					continue
+				}
+				// if event.Fd < 10 {
+				// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+				// }
+				fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+				outputChan <- &event
+
+				// DataEvent
+			} else if eventType == 1 {
+				event := DataEvent{}
+				event.Decode(payload)
+				if !stream.isPIDIntercepted(int(event.Pid)) || event.IsBlank() {
+					continue
+				}
+				fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
+				if strings.Contains(string(event.Payload()), "asdf") || strings.Contains(string(event.Payload()), "404") {
+					fmt.Println(hex.Dump(event.Payload()))
+				}
+				outputChan <- &event
+
+				// CloseEvent
+			} else if eventType == 2 {
+				event := CloseEvent{}
+				event.Decode(payload)
+				if !stream.isPIDIntercepted(int(event.Pid)) {
+					continue
+				}
+				// 	fmt.Println("[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+				outputChan <- &event
 			}
-			fmt.Println("[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
-			fmt.Println(hex.Dump(event.Payload()))
 
-			outputChan <- &event
-
-		case payload := <-stream.closeEventsChan:
-			event := CloseEvent{}
-			event.Decode(payload)
-			if !stream.isPIDIntercepted(int(event.Pid)) {
-				// fmt.Println("[ConnectEvent] DROPPING ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-				continue
-			}
-			// if event.Fd < 10 && event.Fd > 0 {
-			// 	fmt.Println("[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-			// }
-
-			outputChan <- &event
-
-		case _ = <-stream.debugEventsChan:
-			continue
-			// fmt.Println("[DebugEvent] Received", len(payload), "bytes")
-			// fmt.Println(hex.Dump(payload))
+		case payload := <-stream.debugEventsChan:
+			// continue
+			fmt.Println("[DebugEvent] Received", len(payload), "bytes")
+			fmt.Println(hex.Dump(payload))
 		}
 	}
 }
@@ -224,6 +227,7 @@ func (stream *Stream) Close() {
 func (stream *Stream) refreshPids() {
 	for {
 		stream.interceptedPIDs = stream.containers.GetPidsToIntercept()
+		// fmt.Println("[Stream] intercepting PIDs: ", stream.interceptedPIDs)
 		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
 	}
 }
@@ -246,4 +250,14 @@ func ksymArch() string {
 	default:
 		panic("unsupported architecture")
 	}
+}
+
+func getEventType(payload []byte) int {
+	var eventType uint64
+	buf := bytes.NewBuffer(payload)
+	if err := binary.Read(buf, binary.LittleEndian, &eventType); err != nil {
+		return 0
+	}
+
+	return int(eventType)
 }

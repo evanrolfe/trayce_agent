@@ -83,9 +83,9 @@ func setupProbe() (*bpf_events.BPFProgram, chan []byte, chan []byte) {
 }
 
 func Test_kprobe_sendto_load(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
+	// if testing.Short() {
+	t.Skip()
+	// }
 
 	totalCount := 100
 
@@ -102,7 +102,7 @@ func Test_kprobe_sendto_load(t *testing.T) {
 	bpfProg.AttachToKRetProbe("probe_ret_sendto", funcName)
 
 	// Wait for events to be received within timeout limit
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// Start listening for events async

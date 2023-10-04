@@ -34,10 +34,11 @@ type Settings struct {
 func main() {
 	// Parse Command line args
 	var pid int
-	var libSslPath, grpcServerAddr string
+	var libSslPath, grpcServerAddr, filterCmd string
 	flag.IntVar(&pid, "pid", 0, "The PID of the docker container to instrument. Or 0 to intsrument this container.")
 	flag.StringVar(&libSslPath, "libssl", sslLibDefault, "The path to the libssl shared object.")
 	flag.StringVar(&grpcServerAddr, "grpcaddr", grpcServerDefault, "The address of the GRPC server to send observations to.")
+	flag.StringVar(&filterCmd, "filtercmd", "", "Only observe traffic from processes who's command contains this string")
 	flag.Parse()
 
 	fmt.Println("PID: ", pid)
@@ -58,7 +59,7 @@ func main() {
 	signal.Notify(interruptChan2, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 
 	// Start the listener
-	listener := internal.NewListener(bpfBytes, btfFilePath, libSslPath)
+	listener := internal.NewListener(bpfBytes, btfFilePath, libSslPath, filterCmd)
 	defer listener.Close()
 
 	fmt.Println("Agent listing...")

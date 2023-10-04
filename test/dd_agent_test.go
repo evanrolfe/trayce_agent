@@ -88,7 +88,7 @@ func AssertFlowsChunked(t *testing.T, requests []*api.FlowObserved) {
 
 func Test_dd_agent_single(t *testing.T) {
 	// Start dd_agent
-	cmd := exec.Command("/app/dd_agent")
+	cmd := exec.Command("/app/dd_agent", "--filtercmd", "/app/test/scripts/")
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf

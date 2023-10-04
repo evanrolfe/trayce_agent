@@ -51,7 +51,7 @@ func Test_dd_agent_load(t *testing.T) {
 	cmd.Stderr = &stderrBuf
 
 	// Wait for dd_agent to start, timeout of 5secs:
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
 

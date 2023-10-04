@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/docker/docker/client"
 	"github.com/evanrolfe/dockerdog/api"
@@ -12,9 +13,10 @@ import (
 type Containers struct {
 	containerIds []string
 	dockerClient *client.Client
+	filterCmd    string
 }
 
-func NewContainers() *Containers {
+func NewContainers(filterCmd string) *Containers {
 	dockerC, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err)
@@ -23,6 +25,7 @@ func NewContainers() *Containers {
 	return &Containers{
 		containerIds: []string{},
 		dockerClient: dockerC,
+		filterCmd:    filterCmd,
 	}
 }
 
@@ -61,15 +64,30 @@ func (c *Containers) getPidsForContainer(containerId string) []int {
 		panic("no index found for PID from docker.ContainerTop()")
 	}
 
+	// Extract the index of the Command in the results
+	indexCmd := -1
+	for i, title := range result.Titles {
+		if title == "CMD" {
+			indexCmd = i
+		}
+	}
+	if indexCmd == -1 {
+		panic("no index found for CMD from docker.ContainerTop()")
+	}
+
 	// Collect the PIDs
 	pids := []int{}
 	for i := 0; i < len(result.Processes); i++ {
+		cmd := result.Processes[i][indexCmd]
 		pidStr := result.Processes[i][indexPid]
 		pid, err := strconv.Atoi(pidStr)
 		if err != nil {
 			panic(err)
 		}
-		pids = append(pids, pid)
+
+		if c.filterCmd == "" || strings.Contains(cmd, c.filterCmd) {
+			pids = append(pids, pid)
+		}
 	}
 
 	return pids

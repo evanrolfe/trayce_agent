@@ -13,8 +13,8 @@ type Listener struct {
 	sockets     *sockets.SocketMap
 }
 
-func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string) *Listener {
-	containers := docker.NewContainers()
+func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string, filterCmd string) *Listener {
+	containers := docker.NewContainers(filterCmd)
 
 	return &Listener{
 		containers:  containers,

@@ -19,7 +19,8 @@ const (
 
 // DataEvent is sent from ebpf when data is sent or received over a socket, see corresponding: struct data_event_t
 type DataEvent struct {
-	DataType  int64             `json:"dataType"`
+	EventType uint64            `json:"eventType"`
+	DataType  uint64            `json:"dataType"`
 	Timestamp uint64            `json:"timestamp"`
 	Pid       uint32            `json:"pid"`
 	Tid       uint32            `json:"tid"`
@@ -33,6 +34,9 @@ type DataEvent struct {
 
 func (se *DataEvent) Decode(payload []byte) (err error) {
 	buf := bytes.NewBuffer(payload)
+	if err = binary.Read(buf, binary.LittleEndian, &se.EventType); err != nil {
+		return
+	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.DataType); err != nil {
 		return
 	}
@@ -101,6 +105,16 @@ func (se *DataEvent) Key() string {
 
 func (se *DataEvent) SSL() bool {
 	return se.DataType == kSSLRead || se.DataType == kSSLWrite
+}
+
+// IsBlank returns true if the event's payload contains only zero bytes, for some reason we get sent this from ebpf..
+func (se *DataEvent) IsBlank() bool {
+	for _, b := range se.Payload() {
+		if b != 0x00 {
+			return false
+		}
+	}
+	return true
 }
 
 // func (se *SSLDataEvent) StringHex() string {
