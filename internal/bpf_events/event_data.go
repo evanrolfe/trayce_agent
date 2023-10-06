@@ -13,6 +13,8 @@ const (
 	kSSLWrite   = 1
 	kRead       = 2
 	kWrite      = 3
+	kRecvfrom   = 4
+	kSendto     = 5
 	TypeEgress  = "egress"
 	TypeIngress = "ingress"
 )
@@ -79,6 +81,16 @@ func (se *DataEvent) Payload() []byte {
 	return se.Data[:se.DataLen]
 }
 
+func (se *DataEvent) PayloadTrimmed(n int) []byte {
+	payload := se.Data[:se.DataLen]
+
+	if len(payload) > n {
+		return payload[0:n]
+	} else {
+		return payload
+	}
+}
+
 func (se *DataEvent) PayloadLen() int {
 	return int(se.DataLen)
 }
@@ -93,9 +105,27 @@ func (se *DataEvent) Type() string {
 		return TypeIngress
 	case kWrite:
 		return TypeEgress
-
 	default:
 		return ""
+	}
+}
+
+func (se *DataEvent) Source() string {
+	switch se.DataType {
+	case kSSLRead:
+		return "SSL_read"
+	case kSSLWrite:
+		return "SSL_write"
+	case kRead:
+		return "kprobe/read"
+	case kWrite:
+		return "kprobe/write"
+	case kSendto:
+		return "kprobe/sendto"
+	case kRecvfrom:
+		return "kprobe/recvfrom"
+	default:
+		return "unkown"
 	}
 }
 

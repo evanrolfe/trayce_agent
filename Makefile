@@ -43,7 +43,7 @@ build: generate
 test:
 	$(CGO_FLAGS) \
 	go test ./test -v -count=1 -short
-# -run Test_kprobe_sendto
+# -run Test_kprobe_write
 
 testload:
 	$(CGO_FLAGS) \

@@ -84,10 +84,10 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 
 	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe
 	// this check fixes that because the encrypted data is dropped since it doesnt start with GET
-	// if string(event.Payload()[0:3]) == "GET" {
-	// 	socket.clearDataBuffer()
-	// 	fmt.Println("[SocketHttp1.1] clearing dataBuffer")
-	// }
+	if string(event.Payload()[0:3]) == "GET" || string(event.Payload()[0:4]) == "HTTP" {
+		socket.clearDataBuffer()
+		fmt.Println("[SocketHttp1.1] clearing dataBuffer")
+	}
 
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
@@ -131,6 +131,9 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 }
 
 func (socket *SocketHttp11) sendFlowBack(flow Flow) {
+	fmt.Printf("[Flow] %s - Local: %s, Remote: %s\n", "", flow.LocalAddr, flow.RemoteAddr)
+	flow.Debug()
+
 	for _, callback := range socket.flowCallbacks {
 		callback(flow)
 	}

@@ -35,7 +35,7 @@ typedef short unsigned int __kernel_sa_family_t;
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum event_type { eConnect, eData, eClose, eDebug };
-enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite };
+enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto };
 const u32 invalidFD = 0;
 
 struct data_event_t {
@@ -87,21 +87,6 @@ struct {
     __uint(max_entries, 256 * 1024); // 256 KB
 } data_events SEC(".maps");
 
-struct {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 * 1024); // 256 KB
-} connect_events SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 * 1024); // 256 KB
-} close_events SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 * 1024); // 256 KB
-} debug_events SEC(".maps");
-
 struct active_buf {
     /*
      * protocol version (one of SSL2_VERSION, SSL3_VERSION, TLS1_VERSION,
@@ -141,6 +126,20 @@ struct {
     __type(key, u64);
     __type(value, struct active_buf);
     __uint(max_entries, 1024);
+} active_sendto_args_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, struct active_buf);
+    __uint(max_entries, 1024);
+} active_recvfrom_args_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, struct active_buf);
+    __uint(max_entries, 1024);
 } active_write_args_map SEC(".maps");
 
 struct {
@@ -163,6 +162,20 @@ struct {
     __type(value, struct close_event_t);
     __uint(max_entries, 1024);
 } active_close_args_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u32);
+    __type(value, u32);
+    __uint(max_entries, 1024);
+} intercepted_pids SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, struct connect_event_t);
+    __uint(max_entries, 1024);
+} conn_infos SEC(".maps");
 
 // BPF programs are limited to a 512-byte stack. We store this value per CPU
 // and use it as a heap allocated value.
@@ -219,6 +232,15 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     return event;
 }
 
+// >> 32 - PID
+// << 32 - TID
+static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
+    u32 pid = current_pid_tgid >> 32;
+    u32 tid = current_pid_tgid & 0xFFFFFFFF;
+    u32 tgid = current_pid_tgid << 32;
+    return pid | (u32)fd;
+}
+
 /***********************************************************
  * Helpers
  ***********************************************************/
@@ -254,9 +276,36 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     return 0;
 }
 
+int dog_debug(u32 pid, u64 tid, int fd, char *str) {
+    struct debug_event_t debug_event;
+    __builtin_memset(&debug_event, 0, sizeof(debug_event));
+
+    debug_event.eventtype = eDebug;
+    debug_event.timestamp_ns = bpf_ktime_get_ns();
+    debug_event.pid = pid;
+    debug_event.tid = tid;
+    debug_event.fd = fd;
+
+    // const char *str = "hello";
+    for (int i = 0; i < 5; i++) {
+        debug_event.data[i] = str[i];
+    }
+    debug_event.data_len = 5;
+
+    bpf_ringbuf_output(&data_events, &debug_event, sizeof(struct debug_event_t), 0);
+
+    return 0;
+}
+
 int process_ssl_read_entry(struct pt_regs* ctx, bool is_ex_call) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
 
     void* ssl = (void*)PT_REGS_PARM1(ctx);
     // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
@@ -307,10 +356,10 @@ int process_ssl_read_return(struct pt_regs* ctx, bool is_ex_call) {
         }
 
         // Mark the connection as SSL
-        struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-        if (conn_event != NULL) {
-            // dog_debug(pid, current_pid_tgid, 0, "sslread");
-            conn_event->ssl = true;
+        u64 key = gen_pid_fd(current_pid_tgid, fd);
+        struct connect_event_t* conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+        if (conn_info != NULL) {
+            conn_info->ssl = true;
         }
 
         process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, ssl_ex_len);
@@ -324,6 +373,11 @@ int process_ssl_write_entry(struct pt_regs* ctx, bool is_ex_call) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
     // bpf_printk("openssl uprobe/SSL_write_ex pid :%d\n", pid);
 
     void* ssl = (void*)PT_REGS_PARM1(ctx);
@@ -378,10 +432,10 @@ int process_ssl_write_return(struct pt_regs* ctx, bool is_ex_call) {
         }
 
         // Mark the connection as SSL
-        struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-        if (conn_event != NULL) {
-            // dog_debug(pid, current_pid_tgid, 0, "sslwrite");
-            conn_event->ssl = true;
+        u64 key = gen_pid_fd(current_pid_tgid, fd);
+        struct connect_event_t* conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+        if (conn_info != NULL) {
+            conn_info->ssl = true;
         }
 
         process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, ssl_ex_len);
@@ -449,8 +503,8 @@ int probe_entry_go(struct pt_regs* ctx) {
     bpf_probe_read_user(&arg1, sizeof(arg1), stack_addr+4);
 
     bpf_printk("!!!!!!!!! CALLED GO! %d", arg1);
-    bpf_ringbuf_output(&debug_events, &arg1, sizeof(arg1), 0);
-    bpf_ringbuf_output(&debug_events, stack, sizeof(stack), 0);
+    // bpf_ringbuf_output(&debug_events, &arg1, sizeof(arg1), 0);
+    // bpf_ringbuf_output(&debug_events, stack, sizeof(stack), 0);
 
     return 0;
 }
@@ -466,6 +520,12 @@ SEC("kprobe/connect")
 int probe_connect(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
 
     // How the hell did I know to do this ctx2 trick here? Credits to kubearmor:
     // https://github.com/kubearmor/KubeArmor/blob/main/KubeArmor/BPF/system_monitor.c#L1332
@@ -505,32 +565,9 @@ int probe_connect(struct pt_regs* ctx) {
 
     bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
 
-    // Build the connect_event and save it to the map
-    // u32 kZero = 0;
-    // struct debug_event_t* debug_event = bpf_map_lookup_elem(&debug_buffer_heap, &kZero);
-    // if (debug_event == NULL)
-    //     return 0;
-
-    return 0;
-}
-
-int dog_debug(u32 pid, u64 tid, int fd, char *str) {
-    struct debug_event_t debug_event;
-    __builtin_memset(&debug_event, 0, sizeof(debug_event));
-
-    debug_event.eventtype = eDebug;
-    debug_event.timestamp_ns = bpf_ktime_get_ns();
-    debug_event.pid = pid;
-    debug_event.tid = tid;
-    debug_event.fd = fd;
-
-    // const char *str = "hello";
-    for (int i = 0; i < 5; i++) {
-        debug_event.data[i] = str[i];
-    }
-    debug_event.data_len = 5;
-
-    bpf_ringbuf_output(&data_events, &debug_event, sizeof(struct debug_event_t), 0);
+    // Build the conn_info and save it to the map
+    u64 key = gen_pid_fd(current_pid_tgid, fd);
+    bpf_map_update_elem(&conn_infos, &key, &conn_event, BPF_ANY);
 
     return 0;
 }
@@ -551,7 +588,7 @@ int probe_ret_connect(struct pt_regs* ctx) {
         bpf_ringbuf_output(&data_events, conn_event, sizeof(struct connect_event_t), 0);
     }
 
-    // bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
+    bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
 
     return 0;
 }
@@ -562,6 +599,12 @@ SEC("kprobe/close")
 int probe_close(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
 
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
@@ -598,10 +641,12 @@ int probe_ret_close(struct pt_regs* ctx) {
 
     if (close_event != NULL) {
         bpf_ringbuf_output(&data_events, close_event, sizeof(struct close_event_t), 0);
+
+        u64 key = gen_pid_fd(current_pid_tgid, close_event->fd);
+        bpf_map_delete_elem(&conn_infos, &key);
     }
 
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
-    bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
 
     return 0;
 }
@@ -610,6 +655,12 @@ SEC("kprobe/sendto")
 int probe_sendto(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
 
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
@@ -637,7 +688,7 @@ int probe_sendto(struct pt_regs* ctx) {
     active_buf_t.fd = fd;
     active_buf_t.version = 0;
     active_buf_t.buf = buf;
-    bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
+    bpf_map_update_elem(&active_sendto_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
     return 0;
 }
@@ -647,7 +698,7 @@ int probe_ret_sendto(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
+    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_sendto_args_map, &current_pid_tgid);
 
     if (active_buf_t != NULL) {
         const char* buf;
@@ -655,9 +706,9 @@ int probe_ret_sendto(struct pt_regs* ctx) {
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kWrite, buf, fd, version, 0);
+        process_data(ctx, current_pid_tgid, kSendto, buf, fd, version, 0);
     }
-    bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
+    bpf_map_delete_elem(&active_sendto_args_map, &current_pid_tgid);
 
     return 0;
 }
@@ -666,6 +717,12 @@ SEC("kprobe/recvfrom")
 int probe_recvfrom(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
 
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
@@ -693,7 +750,7 @@ int probe_recvfrom(struct pt_regs* ctx) {
     active_buf_t.fd = fd;
     active_buf_t.version = 1;
     active_buf_t.buf = buf;
-    bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
+    bpf_map_update_elem(&active_recvfrom_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
     return 0;
 }
@@ -703,7 +760,7 @@ int probe_ret_recvfrom(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
+    struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_recvfrom_args_map, &current_pid_tgid);
 
     if (active_buf_t != NULL) {
         const char* buf;
@@ -711,9 +768,9 @@ int probe_ret_recvfrom(struct pt_regs* ctx) {
         // bpf_printk("recvfrom pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
-        process_data(ctx, current_pid_tgid, kRead, buf, fd, version, 0);
+        process_data(ctx, current_pid_tgid, kRecvfrom, buf, fd, version, 0);
     }
-    bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
+    bpf_map_delete_elem(&active_recvfrom_args_map, &current_pid_tgid);
     return 0;
 }
 
@@ -724,6 +781,12 @@ SEC("kprobe/write")
 int probe_write(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
 
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
@@ -740,12 +803,11 @@ int probe_write(struct pt_regs* ctx) {
     bpf_probe_read(&buf_len, sizeof(buf_len), &PT_REGS_PARM3(ctx2));
 
     // Find the matching connect event so we can filter out non-socket write() calls
-    struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-    if (conn_event == NULL || conn_event->ssl == true) {
+    u64 key = gen_pid_fd(current_pid_tgid, fd);
+    struct connect_event_t* conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+    if (conn_info == NULL || conn_info->ssl == true) {
         return 0;
     }
-
-    // bpf_printk("-----> write() found connect event found for fd: %d, pid: %d", fd, pid);
 
     struct active_buf active_buf_t;
     __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
@@ -753,7 +815,6 @@ int probe_write(struct pt_regs* ctx) {
     active_buf_t.version = 1;
     active_buf_t.buf = buf;
     active_buf_t.buf_len = buf_len;
-    active_buf_t.socket_event = false;
     bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
     // bpf_printk("----------------> kprobe/write fd: %d, pid: %d", fd, pid);
@@ -768,21 +829,20 @@ int probe_ret_write(struct pt_regs* ctx) {
 
     struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
 
-    if (active_buf_t != NULL) {
+    if (active_buf_t != NULL && active_buf_t->socket_event) {
         const char* buf;
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
         int buf_len = active_buf_t->buf_len;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
 
-        // TODO: USE procces_data
+        // TODO: Use procces_data
         struct data_event_t* event = create_data_event(current_pid_tgid);
         if (event == NULL) {
             return 0;
         }
-        // bpf_printk("----------------> kretprobe/write fd: %d, pid: %d", fd, pid);
 
-        event->type = kSSLWrite;
+        event->type = kWrite;
         event->fd = fd;
         event->version = version;
 
@@ -804,10 +864,11 @@ int probe_read(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Make sure this isnt an SSL socket:
-    struct active_buf* active_buf_ssl = bpf_map_lookup_elem(&active_ssl_read_args_map, &current_pid_tgid);
-    if (active_buf_ssl != NULL)
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
         return 0;
+    }
 
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
@@ -824,8 +885,9 @@ int probe_read(struct pt_regs* ctx) {
     bpf_probe_read(&buf_len, sizeof(buf_len), &PT_REGS_PARM3(ctx2));
 
     // Find the matching connect event so we can filter out non-socket write() calls
-    struct connect_event_t* conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-    if (conn_event == NULL || conn_event->ssl == true) {
+    u64 key = gen_pid_fd(current_pid_tgid, fd);
+    struct connect_event_t* conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+    if (conn_info == NULL || conn_info->ssl == true) {
         return 0;
     }
 
@@ -835,7 +897,6 @@ int probe_read(struct pt_regs* ctx) {
     active_buf_t.version = 1;
     active_buf_t.buf = buf;
     active_buf_t.buf_len = buf_len;
-    active_buf_t.socket_event = false;
     bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
     return 0;
@@ -857,15 +918,13 @@ int probe_ret_read(struct pt_regs* ctx) {
         int buf_len = active_buf_t->buf_len;
         bpf_probe_read(&buf, sizeof(const char*), &active_buf_t->buf);
 
-        // TODO: USE procces_data
+        // TODO: Use procces_data
         struct data_event_t* event = create_data_event(current_pid_tgid);
         if (event == NULL) {
             return 0;
         }
 
-        bpf_printk("----------------> kretprobe/read fd: %d, pid: %d, buf_len: %d", fd, pid, buf_len);
-
-        event->type = kSSLRead;
+        event->type = kRead;
         event->fd = fd;
         event->version = version;
 
@@ -886,6 +945,12 @@ int probe_entry_security_socket_sendmsg(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
+
     struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
 
     if (active_buf_t != NULL) {
@@ -901,6 +966,12 @@ SEC("kprobe/security_socket_recvmsg")
 int probe_entry_security_socket_recvmsg(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
 
     struct active_buf* active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
 

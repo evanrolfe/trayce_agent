@@ -67,7 +67,7 @@ func (flow *Flow) AddResponse(response []byte) {
 
 func (flow *Flow) Debug() {
 	if flow.Request != nil {
-		fmt.Println("Response:")
+		fmt.Println("Request:")
 		fmt.Println(string(flow.Request))
 	}
 

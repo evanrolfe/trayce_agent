@@ -68,6 +68,8 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 	if exists {
 		fmt.Println("[SocketMap] DataEvent - found socket for:", event.Key(), "/", event.Rand)
 		socket.ProcessDataEvent(&event)
+	} else {
+		panic("[SocketMap] not socket found for event")
 	}
 }
 

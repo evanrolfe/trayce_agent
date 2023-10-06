@@ -4,17 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
-
-	"github.com/google/uuid"
 )
 
-// go build -o test/sripts/go_request -buildvcs=false ./cmd/request/
+// go build -o test/scripts/go_request -buildvcs=false ./cmd/request/
 
-func makeRequest(num int) {
-	uid, _ := uuid.NewRandom()
-	url := fmt.Sprintf("http://www.pntest.io/%s", uid.String())
-
+func makeRequest(url string) {
 	fmt.Println("Requesting", url)
 
 	res, err := http.Get(url)
@@ -27,11 +23,19 @@ func makeRequest(num int) {
 }
 
 func main() {
-	// url := os.Args[1]
-	fmt.Println("PID:", os.Getpid())
+	url := os.Args[1]
+	nStr := os.Args[2]
 
-	for i := 0; i < 999; i++ {
-		makeRequest(420)
-		time.Sleep(time.Second)
+	n, err := strconv.Atoi(nStr)
+	if err != nil {
+		panic(fmt.Sprintf("cannot parse int: %s", nStr))
+	}
+
+	fmt.Println("PID:", os.Getpid())
+	time.Sleep(time.Second)
+
+	for i := 0; i < n; i++ {
+		makeRequest(url)
+		// time.Sleep(5 * time.Millisecond)
 	}
 }

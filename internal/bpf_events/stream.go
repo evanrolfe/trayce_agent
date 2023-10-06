@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/evanrolfe/dockerdog/internal/docker"
@@ -23,16 +24,10 @@ type Stream struct {
 	containers      *docker.Containers
 	interceptedPIDs []int
 
-	dataEventsBuf    *libbpfgo.RingBuffer
-	connectEventsBuf *libbpfgo.RingBuffer
-	closeEventsBuf   *libbpfgo.RingBuffer
-	debugEventsBuf   *libbpfgo.RingBuffer
-
-	dataEventsChan    chan []byte
-	connectEventsChan chan []byte
-	closeEventsChan   chan []byte
-	debugEventsChan   chan []byte
-	interruptChan     chan int
+	dataEventsBuf  *libbpfgo.RingBuffer
+	pidsMap        *libbpfgo.BPFMap
+	dataEventsChan chan []byte
+	interruptChan  chan int
 
 	connectCallbacks []func(ConnectEvent)
 	dataCallbacks    []func(DataEvent)
@@ -82,33 +77,28 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	bpfProg.AttachToKProbe("probe_recvfrom", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_recvfrom", funcName)
 
-	// // kprobe write
-	// funcName = fmt.Sprintf("__%s_sys_write", ksymArch())
-	// bpfProg.AttachToKProbe("probe_write", funcName)
-	// bpfProg.AttachToKRetProbe("probe_ret_write", funcName)
+	// kprobe write
+	funcName = fmt.Sprintf("__%s_sys_write", ksymArch())
+	bpfProg.AttachToKProbe("probe_write", funcName)
+	bpfProg.AttachToKRetProbe("probe_ret_write", funcName)
 
-	// // kprobe read
-	// funcName = fmt.Sprintf("__%s_sys_read", ksymArch())
-	// bpfProg.AttachToKProbe("probe_read", funcName)
-	// bpfProg.AttachToKRetProbe("probe_ret_read", funcName)
+	// kprobe read
+	funcName = fmt.Sprintf("__%s_sys_read", ksymArch())
+	bpfProg.AttachToKProbe("probe_read", funcName)
+	bpfProg.AttachToKRetProbe("probe_ret_read", funcName)
 
-	// // kprobe security_socket_sendmsg
-	// bpfProg.AttachToKProbe("probe_entry_security_socket_sendmsg", "security_socket_sendmsg")
+	// kprobe security_socket_sendmsg
+	bpfProg.AttachToKProbe("probe_entry_security_socket_sendmsg", "security_socket_sendmsg")
 
-	// // kprobe security_socket_recvmsg
-	// bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
+	// kprobe security_socket_recvmsg
+	bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
 	return &Stream{
 		bpfProg:         bpfProg,
 		containers:      containers,
 		interceptedPIDs: []int{},
-
-		interruptChan: make(chan int),
-
-		dataEventsChan:    make(chan []byte),
-		connectEventsChan: make(chan []byte),
-		closeEventsChan:   make(chan []byte),
-		debugEventsChan:   make(chan []byte),
+		interruptChan:   make(chan int),
+		dataEventsChan:  make(chan []byte),
 	}
 }
 
@@ -125,41 +115,21 @@ func (stream *Stream) AddCloseCallback(callback func(CloseEvent)) {
 }
 
 func (stream *Stream) Start(outputChan chan IEvent) {
-	go stream.refreshPids()
-
 	// DataEvents ring buffer
 	var err error
 	stream.dataEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("data_events", stream.dataEventsChan)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
+		panic(err)
 	}
-
-	// ConnectEvents ring buffer
-	stream.connectEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("connect_events", stream.connectEventsChan)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	// CloseEvents ring buffer
-	stream.closeEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("close_events", stream.closeEventsChan)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	// DebugEvents ring buffer
-	stream.debugEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("debug_events", stream.debugEventsChan)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
 	stream.dataEventsBuf.Poll(bufPollRateMs)
-	stream.connectEventsBuf.Poll(bufPollRateMs)
-	stream.closeEventsBuf.Poll(bufPollRateMs)
-	stream.debugEventsBuf.Poll(bufPollRateMs)
+
+	// Intercepted PIDs map
+	pidsMap, err := stream.bpfProg.BpfModule.GetMap("intercepted_pids")
+	if err != nil {
+		panic(err)
+	}
+	stream.pidsMap = pidsMap
+	go stream.refreshPids()
 
 	for {
 		// Check if the interrupt signal has been received
@@ -174,12 +144,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 			if eventType == 0 {
 				event := ConnectEvent{}
 				event.Decode(payload)
-				// NOTE: There is a potential race condition here, we refresh the PIDs every 5ms but if a process starts and connects
-				// a socket in < 5ms then this event would be dropped here. We could do this check in a go routine sleep 5ms to ensure
-				// we have the latest set of intercepted PIDs.
-				if !stream.isPIDIntercepted(int(event.Pid)) {
-					continue
-				}
+
 				// if event.Fd < 10 {
 				// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 				// }
@@ -190,24 +155,13 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 			} else if eventType == 1 {
 				event := DataEvent{}
 				event.Decode(payload)
-				if !stream.isPIDIntercepted(int(event.Pid)) || event.IsBlank() {
+				if event.IsBlank() {
 					continue
 				}
-				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, type:", event.DataType, ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
-				fmt.Print(hex.Dump(event.Payload()))
-				// if strings.Contains(string(event.Payload()), "asdf") || strings.Contains(string(event.Payload()), "404") {
-				// }
-				outputChan <- &event
+				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
+				fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
-				// CloseEvent
-			} else if eventType == 2 {
-				event := CloseEvent{}
-				event.Decode(payload)
-				if !stream.isPIDIntercepted(int(event.Pid)) {
-					continue
-				}
-				fmt.Println("\n[CloseEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
-				// outputChan <- &event
+				outputChan <- &event
 
 				// DebugEvent
 			} else if eventType == 3 {
@@ -228,18 +182,19 @@ func (stream *Stream) Close() {
 func (stream *Stream) refreshPids() {
 	for {
 		stream.interceptedPIDs = stream.containers.GetPidsToIntercept()
-		// fmt.Println("[Stream] intercepting PIDs: ", stream.interceptedPIDs)
+
+		// TODO: Clear all existing intercepted PIDs
+		for _, pid := range stream.interceptedPIDs {
+			if stream.pidsMap != nil {
+				key1 := uint32(pid)
+				value1 := uint32(1)
+				key1Unsafe := unsafe.Pointer(&key1)
+				value1Unsafe := unsafe.Pointer(&value1)
+				stream.pidsMap.Update(key1Unsafe, value1Unsafe)
+			}
+		}
 		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
 	}
-}
-
-func (stream *Stream) isPIDIntercepted(pid int) bool {
-	for _, interceptedPid := range stream.interceptedPIDs {
-		if pid == interceptedPid {
-			return true
-		}
-	}
-	return false
 }
 
 func ksymArch() string {
