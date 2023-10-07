@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const numRequests = 500
+const numRequests = 1000
 
 func AssertFlowsLoad(t *testing.T, flows []*api.FlowObserved) {
 	// assert.Greater(t, len(flows[0].RemoteAddr), 0)

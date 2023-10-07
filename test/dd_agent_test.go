@@ -141,11 +141,11 @@ func Test_dd_agent_single(t *testing.T) {
 			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort), "1"),
 			verify: AssertFlows,
 		},
-		// {
-		// 	name:   "[Go] an HTTP/1.1 request",
-		// 	cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort), "1"),
-		// 	verify: AssertFlows,
-		// },
+		{
+			name:   "[Go] an HTTP/1.1 request",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort), "1"),
+			verify: AssertFlows,
+		},
 	}
 
 	hasFocus := false

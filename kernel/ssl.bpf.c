@@ -36,6 +36,7 @@ typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum event_type { eConnect, eData, eClose, eDebug };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto };
+enum protocol_type { pUnknown, pHttp };
 const u32 invalidFD = 0;
 
 struct data_event_t {
@@ -62,6 +63,7 @@ struct connect_event_t {
     u16 port;
     bool local;
     bool ssl;
+    u8 protocol;
 };
 
 struct close_event_t {
@@ -560,6 +562,7 @@ int probe_connect(struct pt_regs* ctx) {
     conn_event.fd = fd;
     conn_event.local = false;
     conn_event.ssl = false;
+    conn_event.protocol = pUnknown;
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
 
@@ -777,6 +780,15 @@ int probe_ret_recvfrom(struct pt_regs* ctx) {
 /***********************************************************
  * BPF kprobes for Go
  ***********************************************************/
+static __inline void infer_http_message(struct connect_event_t* conn_info, const char* buf) {
+    if (buf[0] == 'H' && buf[1] == 'T' && buf[2] == 'T' && buf[3] == 'P') {
+        conn_info->protocol = pHttp;
+    }
+    if (buf[0] == 'G' && buf[1] == 'E' && buf[2] == 'T') {
+        conn_info->protocol = pHttp;
+    }
+}
+
 SEC("kprobe/write")
 int probe_write(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
@@ -848,8 +860,23 @@ int probe_ret_write(struct pt_regs* ctx) {
 
         // This is a max function, but it is written in such a way to keep older BPF verifiers happy.
         event->data_len = (buf_len < MAX_DATA_SIZE_OPENSSL ? (buf_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
-
         bpf_probe_read_user(event->data, event->data_len, buf);
+
+        // Find the matching connect event so we can filter out non-socket write() calls
+        u64 key = gen_pid_fd(current_pid_tgid, fd);
+        struct connect_event_t* conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+        if (conn_info == NULL) {
+            return 0;
+        }
+
+        // Infer the protocol
+        infer_http_message(conn_info, event->data);
+
+        // If the protocol is still unknown, then drop it
+        if (conn_info->protocol == pUnknown) {
+            return 0;
+        }
+
         bpf_get_current_comm(&event->comm, sizeof(event->comm));
         bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
     }
@@ -930,8 +957,23 @@ int probe_ret_read(struct pt_regs* ctx) {
 
         // This is a max function, but it is written in such a way to keep older BPF verifiers happy.
         event->data_len = (buf_len < MAX_DATA_SIZE_OPENSSL ? (buf_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
-
         bpf_probe_read_user(event->data, event->data_len, buf);
+
+        // Find the matching connect event so we can filter out non-socket write() calls
+        u64 key = gen_pid_fd(current_pid_tgid, fd);
+        struct connect_event_t* conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+        if (conn_info == NULL) {
+            return 0;
+        }
+
+        // Infer the protocol
+        infer_http_message(conn_info, event->data);
+
+        // If the protocol is still unknown, then drop it
+        if (conn_info->protocol == pUnknown) {
+            return 0;
+        }
+
         bpf_get_current_comm(&event->comm, sizeof(event->comm));
         bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
     }
