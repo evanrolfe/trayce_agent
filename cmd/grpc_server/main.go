@@ -1,17 +1,6 @@
 package main
 
-import (
-	"context"
-	"fmt"
-	"log"
-	"net"
-	"os"
-	"time"
-
-	pb "github.com/evanrolfe/dockerdog/api"
-	"google.golang.org/grpc"
-)
-
+/*
 const (
 	port = 50051
 )
@@ -68,3 +57,4 @@ func main() {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }
+*/

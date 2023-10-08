@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal"
@@ -100,32 +99,35 @@ func main() {
 		}
 	}()
 
-	go func() {
-		for {
-			// Check if the interrupt signal has been received
-			select {
-			case flow := <-socketFlowChan:
-				// Contact the server and print out its response.
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-				defer cancel()
+	flowQueue := internal.NewFlowQueue(grpcClient)
+	go flowQueue.Start(socketFlowChan)
 
-				apiFlow := &api.Flow{
-					LocalAddr:  flow.LocalAddr,
-					RemoteAddr: flow.RemoteAddr,
-					L4Protocol: flow.L4Protocol,
-					L7Protocol: flow.L7Protocol,
-					Request:    flow.Request,
-					Response:   flow.Response,
-				}
-				apiFlows := &api.Flows{Flows: []*api.Flow{apiFlow}}
+	// go func() {
+	// 	for {
+	// 		// Check if the interrupt signal has been received
+	// 		select {
+	// 		case flow := <-socketFlowChan:
+	// 			// Contact the server and print out its response.
+	// 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// 			defer cancel()
 
-				_, err := grpcClient.SendFlowsObserved(ctx, apiFlows)
-				if err != nil {
-					fmt.Println("[ERROR] could not request: %v", err)
-				}
-			}
-		}
-	}()
+	// 			apiFlow := &api.Flow{
+	// 				LocalAddr:  flow.LocalAddr,
+	// 				RemoteAddr: flow.RemoteAddr,
+	// 				L4Protocol: flow.L4Protocol,
+	// 				L7Protocol: flow.L7Protocol,
+	// 				Request:    flow.Request,
+	// 				Response:   flow.Response,
+	// 			}
+	// 			apiFlows := &api.Flows{Flows: []*api.Flow{apiFlow}}
+
+	// 			_, err := grpcClient.SendFlowsObserved(ctx, apiFlows)
+	// 			if err != nil {
+	// 				fmt.Println("[ERROR] could not request: %v", err)
+	// 			}
+	// 		}
+	// 	}
+	// }()
 
 	// IMPORTANT: This seems to block the entire thing if it doesn't receive the set_settings message from the server!!!
 	// TODO: Figure this out

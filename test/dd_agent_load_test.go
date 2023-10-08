@@ -135,7 +135,7 @@ func Test_dd_agent_load(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a context with a timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC

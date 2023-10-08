@@ -27,6 +27,7 @@ func (listener *Listener) Start(outputChan chan sockets.Flow) {
 	// TODO: Would probably be better to do this with an interface and accept the SocketsMap as a dependency injection
 	// rather than with callbacks
 
+	// TODO: Just let this send flows directly to the channel
 	listener.sockets.AddFlowCallback(func(flow sockets.Flow) { outputChan <- flow })
 
 	eventsChan := make(chan bpf_events.IEvent)
