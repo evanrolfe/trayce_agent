@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DockerDogAgentClient interface {
-	SendFlowObserved(ctx context.Context, in *FlowObserved, opts ...grpc.CallOption) (*Reply, error)
+	SendFlowsObserved(ctx context.Context, in *Flows, opts ...grpc.CallOption) (*Reply, error)
 	SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error)
 	OpenCommandStream(ctx context.Context, opts ...grpc.CallOption) (DockerDogAgent_OpenCommandStreamClient, error)
 }
@@ -35,9 +35,9 @@ func NewDockerDogAgentClient(cc grpc.ClientConnInterface) DockerDogAgentClient {
 	return &dockerDogAgentClient{cc}
 }
 
-func (c *dockerDogAgentClient) SendFlowObserved(ctx context.Context, in *FlowObserved, opts ...grpc.CallOption) (*Reply, error) {
+func (c *dockerDogAgentClient) SendFlowsObserved(ctx context.Context, in *Flows, opts ...grpc.CallOption) (*Reply, error) {
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, "/api.DockerDogAgent/SendFlowObserved", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api.DockerDogAgent/SendFlowsObserved", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (x *dockerDogAgentOpenCommandStreamClient) Recv() (*Command, error) {
 // All implementations must embed UnimplementedDockerDogAgentServer
 // for forward compatibility
 type DockerDogAgentServer interface {
-	SendFlowObserved(context.Context, *FlowObserved) (*Reply, error)
+	SendFlowsObserved(context.Context, *Flows) (*Reply, error)
 	SendAgentStarted(context.Context, *AgentStarted) (*Reply, error)
 	OpenCommandStream(DockerDogAgent_OpenCommandStreamServer) error
 	mustEmbedUnimplementedDockerDogAgentServer()
@@ -98,8 +98,8 @@ type DockerDogAgentServer interface {
 type UnimplementedDockerDogAgentServer struct {
 }
 
-func (UnimplementedDockerDogAgentServer) SendFlowObserved(context.Context, *FlowObserved) (*Reply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendFlowObserved not implemented")
+func (UnimplementedDockerDogAgentServer) SendFlowsObserved(context.Context, *Flows) (*Reply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendFlowsObserved not implemented")
 }
 func (UnimplementedDockerDogAgentServer) SendAgentStarted(context.Context, *AgentStarted) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendAgentStarted not implemented")
@@ -120,20 +120,20 @@ func RegisterDockerDogAgentServer(s grpc.ServiceRegistrar, srv DockerDogAgentSer
 	s.RegisterService(&DockerDogAgent_ServiceDesc, srv)
 }
 
-func _DockerDogAgent_SendFlowObserved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FlowObserved)
+func _DockerDogAgent_SendFlowsObserved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Flows)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DockerDogAgentServer).SendFlowObserved(ctx, in)
+		return srv.(DockerDogAgentServer).SendFlowsObserved(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.DockerDogAgent/SendFlowObserved",
+		FullMethod: "/api.DockerDogAgent/SendFlowsObserved",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DockerDogAgentServer).SendFlowObserved(ctx, req.(*FlowObserved))
+		return srv.(DockerDogAgentServer).SendFlowsObserved(ctx, req.(*Flows))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -190,8 +190,8 @@ var DockerDogAgent_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*DockerDogAgentServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SendFlowObserved",
-			Handler:    _DockerDogAgent_SendFlowObserved_Handler,
+			MethodName: "SendFlowsObserved",
+			Handler:    _DockerDogAgent_SendFlowsObserved_Handler,
 		},
 		{
 			MethodName: "SendAgentStarted",

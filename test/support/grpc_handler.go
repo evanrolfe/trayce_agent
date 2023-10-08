@@ -11,18 +11,18 @@ import (
 
 type GRPCHandler struct {
 	api.UnimplementedDockerDogAgentServer
-	callback             func(input *api.FlowObserved)
+	callback             func(input *api.Flows)
 	agentStartedCallback func(input *api.AgentStarted)
 }
 
 func NewGRPCHandler() *GRPCHandler {
 	return &GRPCHandler{
-		callback:             func(input *api.FlowObserved) {},
+		callback:             func(input *api.Flows) {},
 		agentStartedCallback: func(input *api.AgentStarted) {},
 	}
 }
 
-func (ts *GRPCHandler) SetCallback(callback func(input *api.FlowObserved)) {
+func (ts *GRPCHandler) SetCallback(callback func(input *api.Flows)) {
 	ts.callback = callback
 }
 
@@ -30,7 +30,7 @@ func (ts *GRPCHandler) SetAgentStartedCallback(callback func(input *api.AgentSta
 	ts.agentStartedCallback = callback
 }
 
-func (ts *GRPCHandler) SendFlowObserved(ctx context.Context, input *api.FlowObserved) (*api.Reply, error) {
+func (ts *GRPCHandler) SendFlowsObserved(ctx context.Context, input *api.Flows) (*api.Reply, error) {
 	ts.callback(input)
 	return &api.Reply{Status: "success "}, nil
 }

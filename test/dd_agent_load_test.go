@@ -21,7 +21,7 @@ const (
 )
 
 // TODO: Make these check each request that all /0 -> /999 requests are made
-func AssertFlowsLoad(t *testing.T, flows []*api.FlowObserved) {
+func AssertFlowsLoad(t *testing.T, flows []*api.Flow) {
 	// assert.Greater(t, len(flows[0].RemoteAddr), 0)
 	assert.Regexp(t, regexp.MustCompile(reqRegex), string(flows[0].Request))
 	assert.Equal(t, "tcp", flows[0].L4Protocol)
@@ -34,7 +34,7 @@ func AssertFlowsLoad(t *testing.T, flows []*api.FlowObserved) {
 	assert.Equal(t, "http", flows[1].L7Protocol)
 }
 
-func AssertFlowsChunkedLoad(t *testing.T, flows []*api.FlowObserved) {
+func AssertFlowsChunkedLoad(t *testing.T, flows []*api.Flow) {
 	assert.Greater(t, len(flows[0].RemoteAddr), 0)
 	assert.Regexp(t, regexp.MustCompile(reqChunkRegex), string(flows[0].Request))
 	assert.Equal(t, "tcp", flows[0].L4Protocol)
@@ -74,7 +74,7 @@ func Test_dd_agent_load(t *testing.T) {
 		cmd      *exec.Cmd
 		focus    bool
 		numFlows int
-		verify   func(t *testing.T, requests []*api.FlowObserved)
+		verify   func(t *testing.T, requests []*api.Flow)
 	}{
 		{
 			name:     "[Ruby] an HTTP/1.1 request",
@@ -139,9 +139,9 @@ func Test_dd_agent_load(t *testing.T) {
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
-			var requests []*api.FlowObserved
-			grpcHandler.SetCallback(func(input *api.FlowObserved) {
-				requests = append(requests, input)
+			var requests []*api.Flow
+			grpcHandler.SetCallback(func(input *api.Flows) {
+				requests = append(requests, input.Flows...)
 
 				if len(requests) == tt.numFlows {
 					cancel()

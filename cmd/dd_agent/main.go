@@ -105,14 +105,11 @@ func main() {
 			// Check if the interrupt signal has been received
 			select {
 			case flow := <-socketFlowChan:
-				fmt.Printf("[Flow] %s - Local: %s, Remote: %s\n", "", flow.LocalAddr, flow.RemoteAddr)
-				flow.Debug()
-
 				// Contact the server and print out its response.
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
 
-				apiReq := &api.FlowObserved{
+				apiFlow := &api.Flow{
 					LocalAddr:  flow.LocalAddr,
 					RemoteAddr: flow.RemoteAddr,
 					L4Protocol: flow.L4Protocol,
@@ -120,8 +117,9 @@ func main() {
 					Request:    flow.Request,
 					Response:   flow.Response,
 				}
+				apiFlows := &api.Flows{Flows: []*api.Flow{apiFlow}}
 
-				_, err := grpcClient.SendFlowObserved(ctx, apiReq)
+				_, err := grpcClient.SendFlowsObserved(ctx, apiFlows)
 				if err != nil {
 					fmt.Println("[ERROR] could not request: %v", err)
 				}

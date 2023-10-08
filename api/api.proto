@@ -7,18 +7,22 @@ package api;
 import "google/protobuf/any.proto";
 
 service DockerDogAgent {
-    rpc SendFlowObserved (FlowObserved) returns (Reply) {}
+    rpc SendFlowsObserved (Flows) returns (Reply) {}
     rpc SendAgentStarted (AgentStarted) returns (Reply) {}
     rpc OpenCommandStream (stream NooP) returns (stream Command) {}
 }
 
-message FlowObserved {
+message Flow {
     string local_addr = 1;
     string remote_addr = 2;
     string l4_protocol = 3;
     string l7_protocol = 4;
 	bytes request = 5;
 	bytes response = 6;
+}
+
+message Flows {
+    repeated Flow flows = 1;
 }
 
 message Reply {
