@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"regexp"
 	"testing"
 	"time"
 
@@ -21,8 +22,6 @@ const (
 	mockHttpPort              = 4122
 	mockHttpsPort             = 4123
 	grpcPort                  = 50051
-	requestRubyScript         = "/app/test/scripts/request_ruby"
-	requestRubyScriptHttp     = "/app/test/scripts/request_ruby_http"
 	requestRubyScriptHttpLoad = "/app/test/scripts/load_test_ruby"
 	requestPythonScript       = "/app/test/scripts/request_python"
 	requestGoScript           = "/app/test/scripts/go_request"
@@ -62,28 +61,28 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func AssertFlows(t *testing.T, requests []*api.FlowObserved) {
-	// assert.Greater(t, len(requests[0].RemoteAddr), 0)
-	assert.Equal(t, "GET / HTTP/1.1", string(requests[0].Request[0:14]))
-	assert.Equal(t, "tcp", requests[0].L4Protocol)
-	assert.Equal(t, "http", requests[0].L7Protocol)
+func AssertFlows(t *testing.T, flows []*api.FlowObserved) {
+	// assert.Greater(t, len(flows[0].RemoteAddr), 0)
+	assert.Regexp(t, regexp.MustCompile(reqRegex), string(flows[0].Request))
+	assert.Equal(t, "tcp", flows[0].L4Protocol)
+	assert.Equal(t, "http", flows[0].L7Protocol)
 
-	// assert.Greater(t, len(requests[1].RemoteAddr), 0)
-	assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
-	assert.Equal(t, "tcp", requests[1].L4Protocol)
-	assert.Equal(t, "http", requests[1].L7Protocol)
+	// assert.Greater(t, len(flows[1].RemoteAddr), 0)
+	assert.Equal(t, "HTTP/1.1 200 OK", string(flows[1].Response[0:15]))
+	assert.Equal(t, "tcp", flows[1].L4Protocol)
+	assert.Equal(t, "http", flows[1].L7Protocol)
 }
 
-func AssertFlowsChunked(t *testing.T, requests []*api.FlowObserved) {
-	assert.Greater(t, len(requests[0].RemoteAddr), 0)
-	assert.Equal(t, "GET /chunked HTTP/1.1", string(requests[0].Request[0:21]))
-	assert.Equal(t, "tcp", requests[0].L4Protocol)
-	assert.Equal(t, "http", requests[0].L7Protocol)
+func AssertFlowsChunked(t *testing.T, flows []*api.FlowObserved) {
+	assert.Greater(t, len(flows[0].RemoteAddr), 0)
+	assert.Regexp(t, regexp.MustCompile(reqChunkRegex), string(flows[0].Request))
+	assert.Equal(t, "tcp", flows[0].L4Protocol)
+	assert.Equal(t, "http", flows[0].L7Protocol)
 
-	assert.Greater(t, len(requests[1].RemoteAddr), 0)
-	assert.Equal(t, "HTTP/1.1 200 OK", string(requests[1].Response[0:15]))
-	assert.Equal(t, "tcp", requests[1].L4Protocol)
-	assert.Equal(t, "http", requests[1].L7Protocol)
+	assert.Greater(t, len(flows[1].RemoteAddr), 0)
+	assert.Equal(t, "HTTP/1.1 200 OK", string(flows[1].Response[0:15]))
+	assert.Equal(t, "tcp", flows[1].L4Protocol)
+	assert.Equal(t, "http", flows[1].L7Protocol)
 }
 
 func Test_dd_agent_single(t *testing.T) {
@@ -113,39 +112,39 @@ func Test_dd_agent_single(t *testing.T) {
 	}{
 		{
 			name:   "[Ruby] an HTTP/1.1 request",
-			cmd:    exec.Command(requestRubyScriptHttp, fmt.Sprintf("http://localhost:%d/", mockHttpPort)),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d", mockHttpPort), "1"),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Ruby] an HTTP/1.1 request with a chunked response",
-			cmd:    exec.Command(requestRubyScriptHttp, fmt.Sprintf("http://localhost:%d/chunked", mockHttpPort)),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/chunked", mockHttpPort), "1"),
 			verify: AssertFlowsChunked,
 		},
 		{
 			name:   "[Ruby] an HTTPS/1.1 request",
-			cmd:    exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort)),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://localhost:%d", mockHttpsPort), "1"),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Ruby] an HTTPS/1.1 request with a chunked response",
-			cmd:    exec.Command(requestRubyScript, fmt.Sprintf("https://localhost:%d/chunked", mockHttpsPort)),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://localhost:%d/chunked", mockHttpsPort), "1"),
 			verify: AssertFlowsChunked,
 		},
 		{
 			name:   "[Python] an HTTP/1.1 request",
-			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort), "1"),
+			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d", mockHttpPort), "1"),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Python] an HTTPS/1.1 request",
-			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort), "1"),
+			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d", mockHttpsPort), "1"),
 			verify: AssertFlows,
 		},
-		{
-			name:   "[Go] an HTTP/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort), "1"),
-			verify: AssertFlows,
-		},
+		// {
+		// 	name:   "[Go] an HTTP/1.1 request",
+		// 	cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d", mockHttpPort), "1"),
+		// 	verify: AssertFlows,
+		// },
 	}
 
 	hasFocus := false

@@ -10,16 +10,15 @@ import (
 
 // go build -o test/scripts/go_request -buildvcs=false ./cmd/request/
 
-func makeRequest(url string) {
-	fmt.Println("Requesting", url)
+func makeRequest(url string, i int) {
+	_, err := http.Get(fmt.Sprintf("%s%v", url, i))
 
-	res, err := http.Get(url)
 	if err != nil {
 		fmt.Printf("error making http request: %s\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("response status code: %d\n", res.StatusCode)
+	// fmt.Printf("response status code: %d\n", res.StatusCode)
 }
 
 func main() {
@@ -31,11 +30,10 @@ func main() {
 		panic(fmt.Sprintf("cannot parse int: %s", nStr))
 	}
 
-	fmt.Println("PID:", os.Getpid())
 	time.Sleep(time.Second)
 
 	for i := 0; i < n; i++ {
-		makeRequest(url)
+		makeRequest(url, i)
 		// time.Sleep(5 * time.Millisecond)
 	}
 }

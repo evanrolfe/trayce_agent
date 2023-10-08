@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -13,12 +14,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const numRequests = 1000
+const (
+	numRequests   = 1000
+	reqRegex      = `^GET /\d+ HTTP/1\.1`
+	reqChunkRegex = `^GET /chunked/\d+ HTTP/1\.1`
+)
 
+// TODO: Make these check each request that all /0 -> /999 requests are made
 func AssertFlowsLoad(t *testing.T, flows []*api.FlowObserved) {
 	// assert.Greater(t, len(flows[0].RemoteAddr), 0)
-	// assert.Equal(t, "GET / HTTP/1.1", string(flows[0].Request[0:14]))
-	// assert.Empty(t, flows[0].Response)
+	assert.Regexp(t, regexp.MustCompile(reqRegex), string(flows[0].Request))
 	assert.Equal(t, "tcp", flows[0].L4Protocol)
 	assert.Equal(t, "http", flows[0].L7Protocol)
 
@@ -31,7 +36,7 @@ func AssertFlowsLoad(t *testing.T, flows []*api.FlowObserved) {
 
 func AssertFlowsChunkedLoad(t *testing.T, flows []*api.FlowObserved) {
 	assert.Greater(t, len(flows[0].RemoteAddr), 0)
-	assert.Equal(t, "GET /chunked HTTP/1.1", string(flows[0].Request[0:21]))
+	assert.Regexp(t, regexp.MustCompile(reqChunkRegex), string(flows[0].Request))
 	assert.Equal(t, "tcp", flows[0].L4Protocol)
 	assert.Equal(t, "http", flows[0].L7Protocol)
 
@@ -73,7 +78,7 @@ func Test_dd_agent_load(t *testing.T) {
 	}{
 		{
 			name:     "[Ruby] an HTTP/1.1 request",
-			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/", mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d", mockHttpPort), strconv.Itoa(numRequests)),
 			numFlows: numRequests * 2,
 			verify:   AssertFlowsLoad,
 		},
@@ -85,7 +90,7 @@ func Test_dd_agent_load(t *testing.T) {
 		},
 		{
 			name:     "[Ruby] an HTTPS/1.1 request",
-			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://localhost:%d/", mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:      exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://localhost:%d", mockHttpsPort), strconv.Itoa(numRequests)),
 			numFlows: numRequests * 2,
 			verify:   AssertFlowsLoad,
 		},
@@ -97,13 +102,13 @@ func Test_dd_agent_load(t *testing.T) {
 		},
 		{
 			name:     "[Python] an HTTP/1.1 request",
-			cmd:      exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d/", mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:      exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d", mockHttpPort), strconv.Itoa(numRequests)),
 			numFlows: numRequests * 2,
 			verify:   AssertFlowsLoad,
 		},
 		{
 			name:     "[Python] an HTTPS/1.1 request",
-			cmd:      exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d/", mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:      exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d", mockHttpsPort), strconv.Itoa(numRequests)),
 			numFlows: numRequests * 2,
 			verify:   AssertFlowsLoad,
 		},

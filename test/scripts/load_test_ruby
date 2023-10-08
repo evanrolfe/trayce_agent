@@ -10,7 +10,7 @@ n = ARGV[1].to_i
 puts "Requesting URL: #{url}"
 uri = URI(url)
 
-n.times do
+n.times do |i|
   http_session = Net::HTTP.new(uri.host, uri.port)
 
   if uri.to_s.include?("https")
@@ -20,7 +20,7 @@ n.times do
 
   res = http_session.start do |http|
     # do some requests here
-    res = http.get(uri.path)
+    res = http.get(uri.path+"/"+i.to_s)
     puts res
   end
 

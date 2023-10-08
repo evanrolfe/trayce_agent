@@ -38,7 +38,7 @@ func (s *server) OpenCommandStream(srv pb.DockerDogAgent_OpenCommandStreamServer
 		panic(err)
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 1; i++ {
 		command := pb.Command{
 			Type:     "set_settings",
 			Settings: &pb.Settings{ContainerIds: []string{hostname}},

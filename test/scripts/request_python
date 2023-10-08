@@ -6,6 +6,6 @@ url = sys.argv[1]
 n = int(sys.argv[2])
 
 for i in range(n):
-    resp1 = requests.get(url, verify=False)
+    resp1 = requests.get(url+"/"+str(i), verify=False)
     print(f"status1 : {resp1.status_code}")
 
