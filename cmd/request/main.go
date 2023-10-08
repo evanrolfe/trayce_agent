@@ -11,7 +11,7 @@ import (
 // go build -o test/scripts/go_request -buildvcs=false ./cmd/request/
 
 func makeRequest(url string, i int) {
-	_, err := http.Get(fmt.Sprintf("%s%v", url, i))
+	_, err := http.Get(fmt.Sprintf("%s/%v", url, i))
 
 	if err != nil {
 		fmt.Printf("error making http request: %s\n", err)
@@ -30,7 +30,9 @@ func main() {
 		panic(fmt.Sprintf("cannot parse int: %s", nStr))
 	}
 
-	time.Sleep(time.Second)
+	// Because Go is so much faster than python/ruby/node, we need to add this sleep here to ensure that the agent picks up
+	// this new process in the container which is refreshed every 5ms
+	time.Sleep(50 * time.Millisecond)
 
 	for i := 0; i < n; i++ {
 		makeRequest(url, i)
