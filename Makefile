@@ -47,7 +47,11 @@ test:
 
 testload:
 	$(CGO_FLAGS) \
-	go test ./test -v -count=1 -run load
+	go test ./test -v -count=1 -run Test_dd_agent_load
+
+testloadkprobe:
+	$(CGO_FLAGS) \
+	go test ./test -v -count=1 -run Test_kprobe
 
 testunit: generate
 	$(CGO_FLAGS) \
