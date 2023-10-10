@@ -9,6 +9,7 @@ import (
 
 // ConnectEvent is sent from ebpf when a socket is connected, see corresponding: struct connect_event_t
 type ConnectEvent struct {
+	EventType   uint64 `json:"eventType"`
 	TimestampNs uint64 `json:"timestampNs"`
 	Pid         uint32 `json:"pid"`
 	Tid         uint32 `json:"tid"`
@@ -20,7 +21,9 @@ type ConnectEvent struct {
 
 func (ce *ConnectEvent) Decode(payload []byte) (err error) {
 	buf := bytes.NewBuffer(payload)
-	// TODO: Is this one little or big?
+	if err = binary.Read(buf, binary.LittleEndian, &ce.EventType); err != nil {
+		return
+	}
 	if err = binary.Read(buf, binary.LittleEndian, &ce.TimestampNs); err != nil {
 		return
 	}

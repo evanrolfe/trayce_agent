@@ -22,8 +22,9 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DockerDogAgentClient interface {
-	SendFlowObserved(ctx context.Context, in *FlowObserved, opts ...grpc.CallOption) (*Reply, error)
+	SendFlowsObserved(ctx context.Context, in *Flows, opts ...grpc.CallOption) (*Reply, error)
 	SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error)
+	OpenCommandStream(ctx context.Context, opts ...grpc.CallOption) (DockerDogAgent_OpenCommandStreamClient, error)
 }
 
 type dockerDogAgentClient struct {
@@ -34,9 +35,9 @@ func NewDockerDogAgentClient(cc grpc.ClientConnInterface) DockerDogAgentClient {
 	return &dockerDogAgentClient{cc}
 }
 
-func (c *dockerDogAgentClient) SendFlowObserved(ctx context.Context, in *FlowObserved, opts ...grpc.CallOption) (*Reply, error) {
+func (c *dockerDogAgentClient) SendFlowsObserved(ctx context.Context, in *Flows, opts ...grpc.CallOption) (*Reply, error) {
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, "/api.DockerDogAgent/SendFlowObserved", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api.DockerDogAgent/SendFlowsObserved", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -52,12 +53,44 @@ func (c *dockerDogAgentClient) SendAgentStarted(ctx context.Context, in *AgentSt
 	return out, nil
 }
 
+func (c *dockerDogAgentClient) OpenCommandStream(ctx context.Context, opts ...grpc.CallOption) (DockerDogAgent_OpenCommandStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &DockerDogAgent_ServiceDesc.Streams[0], "/api.DockerDogAgent/OpenCommandStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dockerDogAgentOpenCommandStreamClient{stream}
+	return x, nil
+}
+
+type DockerDogAgent_OpenCommandStreamClient interface {
+	Send(*NooP) error
+	Recv() (*Command, error)
+	grpc.ClientStream
+}
+
+type dockerDogAgentOpenCommandStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *dockerDogAgentOpenCommandStreamClient) Send(m *NooP) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *dockerDogAgentOpenCommandStreamClient) Recv() (*Command, error) {
+	m := new(Command)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // DockerDogAgentServer is the server API for DockerDogAgent service.
 // All implementations must embed UnimplementedDockerDogAgentServer
 // for forward compatibility
 type DockerDogAgentServer interface {
-	SendFlowObserved(context.Context, *FlowObserved) (*Reply, error)
+	SendFlowsObserved(context.Context, *Flows) (*Reply, error)
 	SendAgentStarted(context.Context, *AgentStarted) (*Reply, error)
+	OpenCommandStream(DockerDogAgent_OpenCommandStreamServer) error
 	mustEmbedUnimplementedDockerDogAgentServer()
 }
 
@@ -65,11 +98,14 @@ type DockerDogAgentServer interface {
 type UnimplementedDockerDogAgentServer struct {
 }
 
-func (UnimplementedDockerDogAgentServer) SendFlowObserved(context.Context, *FlowObserved) (*Reply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendFlowObserved not implemented")
+func (UnimplementedDockerDogAgentServer) SendFlowsObserved(context.Context, *Flows) (*Reply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendFlowsObserved not implemented")
 }
 func (UnimplementedDockerDogAgentServer) SendAgentStarted(context.Context, *AgentStarted) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendAgentStarted not implemented")
+}
+func (UnimplementedDockerDogAgentServer) OpenCommandStream(DockerDogAgent_OpenCommandStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method OpenCommandStream not implemented")
 }
 func (UnimplementedDockerDogAgentServer) mustEmbedUnimplementedDockerDogAgentServer() {}
 
@@ -84,20 +120,20 @@ func RegisterDockerDogAgentServer(s grpc.ServiceRegistrar, srv DockerDogAgentSer
 	s.RegisterService(&DockerDogAgent_ServiceDesc, srv)
 }
 
-func _DockerDogAgent_SendFlowObserved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FlowObserved)
+func _DockerDogAgent_SendFlowsObserved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Flows)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DockerDogAgentServer).SendFlowObserved(ctx, in)
+		return srv.(DockerDogAgentServer).SendFlowsObserved(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.DockerDogAgent/SendFlowObserved",
+		FullMethod: "/api.DockerDogAgent/SendFlowsObserved",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DockerDogAgentServer).SendFlowObserved(ctx, req.(*FlowObserved))
+		return srv.(DockerDogAgentServer).SendFlowsObserved(ctx, req.(*Flows))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -120,6 +156,32 @@ func _DockerDogAgent_SendAgentStarted_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DockerDogAgent_OpenCommandStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DockerDogAgentServer).OpenCommandStream(&dockerDogAgentOpenCommandStreamServer{stream})
+}
+
+type DockerDogAgent_OpenCommandStreamServer interface {
+	Send(*Command) error
+	Recv() (*NooP, error)
+	grpc.ServerStream
+}
+
+type dockerDogAgentOpenCommandStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *dockerDogAgentOpenCommandStreamServer) Send(m *Command) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *dockerDogAgentOpenCommandStreamServer) Recv() (*NooP, error) {
+	m := new(NooP)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // DockerDogAgent_ServiceDesc is the grpc.ServiceDesc for DockerDogAgent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -128,14 +190,21 @@ var DockerDogAgent_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*DockerDogAgentServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SendFlowObserved",
-			Handler:    _DockerDogAgent_SendFlowObserved_Handler,
+			MethodName: "SendFlowsObserved",
+			Handler:    _DockerDogAgent_SendFlowsObserved_Handler,
 		},
 		{
 			MethodName: "SendAgentStarted",
 			Handler:    _DockerDogAgent_SendAgentStarted_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "OpenCommandStream",
+			Handler:       _DockerDogAgent_OpenCommandStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "api/api.proto",
 }

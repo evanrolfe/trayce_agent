@@ -7,4 +7,5 @@ type SocketI interface {
 	AddFlowCallback(callback func(Flow))
 	ProcessConnectEvent(event *bpf_events.ConnectEvent)
 	ProcessDataEvent(event *bpf_events.DataEvent)
+	Clear()
 }

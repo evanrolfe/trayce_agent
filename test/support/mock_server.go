@@ -21,6 +21,7 @@ func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 	// Handlers
 	http.HandleFunc("/", serverHandler)
 	http.HandleFunc("/chunked", serverHandlerChunked)
+	http.HandleFunc("/chunked/{n:[0-9]+}", serverHandlerChunked)
 
 	// HTTP server
 	go func() {

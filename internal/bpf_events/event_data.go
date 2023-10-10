@@ -13,25 +13,32 @@ const (
 	kSSLWrite   = 1
 	kRead       = 2
 	kWrite      = 3
+	kRecvfrom   = 4
+	kSendto     = 5
 	TypeEgress  = "egress"
 	TypeIngress = "ingress"
 )
 
 // DataEvent is sent from ebpf when data is sent or received over a socket, see corresponding: struct data_event_t
 type DataEvent struct {
-	DataType  int64             `json:"dataType"`
+	EventType uint64            `json:"eventType"`
+	DataType  uint64            `json:"dataType"`
 	Timestamp uint64            `json:"timestamp"`
 	Pid       uint32            `json:"pid"`
 	Tid       uint32            `json:"tid"`
-	Data      [MaxDataSize]byte `json:"data"`
-	DataLen   int32             `json:"dataLen"`
 	Comm      [16]byte          `json:"Comm"`
 	Fd        uint32            `json:"fd"`
 	Version   int32             `json:"version"`
+	Rand      int32             `json:"version"`
+	DataLen   int32             `json:"dataLen"`
+	Data      [MaxDataSize]byte `json:"data"`
 }
 
 func (se *DataEvent) Decode(payload []byte) (err error) {
 	buf := bytes.NewBuffer(payload)
+	if err = binary.Read(buf, binary.LittleEndian, &se.EventType); err != nil {
+		return
+	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.DataType); err != nil {
 		return
 	}
@@ -44,12 +51,6 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &se.Tid); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.Data); err != nil {
-		return
-	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.DataLen); err != nil {
-		return
-	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.Comm); err != nil {
 		return
 	}
@@ -57,6 +58,15 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.Version); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.Rand); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.DataLen); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.Data); err != nil {
 		return
 	}
 
@@ -69,6 +79,16 @@ func (se *DataEvent) GetUUID() string {
 
 func (se *DataEvent) Payload() []byte {
 	return se.Data[:se.DataLen]
+}
+
+func (se *DataEvent) PayloadTrimmed(n int) []byte {
+	payload := se.Data[:se.DataLen]
+
+	if len(payload) > n {
+		return payload[0:n]
+	} else {
+		return payload
+	}
 }
 
 func (se *DataEvent) PayloadLen() int {
@@ -85,9 +105,27 @@ func (se *DataEvent) Type() string {
 		return TypeIngress
 	case kWrite:
 		return TypeEgress
-
 	default:
 		return ""
+	}
+}
+
+func (se *DataEvent) Source() string {
+	switch se.DataType {
+	case kSSLRead:
+		return "SSL_read"
+	case kSSLWrite:
+		return "SSL_write"
+	case kRead:
+		return "kprobe/read"
+	case kWrite:
+		return "kprobe/write"
+	case kSendto:
+		return "kprobe/sendto"
+	case kRecvfrom:
+		return "kprobe/recvfrom"
+	default:
+		return "unkown"
 	}
 }
 
@@ -97,6 +135,16 @@ func (se *DataEvent) Key() string {
 
 func (se *DataEvent) SSL() bool {
 	return se.DataType == kSSLRead || se.DataType == kSSLWrite
+}
+
+// IsBlank returns true if the event's payload contains only zero bytes, for some reason we get sent this from ebpf..
+func (se *DataEvent) IsBlank() bool {
+	for _, b := range se.Payload() {
+		if b != 0x00 {
+			return false
+		}
+	}
+	return true
 }
 
 // func (se *SSLDataEvent) StringHex() string {

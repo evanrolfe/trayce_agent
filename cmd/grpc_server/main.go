@@ -1,18 +1,13 @@
 package main
 
-import (
-	"context"
-	"fmt"
-	"log"
-	"net"
-
-	pb "github.com/evanrolfe/dockerdog/api"
-	"google.golang.org/grpc"
-)
-
+/*
 const (
 	port = 50051
 )
+
+type Settings struct {
+	ContainerIds []string
+}
 
 // server is used to implement helloworld.GreeterServer.
 type server struct {
@@ -23,6 +18,29 @@ type server struct {
 func (s *server) SendFlowObserved(ctx context.Context, in *pb.FlowObserved) (*pb.Reply, error) {
 	log.Printf("Request to: %s", in.RemoteAddr)
 	return &pb.Reply{Status: "success "}, nil
+}
+
+func (s *server) OpenCommandStream(srv pb.DockerDogAgent_OpenCommandStreamServer) error {
+	log.Println("start new stream")
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+
+	for i := 0; i < 1; i++ {
+		command := pb.Command{
+			Type:     "set_settings",
+			Settings: &pb.Settings{ContainerIds: []string{hostname}},
+		}
+
+		if err := srv.Send(&command); err != nil {
+			log.Printf("send error %v", err)
+		}
+		log.Printf("sent new command:", command.Type)
+		time.Sleep(time.Second)
+	}
+
+	return nil
 }
 
 func main() {
@@ -39,3 +57,4 @@ func main() {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }
+*/

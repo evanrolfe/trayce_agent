@@ -19,23 +19,20 @@ type SocketHttp11 struct {
 	Protocol   string
 	Pid        uint32
 	Fd         uint32
+	SSL        bool
 	// Stores the bytes being received from DataEvent until they form a full HTTP request or response
 	dataBuf []byte
-	// Stores the bufferred flow which only has a request set
-	flowBuf *Flow
-	// Store incomplete flows (no RemoteAddr set) which are buffered until we receive a ConnectEvent
-	bufferedFlows []Flow
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
 }
 
 func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 	socket := SocketHttp11{
-		LocalAddr:     "unknown",
-		Pid:           event.Pid,
-		Fd:            event.Fd,
-		dataBuf:       []byte{},
-		bufferedFlows: []Flow{},
+		LocalAddr: "unknown",
+		Pid:       event.Pid,
+		Fd:        event.Fd,
+		SSL:       false,
+		dataBuf:   []byte{},
 	}
 
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
@@ -46,11 +43,11 @@ func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 // TODO: Make NewSocketHttp11 accept an IEvent interface and then decide how to make the socket based on its type
 func NewSocketHttp11FromData(event *bpf_events.DataEvent) SocketHttp11 {
 	socket := SocketHttp11{
-		LocalAddr:     "unknown",
-		Pid:           event.Pid,
-		Fd:            event.Fd,
-		dataBuf:       []byte{},
-		bufferedFlows: []Flow{},
+		LocalAddr: "unknown",
+		Pid:       event.Pid,
+		Fd:        event.Fd,
+		SSL:       false,
+		dataBuf:   []byte{},
 	}
 
 	return socket
@@ -58,6 +55,10 @@ func NewSocketHttp11FromData(event *bpf_events.DataEvent) SocketHttp11 {
 
 func (socket *SocketHttp11) Key() string {
 	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
+}
+
+func (socket *SocketHttp11) Clear() {
+	socket.clearDataBuffer()
 }
 
 func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
@@ -70,21 +71,31 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) 
 
 	// Connect events came come after DataEvents, so we buffer those flows until we receive a ConnectEvent which sets
 	// socket.RemoteAddr. TODO - would probably be simpler if we buffered the events first then processed them in desired order
-	socket.releaseBufferedFlows()
+	// socket.releaseBufferedFlows()
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
+	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf), " ssl?", event.SSL())
+	// if event.SSL() && !socket.SSL {
+	// 	fmt.Println("[SocketHttp1.1] clearing dataBuffer")
+	// 	socket.clearDataBuffer()
+	// 	socket.SSL = true
+	// }
+
+	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe
+	// this check fixes that because the encrypted data is dropped since it doesnt start with GET
+	if string(event.Payload()[0:3]) == "GET" || string(event.Payload()[0:4]) == "HTTP" {
+		socket.clearDataBuffer()
+		fmt.Println("[SocketHttp1.1] clearing dataBuffer")
+	}
+
 	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
 
-	// Attempt to parse buffer as an HTTP request
+	// 1. Attempt to parse buffer as an HTTP request
 	req := socket.parseHTTPRequest(socket.dataBuf)
 	if req != nil {
-		if socket.flowBuf != nil {
-			fmt.Println("[WARNING] a request was received out-of-order")
-			return
-		}
-
-		socket.flowBuf = NewFlow(
+		fmt.Println("[SocketHttp1.1] HTTP request complete")
+		flow := NewFlow(
 			socket.LocalAddr,
 			socket.RemoteAddr,
 			"tcp", // TODO Use constants here instead
@@ -94,49 +105,38 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 			socket.dataBuf,
 		)
 		socket.clearDataBuffer()
-		socket.sendFlowBack(*socket.flowBuf)
+		socket.sendFlowBack(*flow)
 	}
 
-	if socket.flowBuf == nil {
-		fmt.Printf("[WARNING] a response was received out-of-order, conn_id: %d-%d len: %d\n", socket.Pid, socket.Fd, len(event.Payload()))
-		// fmt.Println(hex.Dump(event.Payload()))
-	}
-
-	// Attempt to parse buffer as an HTTP response
+	// 2. Attempt to parse buffer as an HTTP response
 	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf)
 	if resp != nil {
-		socket.flowBuf.AddResponse(decompressedBuf)
-		finalMsg := socket.flowBuf.Clone()
+		fmt.Println("[SocketHttp1.1] HTTP response complete")
+
+		flow := NewFlowResponse(
+			socket.LocalAddr,
+			socket.RemoteAddr,
+			"tcp", // TODO Use constants here instead
+			"http",
+			int(socket.Pid),
+			int(socket.Fd),
+			socket.dataBuf,
+		)
+
+		flow.AddResponse(decompressedBuf)
 
 		socket.clearDataBuffer()
-		socket.clearflowBuffer()
-		socket.sendFlowBack(finalMsg)
+		socket.sendFlowBack(*flow)
 	}
 }
 
 func (socket *SocketHttp11) sendFlowBack(flow Flow) {
-	if !flow.Complete() {
-		socket.bufferedFlows = append(socket.bufferedFlows, flow)
-		return
-	}
+	fmt.Printf("[Flow] %s - Local: %s, Remote: %s\n", "", flow.LocalAddr, flow.RemoteAddr)
+	flow.Debug()
 
 	for _, callback := range socket.flowCallbacks {
 		callback(flow)
 	}
-}
-
-func (socket *SocketHttp11) releaseBufferedFlows() {
-	if len(socket.bufferedFlows) == 0 {
-		return
-	}
-
-	for _, flow := range socket.bufferedFlows {
-		flow.RemoteAddr = socket.RemoteAddr
-
-		socket.sendFlowBack(flow)
-	}
-
-	socket.bufferedFlows = []Flow{}
 }
 
 func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
@@ -203,8 +203,4 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte) (*http.Response, []byt
 
 func (socket *SocketHttp11) clearDataBuffer() {
 	socket.dataBuf = []byte{}
-}
-
-func (socket *SocketHttp11) clearflowBuffer() {
-	socket.flowBuf = nil
 }
