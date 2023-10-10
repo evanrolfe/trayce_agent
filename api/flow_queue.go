@@ -1,21 +1,20 @@
-package emitter
+package api
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
 )
 
 type FlowQueue struct {
-	grpcClient api.DockerDogAgentClient
-	flows      []*api.Flow
+	grpcClient DockerDogAgentClient
+	flows      []*Flow
 	batchSize  int
 }
 
-func NewFlowQueue(grpcClient api.DockerDogAgentClient, batchSize int) *FlowQueue {
+func NewFlowQueue(grpcClient DockerDogAgentClient, batchSize int) *FlowQueue {
 	return &FlowQueue{
 		grpcClient: grpcClient,
 		batchSize:  batchSize,
@@ -28,8 +27,8 @@ func (fq *FlowQueue) Start(inputChan chan sockets.Flow) {
 		for {
 			flow := <-inputChan
 
-			// Convert socket.Flow to api.Flow
-			apiFlow := &api.Flow{
+			// Convert socket.Flow to Flow
+			apiFlow := &Flow{
 				LocalAddr:  flow.LocalAddr,
 				RemoteAddr: flow.RemoteAddr,
 				L4Protocol: flow.L4Protocol,
@@ -59,7 +58,7 @@ func (fq *FlowQueue) processQueue() {
 
 	flows := fq.shiftQueue(fq.batchSize)
 
-	apiFlows := &api.Flows{Flows: flows}
+	apiFlows := &Flows{Flows: flows}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -69,7 +68,7 @@ func (fq *FlowQueue) processQueue() {
 	}
 }
 
-func (fq *FlowQueue) shiftQueue(n int) []*api.Flow {
+func (fq *FlowQueue) shiftQueue(n int) []*Flow {
 	if len(fq.flows) < n {
 		n = len(fq.flows)
 	}
@@ -81,7 +80,7 @@ func (fq *FlowQueue) shiftQueue(n int) []*api.Flow {
 }
 
 func (fq *FlowQueue) clearQueue() {
-	fq.flows = []*api.Flow{}
+	fq.flows = []*Flow{}
 }
 
 // func test() {

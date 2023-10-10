@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/docker/docker/client"
-	"github.com/evanrolfe/dockerdog/api"
 )
 
 type Containers struct {
@@ -43,8 +42,8 @@ func (c *Containers) GetIdFromPid(pid int) string {
 	return ""
 }
 
-func (c *Containers) SetSettings(settings *api.Settings) {
-	c.containerIds = settings.ContainerIds
+func (c *Containers) SetContainers(containerIds []string) {
+	c.containerIds = containerIds
 }
 
 func (c *Containers) getPidsForContainer(containerId string) []int {

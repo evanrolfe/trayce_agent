@@ -1,4 +1,4 @@
-package emitter_test
+package api_test
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/evanrolfe/dockerdog/api"
-	"github.com/evanrolfe/dockerdog/internal/emitter"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
 	"github.com/evanrolfe/dockerdog/test/support"
 	. "github.com/onsi/ginkgo/v2"
@@ -27,7 +26,7 @@ var _ = Describe("FlowQueue", func() {
 	Context("Receiving a Connect, Data (request) events", Ordered, func() {
 		var grpcHandler *support.GRPCHandler
 		var conn *grpc.ClientConn
-		var flowQueue *emitter.FlowQueue
+		var flowQueue *api.FlowQueue
 		inputChan := make(chan sockets.Flow)
 		flowsReceived := []*api.Flow{}
 
@@ -59,7 +58,7 @@ var _ = Describe("FlowQueue", func() {
 			grpcClient := api.NewDockerDogAgentClient(conn)
 
 			// FlowQueue
-			flowQueue = emitter.NewFlowQueue(grpcClient, batchSize)
+			flowQueue = api.NewFlowQueue(grpcClient, batchSize)
 			go flowQueue.Start(inputChan)
 
 			// Create a context with a timeout

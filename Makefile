@@ -51,9 +51,9 @@ testload:
 
 testunit: generate
 	$(CGO_FLAGS) \
-	go test \
+	ginkgo \
 	-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-	-v ./internal/...
+	-v -r ./internal/... ./api/...
 
 clean:
 	rm -rf .output

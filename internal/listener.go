@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 	"github.com/evanrolfe/dockerdog/internal/docker"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
@@ -49,8 +48,8 @@ func (listener *Listener) Start(outputChan chan sockets.Flow) {
 	}
 }
 
-func (listener *Listener) SetSettings(settings *api.Settings) {
-	listener.containers.SetSettings(settings)
+func (listener *Listener) SetContainers(containerIds []string) {
+	listener.containers.SetContainers(containerIds)
 }
 
 func (listener *Listener) Close() {

@@ -13,7 +13,6 @@ import (
 
 	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal"
-	"github.com/evanrolfe/dockerdog/internal/emitter"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
 	"github.com/evanrolfe/dockerdog/internal/utils"
 	"google.golang.org/grpc"
@@ -100,7 +99,7 @@ func main() {
 		}
 	}()
 
-	flowQueue := emitter.NewFlowQueue(grpcClient, 100)
+	flowQueue := api.NewFlowQueue(grpcClient, 100)
 	go flowQueue.Start(socketFlowChan)
 
 	// go func() {
@@ -144,7 +143,7 @@ func main() {
 			}
 			if resp.Type == "set_settings" {
 				fmt.Println(resp.Settings.ContainerIds)
-				listener.SetSettings(resp.Settings)
+				listener.SetContainers(resp.Settings.ContainerIds)
 			}
 		}
 	}()
