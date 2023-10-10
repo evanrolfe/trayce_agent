@@ -3,7 +3,6 @@ package bpf_events
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
@@ -159,7 +158,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 					continue
 				}
 				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
-				fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
+				// fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
 				outputChan <- &event
 

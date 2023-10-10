@@ -89,9 +89,9 @@ func getEventType(payload []byte) int {
 }
 
 func Test_kprobe_write_load(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
+	// if testing.Short() {
+	t.Skip()
+	// }
 
 	// Extract bundled files
 	bpfBytes := internal.MustAsset(bpfFilePath)

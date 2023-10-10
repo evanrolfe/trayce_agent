@@ -13,6 +13,7 @@ import (
 
 	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal"
+	"github.com/evanrolfe/dockerdog/internal/emitter"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
 	"github.com/evanrolfe/dockerdog/internal/utils"
 	"google.golang.org/grpc"
@@ -99,7 +100,7 @@ func main() {
 		}
 	}()
 
-	flowQueue := internal.NewFlowQueue(grpcClient)
+	flowQueue := emitter.NewFlowQueue(grpcClient, 100)
 	go flowQueue.Start(socketFlowChan)
 
 	// go func() {
