@@ -14,7 +14,6 @@ import (
 	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
-	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/internal"
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 	"github.com/evanrolfe/dockerdog/internal/docker"
@@ -105,7 +104,7 @@ func Test_kprobe_write_load(t *testing.T) {
 
 	// Intercepted PIDs map
 	containers := docker.NewContainers("/app/test/scripts/")
-	containers.SetSettings(&api.Settings{ContainerIds: []string{containerId}})
+	containers.SetContainers([]string{containerId})
 
 	eventStream := bpf_events.NewStream(containers, bpfBytes, btfFilePath, libSslPath)
 

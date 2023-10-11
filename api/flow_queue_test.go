@@ -67,10 +67,10 @@ var _ = Describe("FlowQueue", func() {
 
 			// Get the flows set to us via GRPC
 			grpcHandler.SetCallback(func(input *api.Flows) {
-				fmt.Println("[Test] received flows:")
-				for _, flow := range input.Flows {
-					fmt.Println("	", string(flow.Request))
-				}
+				// fmt.Println("[Test] received flows:")
+				// for _, flow := range input.Flows {
+				// 	fmt.Println("	", string(flow.Request))
+				// }
 
 				flowsReceived = append(flowsReceived, input.Flows...)
 
