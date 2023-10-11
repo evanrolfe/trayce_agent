@@ -1,9 +1,9 @@
+.output
+./dd_agent
+third_party/libbpf-bootstrap
+third_party/libbpfgo
 .DS_Store
-
-agent/.output
-agent/dd_agent
-agent/third_party/libbpf-bootstrap
-agent/third_party/libbpfgo
-agent/vendor
-agent/internal/bundle.go
-agent/bundle/ssl.bpf.o
+vendor
+tmp
+internal/bundle.go
+bundle/ssl.bpf.o
