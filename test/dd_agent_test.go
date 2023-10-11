@@ -153,7 +153,8 @@ func Test_dd_agent_single(t *testing.T) {
 	}{
 		{
 			name:   "[Ruby] an HTTP/1.1 request",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d", mockHttpPort), strconv.Itoa(numRequests)),
+			focus:  true,
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://www.pntest.io/"), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 		{

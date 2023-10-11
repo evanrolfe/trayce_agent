@@ -40,21 +40,21 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		os.Exit(-1)
 	}
 
-	// uprobe/SSL_read
-	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
+	// // uprobe/SSL_read
+	// bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
+	// bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
 
-	// uprobe/SSL_read_ex
-	bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
+	// // uprobe/SSL_read_ex
+	// bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
+	// bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
 
-	// uprobe/SSL_write
-	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
+	// // uprobe/SSL_write
+	// bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
+	// bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
 
-	// uprobe/SSL_write_ex
-	bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
+	// // uprobe/SSL_write_ex
+	// bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
+	// bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 
 	// kprobe/connect
 	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
