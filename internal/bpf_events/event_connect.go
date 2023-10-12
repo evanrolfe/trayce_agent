@@ -17,6 +17,9 @@ type ConnectEvent struct {
 	Ip          uint32 `json:"ip"`
 	Port        uint16 `json:"port"`
 	Local       bool   `json:"local"`
+	Ssl         bool   `json:"ssl"`
+	Protocol    uint32 `json:"protocol"`
+	LocalIp     uint32 `json:"localIp"`
 }
 
 func (ce *ConnectEvent) Decode(payload []byte) (err error) {
@@ -45,6 +48,15 @@ func (ce *ConnectEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.BigEndian, &ce.Local); err != nil {
 		return
 	}
+	if err = binary.Read(buf, binary.BigEndian, &ce.Ssl); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.BigEndian, &ce.Protocol); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &ce.LocalIp); err != nil {
+		return
+	}
 
 	return nil
 }
@@ -55,6 +67,17 @@ func (ce *ConnectEvent) IPAddr() string {
 	ipBytes[1] = byte(ce.Ip >> 16)
 	ipBytes[2] = byte(ce.Ip >> 8)
 	ipBytes[3] = byte(ce.Ip)
+	ipAddr := net.IP(ipBytes)
+
+	return ipAddr.String()
+}
+
+func (ce *ConnectEvent) LocalIPAddr() string {
+	ipBytes := make([]byte, 4)
+	ipBytes[0] = byte(ce.LocalIp >> 24)
+	ipBytes[1] = byte(ce.LocalIp >> 16)
+	ipBytes[2] = byte(ce.LocalIp >> 8)
+	ipBytes[3] = byte(ce.LocalIp)
 	ipAddr := net.IP(ipBytes)
 
 	return ipAddr.String()

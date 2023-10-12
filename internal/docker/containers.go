@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -28,14 +29,21 @@ func NewContainers(filterCmd string) *Containers {
 	}
 }
 
-func (c *Containers) GetPidsToIntercept() []int {
-	pids := []int{}
+func (c *Containers) GetPidsToIntercept() map[uint32]uint32 {
+	pidsMap := map[uint32]uint32{}
 
 	for _, containerId := range c.containerIds {
-		pids = append(pids, c.getPidsForContainer(containerId)...)
+		// Get the container's IP address
+		container, _ := c.dockerClient.ContainerInspect(context.Background(), containerId)
+		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
+
+		// Get the container's proccess ids
+		for _, pid := range c.getPidsForContainer(containerId) {
+			pidsMap[uint32(pid)] = ip
+		}
 	}
 
-	return pids
+	return pidsMap
 }
 
 func (c *Containers) GetIdFromPid(pid int) string {
@@ -90,4 +98,24 @@ func (c *Containers) getPidsForContainer(containerId string) []int {
 	}
 
 	return pids
+}
+
+func ipStringToUint32(ipStr string) uint32 {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		fmt.Println("[Error] unable to convert ip to uint32 net.ParseIP()")
+		return 0
+	}
+
+	// Convert the IP address to a 4-byte slice (IPv4)
+	ip = ip.To4()
+	if ip == nil {
+		fmt.Println("[Error] unable to convert ip to uint32 To4()")
+		return 0
+	}
+
+	// Convert the 4-byte slice to a uint32
+	ipUint32 := uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
+
+	return ipUint32
 }

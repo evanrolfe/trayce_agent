@@ -3,6 +3,7 @@ package bpf_events
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
@@ -19,9 +20,8 @@ const (
 )
 
 type Stream struct {
-	bpfProg         *BPFProgram
-	containers      *docker.Containers
-	interceptedPIDs []int
+	bpfProg    *BPFProgram
+	containers *docker.Containers
 
 	dataEventsBuf  *libbpfgo.RingBuffer
 	pidsMap        *libbpfgo.BPFMap
@@ -40,21 +40,21 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		os.Exit(-1)
 	}
 
-	// // uprobe/SSL_read
-	// bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
-	// bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
+	// uprobe/SSL_read
+	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
 
-	// // uprobe/SSL_read_ex
-	// bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
-	// bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
+	// uprobe/SSL_read_ex
+	bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
 
-	// // uprobe/SSL_write
-	// bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
-	// bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
+	// uprobe/SSL_write
+	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
 
-	// // uprobe/SSL_write_ex
-	// bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
-	// bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
+	// uprobe/SSL_write_ex
+	bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
+	bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 
 	// kprobe/connect
 	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
@@ -93,11 +93,10 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
 	return &Stream{
-		bpfProg:         bpfProg,
-		containers:      containers,
-		interceptedPIDs: []int{},
-		interruptChan:   make(chan int),
-		dataEventsChan:  make(chan []byte),
+		bpfProg:        bpfProg,
+		containers:     containers,
+		interruptChan:  make(chan int),
+		dataEventsChan: make(chan []byte),
 	}
 }
 
@@ -147,7 +146,8 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				// if event.Fd < 10 {
 				// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 				// }
-				fmt.Println("\n[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+				fmt.Println("\n[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
+				fmt.Print(hex.Dump(payload))
 				outputChan <- &event
 
 				// DataEvent
@@ -180,16 +180,14 @@ func (stream *Stream) Close() {
 
 func (stream *Stream) refreshPids() {
 	for {
-		stream.interceptedPIDs = stream.containers.GetPidsToIntercept()
+		interceptedPIDs := stream.containers.GetPidsToIntercept()
 
 		// TODO: Clear all existing intercepted PIDs
-		for _, pid := range stream.interceptedPIDs {
+		for pid, ip := range interceptedPIDs {
 			if stream.pidsMap != nil {
-				key1 := uint32(pid)
-				value1 := uint32(1)
-				key1Unsafe := unsafe.Pointer(&key1)
-				value1Unsafe := unsafe.Pointer(&value1)
-				stream.pidsMap.Update(key1Unsafe, value1Unsafe)
+				pidUnsafe := unsafe.Pointer(&pid)
+				ipUnsafe := unsafe.Pointer(&ip)
+				stream.pidsMap.Update(pidUnsafe, ipUnsafe)
 			}
 		}
 		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)

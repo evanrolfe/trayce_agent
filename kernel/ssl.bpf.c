@@ -63,7 +63,8 @@ struct connect_event_t {
     u16 port;
     bool local;
     bool ssl;
-    u8 protocol;
+    u32 protocol;
+    u32 local_ip;
 };
 
 struct close_event_t {
@@ -524,8 +525,8 @@ int probe_connect(struct pt_regs* ctx) {
     u32 pid = current_pid_tgid >> 32;
 
     // Check if PID is intercepted
-    u32* pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
+    u32* local_ip = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (local_ip == NULL) {
         return 0;
     }
 
@@ -563,6 +564,7 @@ int probe_connect(struct pt_regs* ctx) {
     conn_event.local = false;
     conn_event.ssl = false;
     conn_event.protocol = pUnknown;
+    conn_event.local_ip = *local_ip;
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
 

@@ -35,20 +35,8 @@ func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 		dataBuf:   []byte{},
 	}
 
+	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
-
-	return socket
-}
-
-// TODO: Make NewSocketHttp11 accept an IEvent interface and then decide how to make the socket based on its type
-func NewSocketHttp11FromData(event *bpf_events.DataEvent) SocketHttp11 {
-	socket := SocketHttp11{
-		LocalAddr: "unknown",
-		Pid:       event.Pid,
-		Fd:        event.Fd,
-		SSL:       false,
-		dataBuf:   []byte{},
-	}
 
 	return socket
 }
@@ -67,11 +55,8 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
+	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
-
-	// Connect events came come after DataEvents, so we buffer those flows until we receive a ConnectEvent which sets
-	// socket.RemoteAddr. TODO - would probably be simpler if we buffered the events first then processed them in desired order
-	// socket.releaseBufferedFlows()
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
