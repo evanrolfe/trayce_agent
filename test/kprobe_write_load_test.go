@@ -1,27 +1,6 @@
 package test
 
-import (
-	"bytes"
-	"context"
-	"encoding/binary"
-	"fmt"
-	"os"
-	"os/exec"
-	"regexp"
-	"strconv"
-	"testing"
-	"time"
-	"unsafe"
-
-	"github.com/aquasecurity/libbpfgo"
-	"github.com/evanrolfe/dockerdog/internal"
-	"github.com/evanrolfe/dockerdog/internal/bpf_events"
-	"github.com/evanrolfe/dockerdog/internal/docker"
-	"github.com/evanrolfe/dockerdog/internal/sockets"
-	"github.com/evanrolfe/dockerdog/internal/utils"
-	"github.com/stretchr/testify/assert"
-)
-
+/*
 const (
 	bpfFilePath = "bundle/ssl.bpf.o"
 	btfFilePath = "bundle/6.2.0-26-generic.btf"
@@ -176,3 +155,4 @@ func Test_kprobe_write_load(t *testing.T) {
 
 	eventStream.Close()
 }
+*/

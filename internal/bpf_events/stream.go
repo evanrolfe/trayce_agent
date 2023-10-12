@@ -3,6 +3,7 @@ package bpf_events
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"runtime"
@@ -19,9 +20,8 @@ const (
 )
 
 type Stream struct {
-	bpfProg         *BPFProgram
-	containers      *docker.Containers
-	interceptedPIDs []int
+	bpfProg    *BPFProgram
+	containers *docker.Containers
 
 	dataEventsBuf  *libbpfgo.RingBuffer
 	pidsMap        *libbpfgo.BPFMap
@@ -93,11 +93,10 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
 	return &Stream{
-		bpfProg:         bpfProg,
-		containers:      containers,
-		interceptedPIDs: []int{},
-		interruptChan:   make(chan int),
-		dataEventsChan:  make(chan []byte),
+		bpfProg:        bpfProg,
+		containers:     containers,
+		interruptChan:  make(chan int),
+		dataEventsChan: make(chan []byte),
 	}
 }
 
@@ -147,7 +146,8 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				// if event.Fd < 10 {
 				// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 				// }
-				fmt.Println("\n[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
+				fmt.Println("\n[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
+				fmt.Print(hex.Dump(payload))
 				outputChan <- &event
 
 				// DataEvent
@@ -180,16 +180,14 @@ func (stream *Stream) Close() {
 
 func (stream *Stream) refreshPids() {
 	for {
-		stream.interceptedPIDs = stream.containers.GetPidsToIntercept()
+		interceptedPIDs := stream.containers.GetPidsToIntercept()
 
 		// TODO: Clear all existing intercepted PIDs
-		for _, pid := range stream.interceptedPIDs {
+		for pid, ip := range interceptedPIDs {
 			if stream.pidsMap != nil {
-				key1 := uint32(pid)
-				value1 := uint32(1)
-				key1Unsafe := unsafe.Pointer(&key1)
-				value1Unsafe := unsafe.Pointer(&value1)
-				stream.pidsMap.Update(key1Unsafe, value1Unsafe)
+				pidUnsafe := unsafe.Pointer(&pid)
+				ipUnsafe := unsafe.Pointer(&ip)
+				stream.pidsMap.Update(pidUnsafe, ipUnsafe)
 			}
 		}
 		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)

@@ -91,8 +91,10 @@ func TestMain(m *testing.M) {
 // }
 
 func AssertFlows(t *testing.T, flows []*api.Flow) {
-	// assert.Greater(t, len(flows[0].RemoteAddr), 0)
 	for _, flow := range flows {
+		assert.Greater(t, len(flows[0].LocalAddr), 0)
+		assert.Greater(t, len(flows[0].RemoteAddr), 0)
+
 		if len(flow.Request) > 0 {
 			assert.Regexp(t, regexp.MustCompile(reqRegex), string(flows[0].Request))
 			assert.Equal(t, "tcp", flows[0].L4Protocol)
@@ -106,15 +108,20 @@ func AssertFlows(t *testing.T, flows []*api.Flow) {
 }
 
 func AssertFlowsChunked(t *testing.T, flows []*api.Flow) {
-	assert.Greater(t, len(flows[0].RemoteAddr), 0)
-	assert.Regexp(t, regexp.MustCompile(reqChunkRegex), string(flows[0].Request))
-	assert.Equal(t, "tcp", flows[0].L4Protocol)
-	assert.Equal(t, "http", flows[0].L7Protocol)
+	for _, flow := range flows {
+		assert.Greater(t, len(flows[0].LocalAddr), 0)
+		assert.Greater(t, len(flows[0].RemoteAddr), 0)
 
-	assert.Greater(t, len(flows[1].RemoteAddr), 0)
-	assert.Equal(t, "HTTP/1.1 200 OK", string(flows[1].Response[0:15]))
-	assert.Equal(t, "tcp", flows[1].L4Protocol)
-	assert.Equal(t, "http", flows[1].L7Protocol)
+		if len(flow.Request) > 0 {
+			assert.Regexp(t, regexp.MustCompile(reqChunkRegex), string(flows[0].Request))
+			assert.Equal(t, "tcp", flows[0].L4Protocol)
+			assert.Equal(t, "http", flows[0].L7Protocol)
+		} else if len(flow.Response) > 0 {
+			assert.Equal(t, "HTTP/1.1 200 OK", string(flows[1].Response[0:15]))
+			assert.Equal(t, "tcp", flows[1].L4Protocol)
+			assert.Equal(t, "http", flows[1].L7Protocol)
+		}
+	}
 }
 
 func Test_dd_agent_single(t *testing.T) {

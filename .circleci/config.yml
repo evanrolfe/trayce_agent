@@ -5,7 +5,7 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/configuration-reference/#jobs
 jobs:
-  say-hello:
+  build-and-test:
     # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/configuration-reference/#executor-job
     docker:
@@ -14,13 +14,24 @@ jobs:
     # See: https://circleci.com/docs/configuration-reference/#steps
     steps:
       - checkout
+      - setup_remote_docker
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: Build
+          command: docker build . -t ddbuild -f Dockerfile.build
+      - run:
+          name: Test Unit
+          command: docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash -c "make && make testunit"
+      # TODO: Make the e2e tests work in CI, currently ./dd_agent fails to start because of an ebpf permissions error
+      # - run:
+      #     name: Test E2E
+      #     command: docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash -c "make && ./dd_agent"
+      # - run:
+      #     name: Test E2E (Load)
+      #     command: docker build . -t ddbuild -f Dockerfile.build
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/configuration-reference/#workflows
 workflows:
-  say-hello-workflow:
+  main:
     jobs:
-      - say-hello
+      - build-and-test

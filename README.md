@@ -4,12 +4,11 @@
 Start the build container:
 ```
 docker build . -t ddbuild -f Dockerfile.build
-docker run --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild
+docker run --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash
 ```
 
 Then from within the container run:
 ```
-make install-libbpf
 make
 ```
 
