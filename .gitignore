@@ -6,4 +6,4 @@ third_party/libbpfgo
 vendor
 tmp
 internal/bundle.go
-bundle/ssl.bpf.o
+bundle/*.bpf.o

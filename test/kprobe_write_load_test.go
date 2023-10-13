@@ -2,7 +2,7 @@ package test
 
 /*
 const (
-	bpfFilePath = "bundle/ssl.bpf.o"
+	bpfFilePath = "bundle/main.bpf.o"
 	btfFilePath = "bundle/6.2.0-26-generic.btf"
 
 	// TODO: Make this value set automatically!!!

@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	bpfFilePath       = "bundle/ssl.bpf.o"
+	bpfFilePath       = "bundle/main.bpf.o"
 	btfFilePath       = "bundle/6.2.0-26-generic.btf"
 	sslLibDefault     = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 	grpcServerDefault = "localhost:50051"

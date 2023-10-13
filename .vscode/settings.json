@@ -1,6 +1,7 @@
 {
   "files.associations": {
     "*.tf": "tf",
+    "*.proto": "go",
     "vmlinux.h": "c",
     "unistd.h": "c",
     "__node_handle": "c",
@@ -14,6 +15,9 @@
     "vmlinux_602.h": "c",
     "vmlinux_600.h": "c",
     "bpf_core_read.h": "c",
-    "time.h": "c"
+    "time.h": "c",
+    "*.h": "c",
+    "bpf_tracing.h": "c",
+    "common.h": "c"
   }
 }

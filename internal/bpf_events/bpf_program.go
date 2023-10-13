@@ -46,7 +46,7 @@ func NewBPFProgramFromFileArgs(bpfPath string, btfPath string, interfaceName str
 func NewBPFProgramFromBytes(bpfBuf []byte, btfPath string, interfaceName string) (*BPFProgram, error) {
 	bpfModule, err := bpf.NewModuleFromBufferArgs(bpf.NewModuleArgs{
 		BPFObjBuff: bpfBuf,
-		BPFObjName: "ssl.bpf.o",
+		BPFObjName: "main.bpf.o",
 	})
 	if err != nil {
 		return nil, err
