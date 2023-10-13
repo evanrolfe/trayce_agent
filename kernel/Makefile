@@ -1,7 +1,7 @@
 # NOTE: This has been copied from ../third_party/libbpf-bootstrap/examples/c/Makefile
 # A few paths have been changed from ../../ to ../third_party/libbpf-bootstrap/
 # And we remove the step which compiles the .c file since we're using Go instead
-# The only compiled file we need from this is ../.output/ssl.bpf.o
+# The only compiled file we need from this is ../.output/main.bpf.o
 
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 OUTPUT := ../.output
@@ -29,7 +29,7 @@ INCLUDES := -I$(OUTPUT) -I../third_party/libbpf-bootstrap/libbpf/include/uapi -I
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = tc ssl
+APPS = main
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)

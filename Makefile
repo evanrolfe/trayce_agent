@@ -18,19 +18,19 @@ install-libbpf: clean
 	cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./libbpf
 	cd third_party/libbpfgo && make libbpfgo-static
 
-# Compile the BPF code to .output/ssl.bpf.o
+# Compile the BPF code to .output/main.bpf.o
 build-bpf:
-	make -C kernel ssl
+	make -C kernel main
 
 generate:
 # Bundle the BPF binary into our Go code:
-	cp .output/ssl.bpf.o bundle/ssl.bpf.o
+	cp .output/main.bpf.o bundle/main.bpf.o
 	go-bindata -o ./internal/bundle.go ./bundle
 
 # Generate the grpc code
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative api/api.proto
 
-# Compile our Go binary using .output/ssl.bpf.o
+# Compile our Go binary using .output/main.bpf.o
 build: generate
 # Compile the Go app to our final executable ./dd_agent
 	$(CGO_FLAGS) \
