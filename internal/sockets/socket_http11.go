@@ -91,10 +91,11 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 		)
 		socket.clearDataBuffer()
 		socket.sendFlowBack(*flow)
+		return
 	}
 
 	// 2. Attempt to parse buffer as an HTTP response
-	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf)
+	resp, decompressedBuf := socket.parseHTTPResponse(stripTrailingZeros(socket.dataBuf))
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
 
@@ -155,8 +156,10 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte) (*http.Response, []byt
 	body, err := io.ReadAll(resp.Body)
 	defer resp.Body.Close()
 	if err != nil {
-		// fmt.Println("Error reading response body:", err)
-		return nil, []byte{}
+		if err != io.ErrUnexpectedEOF {
+			fmt.Println("Error reading response body:", err)
+			return nil, []byte{}
+		}
 	}
 
 	if resp.Header.Get("Content-Encoding") != "gzip" {
@@ -188,4 +191,17 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte) (*http.Response, []byt
 
 func (socket *SocketHttp11) clearDataBuffer() {
 	socket.dataBuf = []byte{}
+}
+
+func stripTrailingZeros(data []byte) []byte {
+	// Start from the end of the slice
+	for i := len(data) - 1; i >= 0; i-- {
+		// If the byte is not 0x00, break the loop
+		if data[i] != 0x00 {
+			return data[:i+1] // Return the slice up to the non-00 byte
+		}
+	}
+
+	// If the slice is all 00 bytes, return an empty slice
+	return []byte{}
 }

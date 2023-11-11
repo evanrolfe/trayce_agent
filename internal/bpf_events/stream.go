@@ -33,6 +33,11 @@ type Stream struct {
 	closeCallbacks   []func(CloseEvent)
 }
 
+type goIdOffsets struct {
+	G_addrOffset uint64
+	GoidOffset   uint64
+}
+
 func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
 	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
 	if err != nil {
@@ -40,57 +45,85 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		os.Exit(-1)
 	}
 
-	// uprobe/SSL_read
-	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
+	goBinPath := "/app/test/scripts/go_request"
 
-	// uprobe/SSL_read_ex
-	bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
+	// Try removing tls_write and notice that the exit probe actually gets called!
+	// bpfProg.AttachGoUProbe("probe_entry_go_tls_write", "probe_exit_go_tls_write", "crypto/tls.(*Conn).Write", goBinPath)
+	_, err = bpfProg.AttachGoUProbe("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", goBinPath)
+	if err != nil {
+		panic(err)
+	}
 
-	// uprobe/SSL_write
-	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
+	// // uprobe/SSL_read
+	// bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
+	// bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
 
-	// uprobe/SSL_write_ex
-	bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
+	// // uprobe/SSL_read_ex
+	// bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
+	// bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
+
+	// // uprobe/SSL_write
+	// bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
+	// bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
+
+	// // uprobe/SSL_write_ex
+	// bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
+	// bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 
 	// kprobe/connect
-	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
-	bpfProg.AttachToKProbe("probe_connect", funcName)
-	bpfProg.AttachToKRetProbe("probe_ret_connect", funcName)
+	// funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
+	// bpfProg.AttachToKProbe("probe_connect", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_connect", funcName)
 
 	// kprobe/close
-	funcName = fmt.Sprintf("__%s_sys_close", ksymArch())
-	bpfProg.AttachToKProbe("probe_close", funcName)
-	bpfProg.AttachToKRetProbe("probe_ret_close", funcName)
+	// funcName = fmt.Sprintf("__%s_sys_close", ksymArch())
+	// bpfProg.AttachToKProbe("probe_close", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_close", funcName)
 
-	// kprobe/sendto
-	funcName = fmt.Sprintf("__%s_sys_sendto", ksymArch())
-	bpfProg.AttachToKProbe("probe_sendto", funcName)
-	bpfProg.AttachToKRetProbe("probe_ret_sendto", funcName)
+	// // kprobe/sendto
+	// funcName = fmt.Sprintf("__%s_sys_sendto", ksymArch())
+	// bpfProg.AttachToKProbe("probe_sendto", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_sendto", funcName)
 
-	// kprobe/recvfrom
-	funcName = fmt.Sprintf("__%s_sys_recvfrom", ksymArch())
-	bpfProg.AttachToKProbe("probe_recvfrom", funcName)
-	bpfProg.AttachToKRetProbe("probe_ret_recvfrom", funcName)
+	// // kprobe/recvfrom
+	// funcName = fmt.Sprintf("__%s_sys_recvfrom", ksymArch())
+	// bpfProg.AttachToKProbe("probe_recvfrom", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_recvfrom", funcName)
 
-	// kprobe write
-	funcName = fmt.Sprintf("__%s_sys_write", ksymArch())
-	bpfProg.AttachToKProbe("probe_write", funcName)
-	bpfProg.AttachToKRetProbe("probe_ret_write", funcName)
+	// // kprobe write
+	// funcName = fmt.Sprintf("__%s_sys_write", ksymArch())
+	// bpfProg.AttachToKProbe("probe_write", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_write", funcName)
 
-	// kprobe read
-	funcName = fmt.Sprintf("__%s_sys_read", ksymArch())
-	bpfProg.AttachToKProbe("probe_read", funcName)
-	bpfProg.AttachToKRetProbe("probe_ret_read", funcName)
+	// // kprobe read
+	// funcName = fmt.Sprintf("__%s_sys_read", ksymArch())
+	// bpfProg.AttachToKProbe("probe_read", funcName)
+	// bpfProg.AttachToKRetProbe("probe_ret_read", funcName)
 
-	// kprobe security_socket_sendmsg
-	bpfProg.AttachToKProbe("probe_entry_security_socket_sendmsg", "security_socket_sendmsg")
+	// // kprobe security_socket_sendmsg
+	// bpfProg.AttachToKProbe("probe_entry_security_socket_sendmsg", "security_socket_sendmsg")
 
-	// kprobe security_socket_recvmsg
-	bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
+	// // kprobe security_socket_recvmsg
+	// bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
+
+	// Send Go offsets
+	// goOffsetsMap, err := bpfProg.BpfModule.GetMap("go_offsets")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Println("------------------------> GoidOffset:", gooffsets.GoidOffset)
+	// fmt.Println("------------------------> GStructOffset:", gooffsets.GStructOffset)
+
+	// key1 := uint32(0)
+	// value1 := struct {
+	// 	x uint64
+	// 	y uint64
+	// }{gooffsets.GoidOffset, gooffsets.GStructOffset}
+
+	// key1Unsafe := unsafe.Pointer(&key1)
+	// value1Unsafe := unsafe.Pointer(&value1)
+
+	// goOffsetsMap.Update(key1Unsafe, value1Unsafe)
 
 	return &Stream{
 		bpfProg:        bpfProg,
@@ -153,12 +186,16 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				// DataEvent
 			} else if eventType == 1 {
 				event := DataEvent{}
-				event.Decode(payload)
+				err = event.Decode(payload)
+				if err != nil {
+					panic(err)
+				}
 				if event.IsBlank() {
+					fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
 					continue
 				}
 				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
-				// fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
+				fmt.Print(hex.Dump(event.Payload()))
 
 				outputChan <- &event
 

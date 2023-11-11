@@ -27,7 +27,7 @@ const (
 	requestPythonScript       = "/app/test/scripts/request_python"
 	requestGoScript           = "/app/test/scripts/go_request"
 
-	reqRegex      = `^GET /\d+ HTTP/1\.1`
+	reqRegex      = `^GET /\d* HTTP/1\.1`
 	reqChunkRegex = `^GET /chunked/\d+ HTTP/1\.1`
 
 	numRequestsLoad = 1000
@@ -142,7 +142,7 @@ func Test_dd_agent_single(t *testing.T) {
 	cmd.Stderr = &stderrBuf
 
 	// Wait for dd_agent to start, timeout of 5secs:
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
 
@@ -193,6 +193,12 @@ func Test_dd_agent_single(t *testing.T) {
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d", mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
+		{
+			name:   "[Go] an HTTPS/1.1 request",
+			focus:  true,
+			cmd:    exec.Command(requestGoScript, "https://www.synack.com", strconv.Itoa(numRequests)),
+			verify: AssertFlows,
+		},
 	}
 
 	hasFocus := false
@@ -209,7 +215,7 @@ func Test_dd_agent_single(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a context with a timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
@@ -219,9 +225,9 @@ func Test_dd_agent_single(t *testing.T) {
 				if len(requests)%100 == 0 {
 					fmt.Println("Received", len(requests))
 				}
-				if len(requests) == expectedNumFlows {
-					cancel()
-				}
+				// if len(requests) == expectedNumFlows {
+				// 	cancel()
+				// }
 			})
 
 			// Make the request

@@ -1,3 +1,5 @@
+//go:build exclude
+
 // -----------------------------------------------------------------------------
 // common.h
 // -----------------------------------------------------------------------------
@@ -28,7 +30,7 @@ typedef short unsigned int __kernel_sa_family_t;
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum event_type { eConnect, eData, eClose, eDebug };
-enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto };
+enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto, goTlsRead, goTlsWrite };
 enum protocol_type { pUnknown, pHttp };
 const u32 invalidFD = 0;
 
@@ -117,6 +119,11 @@ struct ssl_st {
     struct BIO* wbio;  // used by SSL_write
 };
 
+struct goid_offsets {
+    __u64 goid_offset;
+    __u64 g_addr_offset;
+};
+
 /***********************************************************
  * Exported bpf maps
  ***********************************************************/
@@ -126,6 +133,13 @@ struct {
     __type(value, u32);
     __uint(max_entries, 1024);
 } intercepted_pids SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u32);
+    __type(value, struct goid_offsets);
+    __uint(max_entries, 1024);
+} go_offsets SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);

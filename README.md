@@ -36,8 +36,11 @@ Install Go dev dependencies:
 Get network interface indexes:
 `ip link show`
 
-Get trace pipe output:
-`cat /sys/kernel/debug/tracing/trace_pipe`
+Get trace pipe output (note - this seems to only work from uprobes, not kprobes):
+```
+mount -t debugfs debugfs /sys/kernel/debug
+cat /sys/kernel/debug/tracing/trace_pipe
+```
 
 bpftool prog show netdev eth0 egress
 tc filter show dev eth0 egress
