@@ -124,6 +124,34 @@ const (
 00000430  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
 00000440  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
 00000450  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|`
+
+	event7 = `00000000  47 45 54 20 2f 63 68 75  6e 6b 65 64 20 48 54 54  |GET /chunked HTT|
+00000010  50 2f 31 2e 31 0d 0a 48  6f 73 74 3a 20 6c 6f 63  |P/1.1..Host: loc|
+00000020  61 6c 68 6f 73 74 3a 34  31 32 33 0d 0a 55 73 65  |alhost:4123..Use|
+00000030  72 2d 41 67 65 6e 74 3a  20 47 6f 2d 68 74 74 70  |r-Agent: Go-http|
+00000040  2d 63 6c 69 65 6e 74 2f  31 2e 31 0d 0a 41 63 63  |-client/1.1..Acc|
+00000050  65 70 74 2d 45 6e 63 6f  64 69 6e 67 3a 20 69 64  |ept-Encoding: id|
+00000060  65 6e 74 69 74 79 0d 0a  0d 0a                    |entity....|`
+
+	event8 = `00000000  48 54 54 50 2f 31 2e 31  20 32 30 30 20 4f 4b 0d  |HTTP/1.1 200 OK.|
+00000010  0a 58 2d 43 6f 6e 74 65  6e 74 2d 54 79 70 65 2d  |.X-Content-Type-|
+00000020  4f 70 74 69 6f 6e 73 3a  20 6e 6f 73 6e 69 66 66  |Options: nosniff|
+00000030  0d 0a 44 61 74 65 3a 20  4d 6f 6e 2c 20 31 33 20  |..Date: Mon, 13 |
+00000040  4e 6f 76 20 32 30 32 33  20 30 37 3a 35 36 3a 31  |Nov 2023 07:56:1|
+00000050  38 20 47 4d 54 0d 0a 54  72 61 6e 73 66 65 72 2d  |8 GMT..Transfer-|
+00000060  45 6e 63 6f 64 69 6e 67  3a 20 63 68 75 6e 6b 65  |Encoding: chunke|
+00000070  64 0d 0a 0d 0a 39 0d 0a  43 68 75 6e 6b 20 23 31  |d....9..Chunk #1|
+00000080  0a 0d 0a                                          |...|`
+
+	event9 = `00000000  39 0d 0a 43 68 75 6e 6b  20 23 32 0a 0d 0a        |9..Chunk #2...|`
+
+	event10 = `00000000  39 0d 0a 43 68 75 6e 6b  20 23 33 0a 0d 0a        |9..Chunk #3...|`
+
+	event11 = `00000000  39 0d 0a 43 68 75 6e 6b  20 23 34 0a 0d 0a        |9..Chunk #4...|`
+
+	event12 = `00000000  39 0d 0a 43 68 75 6e 6b  20 23 35 0a 0d 0a        |9..Chunk #5...|`
+
+	event13 = `00000000  30 0d 0a 0d 0a                                    |0....|`
 )
 
 var _ = Describe("SocketMap", func() {
@@ -133,6 +161,14 @@ var _ = Describe("SocketMap", func() {
 	// event4Payload, _ := hexDumpToBytes(event4)
 	event5Payload, _ := hexDumpToBytes(event5)
 	event6Payload, _ := hexDumpToBytes(event6)
+
+	event7Payload, _ := hexDumpToBytes(event7)
+	event8Payload, _ := hexDumpToBytes(event8)
+	event9Payload, _ := hexDumpToBytes(event9)
+	event10Payload, _ := hexDumpToBytes(event10)
+	event11Payload, _ := hexDumpToBytes(event11)
+	event12Payload, _ := hexDumpToBytes(event12)
+	event13Payload, _ := hexDumpToBytes(event13)
 
 	Context("Receiving a Connect, Data (request) events", Ordered, func() {
 		var socketsMap *sockets.SocketMap
@@ -291,6 +327,78 @@ var _ = Describe("SocketMap", func() {
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
 			Expect(flows[1].Response).To(Equal(event6Payload[:1066])) // without the trailing zeroes
+		})
+	})
+
+	Context("Receiving a Connect, Data (request), Data (response) events (chunked) from Go", Ordered, func() {
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
+
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+				Pid:  123,
+				Tid:  123,
+				Fd:   5,
+				Ip:   2130706433,
+				Port: 80,
+			})
+			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+				Pid:      123,
+				Tid:      123,
+				Fd:       5,
+				DataType: 7, // goTlsWrite
+				Data:     convertSliceToArray(event7Payload),
+				DataLen:  int32(len(event7Payload)),
+			})
+
+			dataEvents := [][4096]byte{
+				convertSliceToArray(event8Payload),
+				convertSliceToArray(event9Payload),
+				convertSliceToArray(event10Payload),
+				convertSliceToArray(event11Payload),
+				convertSliceToArray(event12Payload),
+				convertSliceToArray(event13Payload),
+			}
+
+			for _, event := range dataEvents {
+				socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+					Pid:      123,
+					Tid:      123,
+					Fd:       5,
+					DataType: 6, // goTlsRead
+					Data:     event,
+					DataLen:  int32(len(event)),
+				})
+			}
+		})
+
+		It("returns two flows", func() {
+			Expect(flows).To(HaveLen(2))
+
+			for _, flow := range flows {
+				Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("http"))
+				Expect(flow.Pid).To(Equal(123))
+				Expect(flow.Fd).To(Equal(5))
+			}
+		})
+
+		It("the first flow contains an HTTP request", func() {
+			flow := flows[0]
+			Expect(flow.Request).To(Equal(event7Payload))
+			Expect(flow.Response).To(BeNil())
+		})
+
+		It("the second flow contains an HTTP request and response", func() {
+			Expect(flows[1].Request).To(BeNil())
+			// Expect(flows[1].Response).To(Equal(event7Payload)) // without the trailing zeroes
+
+			// fmt.Println(string(flows[1].Response))
 		})
 	})
 })

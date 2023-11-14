@@ -179,6 +179,7 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     event->pid = current_pid_tgid >> 32;
     event->tid = current_pid_tgid & kMask32b;
     event->fd = invalidFD;
+    event->rand = bpf_get_prandom_u32();
 
     return event;
 }

@@ -169,12 +169,15 @@ func (prog *BPFProgram) AttachToURetProbe(funcName string, probeFuncName string,
 	return nil
 }
 
-func (prog *BPFProgram) AttachGoUProbe(funcName string, exitFuncName string, probeFuncName string, binaryPath string) (*goOffsets, error) {
+// AttachGoUProbe attach uprobes to the entry and exits of a Go function. URetProbes will not work with Go.
+// Each return statement in the function is an exit which is probed. This will also only work for cryptos/tls.Conn.Read and Write.
+func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, binaryPath string) *goOffsets {
 	// Get Offset
 	gOffsets, err := findGoOffsets(binaryPath)
 
 	var enterOffset uint64
 	var exitOffsets []uint64
+	// TODO: Get rid of this hacky check and make this work with all Go functions, not just Conn.Read and Write
 	if strings.Contains(probeFuncName, "Read") {
 		enterOffset = gOffsets.GoReadOffset.enter
 		exitOffsets = gOffsets.GoReadOffset.exits
@@ -182,8 +185,6 @@ func (prog *BPFProgram) AttachGoUProbe(funcName string, exitFuncName string, pro
 		enterOffset = gOffsets.GoWriteOffset.enter
 		exitOffsets = gOffsets.GoWriteOffset.exits
 	}
-	fmt.Println("Enter:", enterOffset)
-	fmt.Println("Exits:", exitOffsets)
 
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -201,6 +202,11 @@ func (prog *BPFProgram) AttachGoUProbe(funcName string, exitFuncName string, pro
 		panic(err)
 	}
 
+	// Exit probe is optional
+	if exitFuncName == "" {
+		return &gOffsets
+	}
+
 	// Attach Exit Probe
 	for _, exitOffset := range exitOffsets {
 		probeExit, err := prog.BpfModule.GetProgram(exitFuncName)
@@ -215,7 +221,7 @@ func (prog *BPFProgram) AttachGoUProbe(funcName string, exitFuncName string, pro
 		fmt.Println("attached to exit offset:", exitOffset)
 	}
 
-	return &gOffsets, nil
+	return &gOffsets
 }
 
 func (prog *BPFProgram) LoadProgram() error {

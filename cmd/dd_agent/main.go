@@ -53,7 +53,7 @@ func main() {
 	// Create a channel to receive interrupt signals
 	interruptChan := make(chan os.Signal, 1)
 	interruptChan2 := make(chan os.Signal, 2)
-	socketFlowChan := make(chan sockets.Flow)
+	socketFlowChan := make(chan sockets.Flow, 999)
 	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 	signal.Notify(interruptChan2, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 

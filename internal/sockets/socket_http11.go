@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httputil"
+	"slices"
+	"strings"
 
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
 )
@@ -74,7 +76,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 		fmt.Println("[SocketHttp1.1] clearing dataBuffer")
 	}
 
-	socket.dataBuf = append(socket.dataBuf, event.Payload()...)
+	socket.dataBuf = append(socket.dataBuf, stripTrailingZeros(event.Payload())...)
 
 	// 1. Attempt to parse buffer as an HTTP request
 	req := socket.parseHTTPRequest(socket.dataBuf)
@@ -94,8 +96,13 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 		return
 	}
 
+	// Events from Go still have carriage returns and chunk-related bytes in their payloads
+	// so we need to parse them differently
+	// TODO: Do not rely on hard coding these numbers
+	isFromGo := (event.DataType == 6 || event.DataType == 7)
+
 	// 2. Attempt to parse buffer as an HTTP response
-	resp, decompressedBuf := socket.parseHTTPResponse(stripTrailingZeros(socket.dataBuf))
+	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf, isFromGo)
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
 
@@ -144,13 +151,49 @@ func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 	return req
 }
 
-func (socket *SocketHttp11) parseHTTPResponse(buf []byte) (*http.Response, []byte) {
+func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Response, []byte) {
+	// Hacky solution because http.ReadResponse does not return the Transfer-Encoding header for some stupid reason
+	isChunked := false
+	fullHeaders, err := parseHTTPResponseHeaders(buf)
+	if err != nil {
+		fmt.Println("Error parsing response:", err)
+		return nil, []byte{}
+	}
+	for key, value := range fullHeaders {
+		if key == "transfer-encoding" && slices.Contains(value, "chunked") {
+			isChunked = true
+		}
+	}
+
+	// If its chunked but does not have the final chunk, then the response is not complete
+	if isFromGo && isChunked && len(buf) >= 5 {
+		fmt.Println("Its chunked")
+		// If the last chunk is on the trailer chunk: 0\r\n\r\n
+		if buf[len(buf)-5] != 0x30 || buf[len(buf)-4] != 0x0d || buf[len(buf)-3] != 0x0a || buf[len(buf)-2] != 0x0d || buf[len(buf)-1] != 0x0a {
+			fmt.Println("	and not complete!")
+			fmt.Println(hex.Dump(buf))
+
+			return nil, []byte{}
+		}
+
+		fmt.Println("	complete")
+	}
+
 	// Try parsing the buffer to an HTTP response
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(buf)), nil)
 	if err != nil {
 		// fmt.Println("Error parsing response:", err)
 		return nil, []byte{}
 	}
+
+	// TODO: Handle chunked encoded bodies from Go here..
+	// fmt.Println("------------------------------------")
+	// result, err := io.ReadAll(resp.Body)
+	// if err != nil {
+	// 	fmt.Println("ERROR from io.ReadAll():", err)
+	// }
+	// fmt.Println("Result:", string(result))
+	// fmt.Println("------------------------------------")
 
 	// Readall from the body to ensure its complete
 	body, err := io.ReadAll(resp.Body)
@@ -162,30 +205,34 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte) (*http.Response, []byt
 		}
 	}
 
-	if resp.Header.Get("Content-Encoding") != "gzip" {
-		return resp, buf
+	var bufReturn *[]byte
+
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		// Decompress if the body is gzip compressed
+		gzipReader, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			fmt.Println("ERROR", err)
+		}
+		defer gzipReader.Close()
+
+		decompressedBody, err := io.ReadAll(gzipReader)
+		if err != nil {
+			fmt.Println("ERROR", err)
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(decompressedBody))
+		defer resp.Body.Close()
+
+		buf2, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			fmt.Println("ERROR", err)
+		}
+
+		bufReturn = &buf2
+	} else {
+		bufReturn = &buf
 	}
 
-	// Decompress if the body is gzip compressed
-	gzipReader, err := gzip.NewReader(bytes.NewReader(body))
-	if err != nil {
-		fmt.Println("ERROR", err)
-	}
-	defer gzipReader.Close()
-
-	decompressedBody, err := io.ReadAll(gzipReader)
-	if err != nil {
-		fmt.Println("ERROR", err)
-	}
-	resp.Body = io.NopCloser(bytes.NewReader(decompressedBody))
-	defer resp.Body.Close()
-
-	buf2, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return resp, buf2
+	return resp, *bufReturn
 
 }
 
@@ -204,4 +251,37 @@ func stripTrailingZeros(data []byte) []byte {
 
 	// If the slice is all 00 bytes, return an empty slice
 	return []byte{}
+}
+
+// This is necessary because Go's http.ReadResponse seems to leave out the transfer-encoding header which we need
+// in order to know if the response is chunked or not. Note - all header keys are downcased.
+func parseHTTPResponseHeaders(responseBytes []byte) (map[string][]string, error) {
+	headers := make(map[string][]string)
+
+	// Convert the byte slice to a reader
+	reader := bufio.NewReader(bytes.NewReader(responseBytes))
+
+	// Read the status line
+	_, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("error reading status line: %v", err)
+	}
+
+	// Read headers
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil || line == "\r\n" {
+			break
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(strings.ToLower(parts[0]))
+			value := strings.TrimSpace(parts[1])
+			headers[key] = append(headers[key], value)
+		}
+	}
+
+	return headers, nil
+
 }

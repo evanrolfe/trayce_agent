@@ -131,7 +131,7 @@ func (se *DataEvent) Source() string {
 	case goTlsWrite:
 		return "uprobe/go_tls_write"
 	default:
-		return "unkown"
+		return "unknown"
 	}
 }
 

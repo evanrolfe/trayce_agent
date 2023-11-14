@@ -15,8 +15,8 @@ RUN apt install -y python3-pip ruby
 RUN pip3 install requests
 
 # Install Go
-RUN wget https://go.dev/dl/go1.18.1.linux-amd64.tar.gz -O /tmp/go.tar.gz
-RUN tar -C /usr/local -xf /tmp/go.tar.gz
+RUN wget https://go.dev/dl/go1.21.4.linux-amd64.tar.gz -O /tmp/go1.21.4.linux-amd64.tar.gz
+RUN tar -C /usr/local -xf /tmp/go1.21.4.linux-amd64.tar.gz
 ENV PATH "$PATH:/usr/local/go/bin:/root/go/bin"
 
 # Go Build dependencies
