@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -167,16 +166,10 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 
 	// If its chunked but does not have the final chunk, then the response is not complete
 	if isFromGo && isChunked && len(buf) >= 5 {
-		fmt.Println("Its chunked")
 		// If the last chunk is on the trailer chunk: 0\r\n\r\n
 		if buf[len(buf)-5] != 0x30 || buf[len(buf)-4] != 0x0d || buf[len(buf)-3] != 0x0a || buf[len(buf)-2] != 0x0d || buf[len(buf)-1] != 0x0a {
-			fmt.Println("	and not complete!")
-			fmt.Println(hex.Dump(buf))
-
 			return nil, []byte{}
 		}
-
-		fmt.Println("	complete")
 	}
 
 	// Try parsing the buffer to an HTTP response
