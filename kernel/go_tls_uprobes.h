@@ -34,6 +34,14 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     }
     bpf_printk("gotls/write:%d buf_len: %d", pid, buf_len);
 
+    // Get the offset values from user space
+    u64 fd_offset = 16;
+    u32 kZero = 0;
+    struct offsets *off = bpf_map_lookup_elem(&offsets_map, &kZero);
+    if (off != NULL) {
+        fd_offset = off->go_fd_offset;
+    }
+
     // Get the FD
     // Note here fd_ptr refers to the pointer to the net.netFD struct:
     // net.Conn(*net.TCPConn) *{
@@ -49,7 +57,7 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
 
     // TODO: Get the offset (16) from dwarf, see "FD_Sysfd_offset" in pixie..
     int64_t fd;
-    bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + 16);
+    bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
 
     // Send DataEvent
     struct data_event_t *event = create_data_event(current_pid_tgid);

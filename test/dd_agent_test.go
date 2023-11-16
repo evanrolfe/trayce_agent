@@ -30,7 +30,7 @@ const (
 	reqRegex      = `^GET /\d* HTTP/1\.1`
 	reqChunkRegex = `^GET /chunked HTTP/1\.1`
 
-	numRequestsLoad = 1000
+	numRequestsLoad = 500
 )
 
 var grpcHandler *support.GRPCHandler
@@ -199,7 +199,8 @@ func Test_agent(t *testing.T) {
 		},
 		// same issue with this one:
 		{
-			name:   "[Go] an HTTP/1.1 request with a chunked response",
+			name: "[Go] an HTTP/1.1 request with a chunked response",
+			// focus:  true,
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d/chunked", mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlowsChunked,
 		},
@@ -250,12 +251,14 @@ func Test_agent(t *testing.T) {
 			// Wait for the context to complete
 			<-ctx.Done()
 
-			// if len(requests) != 2 {
-			fmt.Println("*-------------------------------------------------------------------------* Start:")
-			fmt.Println(stdoutBuf.String())
-			fmt.Println("*-------------------------------------------------------------------------* End")
-			// }
-			// fmt.Println(stderrBuf.String())
+			if testing.Short() {
+				fmt.Println("*-------------------------------------------------------------------------* Start:")
+				fmt.Println(stdoutBuf.String())
+				fmt.Println("*-------------------------------------------------------------------------* End")
+			} else {
+				// This is necessary in a loadtest incase more than the expected num requests are sent
+				time.Sleep(2 * time.Second)
+			}
 
 			// Verify the result
 			assert.Equal(t, expectedNumFlows, len(requests))

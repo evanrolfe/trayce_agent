@@ -12,6 +12,7 @@ import (
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/evanrolfe/dockerdog/internal/docker"
+	"github.com/evanrolfe/dockerdog/internal/go_offsets"
 )
 
 const (
@@ -33,9 +34,8 @@ type Stream struct {
 	closeCallbacks   []func(CloseEvent)
 }
 
-type goIdOffsets struct {
-	G_addrOffset uint64
-	GoidOffset   uint64
+type offsets struct {
+	goFdOffset uint64
 }
 
 func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
@@ -47,9 +47,8 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 
 	goBinPath := "/app/test/scripts/go_request"
 
-	// uprobe for Go crypto/tls.(*Conn).Write
+	// uprobe for Go crypto/tls.(*Conn).Read & Write
 	bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", goBinPath)
-	// uprobe for Go crypto/tls.(*Conn).Read
 	bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", goBinPath)
 
 	// uprobe/SSL_read
@@ -105,23 +104,19 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
 	// Send Go offsets
-	// goOffsetsMap, err := bpfProg.BpfModule.GetMap("go_offsets")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println("------------------------> GoidOffset:", gooffsets.GoidOffset)
-	// fmt.Println("------------------------> GStructOffset:", gooffsets.GStructOffset)
+	goOffsetsMap, err := bpfProg.BpfModule.GetMap("offsets_map")
+	if err != nil {
+		panic(err)
+	}
 
-	// key1 := uint32(0)
-	// value1 := struct {
-	// 	x uint64
-	// 	y uint64
-	// }{gooffsets.GoidOffset, gooffsets.GStructOffset}
+	fdOffset := go_offsets.GetStructMemberOffset(goBinPath, "internal/poll.FD", "Sysfd")
+	key1 := uint32(0)
+	value1 := offsets{goFdOffset: fdOffset}
 
-	// key1Unsafe := unsafe.Pointer(&key1)
-	// value1Unsafe := unsafe.Pointer(&value1)
+	key1Unsafe := unsafe.Pointer(&key1)
+	value1Unsafe := unsafe.Pointer(&value1)
 
-	// goOffsetsMap.Update(key1Unsafe, value1Unsafe)
+	goOffsetsMap.Update(key1Unsafe, value1Unsafe)
 
 	return &Stream{
 		bpfProg:        bpfProg,

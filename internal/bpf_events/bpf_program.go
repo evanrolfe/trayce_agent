@@ -3,11 +3,11 @@ package bpf_events
 import (
 	"fmt"
 	"os"
-	"strings"
 	"syscall"
 
 	bpf "github.com/aquasecurity/libbpfgo"
 	"github.com/aquasecurity/libbpfgo/helpers"
+	"github.com/evanrolfe/dockerdog/internal/go_offsets"
 )
 
 type BPFProgram struct {
@@ -171,23 +171,11 @@ func (prog *BPFProgram) AttachToURetProbe(funcName string, probeFuncName string,
 
 // AttachGoUProbe attach uprobes to the entry and exits of a Go function. URetProbes will not work with Go.
 // Each return statement in the function is an exit which is probed. This will also only work for cryptos/tls.Conn.Read and Write.
-func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, binaryPath string) *goOffsets {
+func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, binaryPath string) {
 	// Get Offset
-	gOffsets, err := findGoOffsets(binaryPath)
-
-	var enterOffset uint64
-	var exitOffsets []uint64
-	// TODO: Get rid of this hacky check and make this work with all Go functions, not just Conn.Read and Write
-	if strings.Contains(probeFuncName, "Read") {
-		enterOffset = gOffsets.GoReadOffset.enter
-		exitOffsets = gOffsets.GoReadOffset.exits
-	} else {
-		enterOffset = gOffsets.GoWriteOffset.enter
-		exitOffsets = gOffsets.GoWriteOffset.exits
-	}
-
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	gOffsets := go_offsets.GetSymbolOffset(binaryPath, probeFuncName)
+	if gOffsets == nil {
+		fmt.Fprintln(os.Stderr, "error fetching GetSymbolOffset")
 		os.Exit(-1)
 	}
 
@@ -197,18 +185,18 @@ func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, pr
 		panic(err)
 	}
 
-	_, err = probeEntry.AttachUprobe(-1, binaryPath, uint32(enterOffset))
+	_, err = probeEntry.AttachUprobe(-1, binaryPath, uint32(gOffsets.Enter))
 	if err != nil {
 		panic(err)
 	}
 
 	// Exit probe is optional
 	if exitFuncName == "" {
-		return &gOffsets
+		return
 	}
 
 	// Attach Exit Probe
-	for _, exitOffset := range exitOffsets {
+	for _, exitOffset := range gOffsets.Exits {
 		probeExit, err := prog.BpfModule.GetProgram(exitFuncName)
 		if err != nil {
 			panic(err)
@@ -218,10 +206,7 @@ func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, pr
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("attached to exit offset:", exitOffset)
 	}
-
-	return &gOffsets
 }
 
 func (prog *BPFProgram) LoadProgram() error {

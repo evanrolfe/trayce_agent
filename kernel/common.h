@@ -119,9 +119,8 @@ struct ssl_st {
     struct BIO* wbio;  // used by SSL_write
 };
 
-struct goid_offsets {
-    __u64 goid_offset;
-    __u64 g_addr_offset;
+struct offsets {
+    __u64 go_fd_offset;
 };
 
 /***********************************************************
@@ -137,9 +136,9 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, u32);
-    __type(value, struct goid_offsets);
+    __type(value, struct offsets);
     __uint(max_entries, 1024);
-} go_offsets SEC(".maps");
+} offsets_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);

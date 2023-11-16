@@ -31,7 +31,7 @@ const (
 var _ = Describe("SocketMap", func() {
 	chunkedRespBytes, _ := hexDumpToBytes(chunkedResponse)
 
-	FContext("parsing a chunked response", Ordered, func() {
+	Context("parsing a chunked response", Ordered, func() {
 		It("the first flow contains an HTTP request", func() {
 			resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(chunkedRespBytes)), nil)
 			Expect(err).To(BeNil())

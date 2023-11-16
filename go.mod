@@ -1,6 +1,6 @@
 module github.com/evanrolfe/dockerdog
 
-go 1.20
+go 1.21
 
 require github.com/aquasecurity/libbpfgo v0.4.8-libbpf-1.2.0.0.20230509162948-80f41e18e690
 
@@ -10,7 +10,6 @@ require (
 	github.com/docker/docker v24.0.6+incompatible
 	github.com/golang/protobuf v1.5.3
 	github.com/keyval-dev/offsets-tracker v0.0.0-20230204190443-44ea935c31d7
-	github.com/knightsc/gapstone v0.0.0-20191231144527-6fa5afaf11a9
 	github.com/onsi/ginkgo/v2 v2.12.0
 	github.com/onsi/gomega v1.27.10
 	github.com/stretchr/testify v1.8.4
