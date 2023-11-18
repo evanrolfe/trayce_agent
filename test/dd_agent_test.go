@@ -245,6 +245,7 @@ func Test_agent(t *testing.T) {
 				}
 			})
 
+			// time.Sleep(1 * time.Second)
 			// Make the request
 			tt.cmd.Start()
 

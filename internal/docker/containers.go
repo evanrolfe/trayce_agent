@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 
@@ -14,6 +16,12 @@ type Containers struct {
 	containerIds []string
 	dockerClient *client.Client
 	filterCmd    string
+}
+
+type Proc struct {
+	Pid      uint32
+	Ip       uint32
+	ExecPath string
 }
 
 func NewContainers(filterCmd string) *Containers {
@@ -29,8 +37,8 @@ func NewContainers(filterCmd string) *Containers {
 	}
 }
 
-func (c *Containers) GetPidsToIntercept() map[uint32]uint32 {
-	pidsMap := map[uint32]uint32{}
+func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
+	procs := map[uint32]Proc{}
 
 	for _, containerId := range c.containerIds {
 		// Get the container's IP address
@@ -39,11 +47,32 @@ func (c *Containers) GetPidsToIntercept() map[uint32]uint32 {
 
 		// Get the container's proccess ids
 		for _, pid := range c.getPidsForContainer(containerId) {
-			pidsMap[uint32(pid)] = ip
+			// On linux, given a proc id 123, the file at /proc/123/exe is a symlink to the actual binary being run
+			// However its path is relative to the container its running on
+			execPath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+			if err != nil {
+				fmt.Println("Error os.Readlink()=", err)
+				continue
+			}
+
+			// Prepend the path to the proc's container's filesystem so we get the path to the bin from the host container
+			containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
+			execPathHost := path.Join(containerFSPath, execPath)
+			_, err = os.Stat(execPathHost)
+			if err != nil {
+				fmt.Println("Error: GetProcsToIntercept(), no file exists at", execPathHost)
+				continue
+			}
+
+			procs[uint32(pid)] = Proc{
+				Pid:      uint32(pid),
+				Ip:       ip,
+				ExecPath: execPathHost,
+			}
 		}
 	}
 
-	return pidsMap
+	return procs
 }
 
 func (c *Containers) GetIdFromPid(pid int) string {

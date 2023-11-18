@@ -62,6 +62,10 @@ mockserver:
 	$(CGO_FLAGS) \
 	go run ./cmd/mock_server
 
+mockgrpc:
+	$(CGO_FLAGS) \
+	go run ./cmd/grpc_server
+
 clean:
 	rm -rf .output
 	rm -rf third_party/libbpf-bootstrap

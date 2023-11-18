@@ -204,25 +204,58 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 	}
 }
 
+func (stream *Stream) refreshPids() {
+	interceptedProcs := map[uint32]docker.Proc{}
+
+	for {
+		newInterceptedProcs := stream.containers.GetProcsToIntercept()
+
+		// Check for new procs
+		for pid, newProc := range newInterceptedProcs {
+			_, exists := interceptedProcs[pid]
+			if !exists {
+				fmt.Println("New proc discovered!", newProc.Pid, "-", newProc.ExecPath)
+				interceptedProcs[pid] = newProc
+
+				stream.procOpened(newProc)
+			}
+		}
+
+		// Check for closed procs
+		for pid, oldProc := range interceptedProcs {
+			_, exists := newInterceptedProcs[pid]
+			if !exists {
+				fmt.Println("Oh no! this proc is gone", pid)
+				delete(interceptedProcs, pid)
+
+				stream.procClosed(oldProc)
+			}
+		}
+
+		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
+	}
+}
+
+func (stream *Stream) procOpened(proc docker.Proc) {
+	fmt.Println("Proc opened:", proc.Pid)
+
+	if stream.pidsMap != nil {
+		// Imporant that we copy these two vars by value here:
+		pid := proc.Pid
+		ip := proc.Ip
+		pidUnsafe := unsafe.Pointer(&pid)
+		ipUnsafe := unsafe.Pointer(&ip)
+		stream.pidsMap.Update(pidUnsafe, ipUnsafe)
+	}
+}
+
+func (stream *Stream) procClosed(proc docker.Proc) {
+	fmt.Println("Proc was closed:", proc.Pid)
+}
+
 func (stream *Stream) Close() {
 	stream.interruptChan <- 1
 	stream.bpfProg.Close()
-}
-
-func (stream *Stream) refreshPids() {
-	for {
-		interceptedPIDs := stream.containers.GetPidsToIntercept()
-
-		// TODO: Clear all existing intercepted PIDs
-		for pid, ip := range interceptedPIDs {
-			if stream.pidsMap != nil {
-				pidUnsafe := unsafe.Pointer(&pid)
-				ipUnsafe := unsafe.Pointer(&ip)
-				stream.pidsMap.Update(pidUnsafe, ipUnsafe)
-			}
-		}
-		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
-	}
 }
 
 func ksymArch() string {
