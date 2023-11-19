@@ -7,10 +7,12 @@ import (
 
 	bpf "github.com/aquasecurity/libbpfgo"
 	"github.com/aquasecurity/libbpfgo/helpers"
+	"github.com/evanrolfe/dockerdog/internal/go_offsets"
 )
 
 type BPFProgram struct {
 	BpfModule     *bpf.Module
+	uprobes       map[string][]*bpf.BPFLink
 	hooksAndOpts  map[*bpf.TcHook]*bpf.TcOpts
 	interfaceName string
 }
@@ -19,6 +21,7 @@ type BPFProgram struct {
 func NewBPFProgram(bpfModule *bpf.Module, interfaceName string) (*BPFProgram, error) {
 	prog := &BPFProgram{
 		BpfModule:     bpfModule,
+		uprobes:       map[string][]*bpf.BPFLink{},
 		hooksAndOpts:  map[*bpf.TcHook]*bpf.TcOpts{},
 		interfaceName: interfaceName,
 	}
@@ -154,16 +157,86 @@ func (prog *BPFProgram) AttachToURetProbe(funcName string, probeFuncName string,
 	}
 
 	// Attach Return Probe
-	prog2, err := prog.BpfModule.GetProgram(funcName)
+	probeReturn, err := prog.BpfModule.GetProgram(funcName)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
-	_, err = prog2.AttachURetprobe(-1, binaryPath, offset)
+	_, err = probeReturn.AttachURetprobe(-1, binaryPath, offset)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
+	}
+	return nil
+}
+
+// AttachGoUProbe attach uprobes to the entry and exits of a Go function. URetProbes will not work with Go.
+// Each return statement in the function is an exit which is probed. This will also only work for cryptos/tls.Conn.Read and Write.
+func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, binaryPath string) error {
+	// If there are already GoUprobes attached to this binary+func, then dont re-attach thm
+	uprobeKey := fmt.Sprintf("%s:%s", binaryPath, probeFuncName)
+	_, exists := prog.uprobes[uprobeKey]
+	if exists {
+		return nil
+	}
+	prog.uprobes[uprobeKey] = []*bpf.BPFLink{}
+
+	// Get Offset
+	gOffsets := go_offsets.GetSymbolOffset(binaryPath, probeFuncName)
+	if gOffsets == nil {
+		return fmt.Errorf("error fetching GetSymbolOffset for:", binaryPath)
+	}
+
+	// Attach Entry Probe
+	probeEntry, err := prog.BpfModule.GetProgram(funcName)
+	if err != nil {
+		return fmt.Errorf("error getting ebpf entry probe for:", binaryPath)
+	}
+
+	linkEntry, err := probeEntry.AttachUprobe(-1, binaryPath, uint32(gOffsets.Enter))
+	if err != nil {
+		return fmt.Errorf("error attaching ebpf entry probe for:", binaryPath)
+	}
+
+	prog.uprobes[uprobeKey] = append(prog.uprobes[binaryPath], linkEntry)
+	// linkEntry.Destroy()
+
+	// Exit probe is optional
+	if exitFuncName == "" {
+		return nil
+	}
+
+	// Attach Exit Probe
+	for _, exitOffset := range gOffsets.Exits {
+		probeExit, err := prog.BpfModule.GetProgram(exitFuncName)
+		if err != nil {
+			return fmt.Errorf("error getting ebpf exit probe for:", binaryPath)
+		}
+
+		linkExit, err := probeExit.AttachUprobe(-1, binaryPath, uint32(exitOffset))
+		if err != nil {
+			return fmt.Errorf("error attaching ebpf exit probe for:", binaryPath)
+		}
+
+		prog.uprobes[uprobeKey] = append(prog.uprobes[binaryPath], linkExit)
+	}
+
+	return nil
+}
+
+func (prog *BPFProgram) DetachGoUProbes(probeFuncName string, binaryPath string) error {
+	uprobeKey := fmt.Sprintf("%s:%s", binaryPath, probeFuncName)
+	bpfLinks, exists := prog.uprobes[uprobeKey]
+	if !exists {
+		return nil
+	}
+
+	for _, bpfLink := range bpfLinks {
+		err := bpfLink.Destroy()
+		if err != nil {
+			return fmt.Errorf("bpfLink.Destroy() failed for", uprobeKey, "err:", err)
+		}
 	}
 	return nil
 }

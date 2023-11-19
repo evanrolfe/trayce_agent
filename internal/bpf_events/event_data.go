@@ -15,6 +15,8 @@ const (
 	kWrite      = 3
 	kRecvfrom   = 4
 	kSendto     = 5
+	goTlsRead   = 6
+	goTlsWrite  = 7
 	TypeEgress  = "egress"
 	TypeIngress = "ingress"
 )
@@ -124,8 +126,12 @@ func (se *DataEvent) Source() string {
 		return "kprobe/sendto"
 	case kRecvfrom:
 		return "kprobe/recvfrom"
+	case goTlsRead:
+		return "uprobe/go_tls_read"
+	case goTlsWrite:
+		return "uprobe/go_tls_write"
 	default:
-		return "unkown"
+		return "unknown"
 	}
 }
 

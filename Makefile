@@ -5,6 +5,8 @@ CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output"
 CGO_FLAGS = CC=$(CLANG) CGO_CFLAGS=$(CGO_CFLAGS_STATIC) CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) GOARCH=$(ARCH_FOR_CGO) GOOS=linux CGO_ENABLED=1
 ARCH_FOR_CGO := $(shell uname -m | sed 's/x86_64/amd64/g; s/aarch64/arm64/g')
 DIV = "+------------------------------------------------+"
+SED_PASS = ''/PASS/s//$$(printf "\033[32mPASS\033[0m")/''
+SED_FAIL = ''/FAIL/s//$$(printf "\033[31mFAIL\033[0m")/''
 
 .PHONY: all test clean
 
@@ -20,6 +22,7 @@ install-libbpf: clean
 
 # Compile the BPF code to .output/main.bpf.o
 build-bpf:
+	rm -f .output/main.*
 	make -C kernel main
 
 generate:
@@ -42,18 +45,26 @@ build: generate
 
 test:
 	$(CGO_FLAGS) \
-	go test ./test -v -count=1 -short
+	go test ./test -v -count=1 -short | sed $(SED_PASS) | sed $(SED_FAIL)
 # -run Test_kprobe_write2
 
 testload:
 	$(CGO_FLAGS) \
-	go test ./test -v -count=1
+	go test ./test -v -count=1 | sed $(SED_PASS) | sed $(SED_FAIL)
 
 testunit: generate
 	$(CGO_FLAGS) \
 	ginkgo \
 	-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-	-v -r ./internal/... ./api/...
+	-v -r ./internal/...
+
+mockserver:
+	$(CGO_FLAGS) \
+	go run ./cmd/mock_server
+
+mockgrpc:
+	$(CGO_FLAGS) \
+	go run ./cmd/grpc_server
 
 clean:
 	rm -rf .output

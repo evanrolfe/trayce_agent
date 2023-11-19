@@ -29,12 +29,11 @@ func (listener *Listener) Start(outputChan chan sockets.Flow) {
 	// TODO: Just let this send flows directly to the channel
 	listener.sockets.AddFlowCallback(func(flow sockets.Flow) { outputChan <- flow })
 
-	eventsChan := make(chan bpf_events.IEvent)
+	eventsChan := make(chan bpf_events.IEvent, 999)
 	go listener.eventStream.Start(eventsChan)
 
 	for {
 		event := <-eventsChan
-
 		switch ev := event.(type) {
 		case *bpf_events.ConnectEvent:
 			listener.sockets.ProcessConnectEvent(*ev)

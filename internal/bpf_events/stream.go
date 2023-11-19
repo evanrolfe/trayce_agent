@@ -12,6 +12,7 @@ import (
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/evanrolfe/dockerdog/internal/docker"
+	"github.com/evanrolfe/dockerdog/internal/go_offsets"
 )
 
 const (
@@ -25,12 +26,17 @@ type Stream struct {
 
 	dataEventsBuf  *libbpfgo.RingBuffer
 	pidsMap        *libbpfgo.BPFMap
+	goOffsetsMap   *libbpfgo.BPFMap
 	dataEventsChan chan []byte
 	interruptChan  chan int
 
 	connectCallbacks []func(ConnectEvent)
 	dataCallbacks    []func(DataEvent)
 	closeCallbacks   []func(CloseEvent)
+}
+
+type offsets struct {
+	goFdOffset uint64
 }
 
 func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
@@ -40,6 +46,7 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		os.Exit(-1)
 	}
 
+	// TODO: These SSL uprobes should be attached on-the-fly as containers are added to the tracking
 	// uprobe/SSL_read
 	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
@@ -96,7 +103,7 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		bpfProg:        bpfProg,
 		containers:     containers,
 		interruptChan:  make(chan int),
-		dataEventsChan: make(chan []byte),
+		dataEventsChan: make(chan []byte, 10000),
 	}
 }
 
@@ -129,6 +136,13 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 	stream.pidsMap = pidsMap
 	go stream.refreshPids()
 
+	// Offsets map
+	goOffsetsMap, err := stream.bpfProg.BpfModule.GetMap("offsets_map")
+	if err != nil {
+		panic(err)
+	}
+	stream.goOffsetsMap = goOffsetsMap
+
 	for {
 		// Check if the interrupt signal has been received
 		select {
@@ -153,8 +167,13 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				// DataEvent
 			} else if eventType == 1 {
 				event := DataEvent{}
-				event.Decode(payload)
+				err = event.Decode(payload)
+				if err != nil {
+					fmt.Println("[ERROR] failed to decode")
+					panic(err)
+				}
 				if event.IsBlank() {
+					fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
 					continue
 				}
 				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
@@ -173,25 +192,79 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 	}
 }
 
+func (stream *Stream) refreshPids() {
+	interceptedProcs := map[uint32]docker.Proc{}
+
+	for {
+		newInterceptedProcs := stream.containers.GetProcsToIntercept()
+
+		// Check for new procs
+		for pid, newProc := range newInterceptedProcs {
+			_, exists := interceptedProcs[pid]
+			if !exists {
+				interceptedProcs[pid] = newProc
+
+				stream.procOpened(newProc)
+			}
+		}
+
+		// Check for closed procs
+		for pid, oldProc := range interceptedProcs {
+			_, exists := newInterceptedProcs[pid]
+			if !exists {
+				delete(interceptedProcs, pid)
+
+				stream.procClosed(oldProc)
+			}
+		}
+
+		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
+	}
+}
+
+func (stream *Stream) procOpened(proc docker.Proc) {
+	fmt.Println("Proc opened:", proc.Pid, proc.ExecPath)
+	// Send the intercepted PIDs to ebpf
+	if stream.pidsMap != nil {
+		// Imporant that we copy these two vars by value here:
+		pid := proc.Pid
+		ip := proc.Ip
+		pidUnsafe := unsafe.Pointer(&pid)
+		ipUnsafe := unsafe.Pointer(&ip)
+		stream.pidsMap.Update(pidUnsafe, ipUnsafe)
+	}
+
+	// Determine offsets for this PID and send them to ebpf
+	fdOffset, err := go_offsets.GetStructMemberOffset(proc.ExecPath, "internal/poll.FD", "Sysfd")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// TODO: This should be the PID, otherwise at the moment, this wont work if executables from different versions of
+	// Go are running if each version has a different offset
+	key1 := uint32(0)
+	value1 := offsets{goFdOffset: fdOffset}
+	key1Unsafe := unsafe.Pointer(&key1)
+	value1Unsafe := unsafe.Pointer(&value1)
+
+	stream.goOffsetsMap.Update(key1Unsafe, value1Unsafe)
+
+	// Attach uprobes to the proc (if it is a Go executable being run)
+	stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath)
+	stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath)
+}
+
+func (stream *Stream) procClosed(proc docker.Proc) {
+	fmt.Println("Proc closed:", proc.Pid, proc.ExecPath)
+	// For the moment we are not detaching the uprobes, it causes some issues and I'm not sure if there is actually any
+	// benefit to detaching them
+	// stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Write", proc.ExecPath)
+	// stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Read", proc.ExecPath)
+}
+
 func (stream *Stream) Close() {
 	stream.interruptChan <- 1
 	stream.bpfProg.Close()
-}
-
-func (stream *Stream) refreshPids() {
-	for {
-		interceptedPIDs := stream.containers.GetPidsToIntercept()
-
-		// TODO: Clear all existing intercepted PIDs
-		for pid, ip := range interceptedPIDs {
-			if stream.pidsMap != nil {
-				pidUnsafe := unsafe.Pointer(&pid)
-				ipUnsafe := unsafe.Pointer(&ip)
-				stream.pidsMap.Update(pidUnsafe, ipUnsafe)
-			}
-		}
-		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
-	}
 }
 
 func ksymArch() string {

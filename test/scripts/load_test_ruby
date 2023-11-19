@@ -20,7 +20,7 @@ n.times do |i|
 
   res = http_session.start do |http|
     # do some requests here
-    res = http.get(uri.path+"/"+i.to_s)
+    res = http.get(uri.path)
     puts res
   end
 

@@ -1,4 +1,4 @@
-//go:build exclude
+// go:build exclude
 
 // SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 /* Copyright (c) 2022 Hengqi Chen */

@@ -1,3 +1,5 @@
+//go:build exclude
+
 // -----------------------------------------------------------------------------
 // common.h
 // -----------------------------------------------------------------------------
@@ -28,7 +30,7 @@ typedef short unsigned int __kernel_sa_family_t;
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum event_type { eConnect, eData, eClose, eDebug };
-enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto };
+enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto, goTlsRead, goTlsWrite };
 enum protocol_type { pUnknown, pHttp };
 const u32 invalidFD = 0;
 
@@ -117,6 +119,10 @@ struct ssl_st {
     struct BIO* wbio;  // used by SSL_write
 };
 
+struct offsets {
+    __u64 go_fd_offset;
+};
+
 /***********************************************************
  * Exported bpf maps
  ***********************************************************/
@@ -126,6 +132,13 @@ struct {
     __type(value, u32);
     __uint(max_entries, 1024);
 } intercepted_pids SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u32);
+    __type(value, struct offsets);
+    __uint(max_entries, 1024);
+} offsets_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -165,6 +178,7 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     event->pid = current_pid_tgid >> 32;
     event->tid = current_pid_tgid & kMask32b;
     event->fd = invalidFD;
+    event->rand = bpf_get_prandom_u32();
 
     return event;
 }

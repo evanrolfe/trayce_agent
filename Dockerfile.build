@@ -15,8 +15,8 @@ RUN apt install -y python3-pip ruby
 RUN pip3 install requests
 
 # Install Go
-RUN wget https://go.dev/dl/go1.20.4.linux-amd64.tar.gz -O /tmp/go1.20.4.linux-amd64.tar.gz
-RUN tar -C /usr/local -xf /tmp/go1.20.4.linux-amd64.tar.gz
+RUN wget https://go.dev/dl/go1.21.4.linux-amd64.tar.gz -O /tmp/go1.21.4.linux-amd64.tar.gz
+RUN tar -C /usr/local -xf /tmp/go1.21.4.linux-amd64.tar.gz
 ENV PATH "$PATH:/usr/local/go/bin:/root/go/bin"
 
 # Go Build dependencies
@@ -24,6 +24,7 @@ RUN go install github.com/shuLhan/go-bindata/cmd/go-bindata@latest
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
 RUN go install github.com/onsi/ginkgo/v2/ginkgo@v2.12.0
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
 RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$'" >> ~/.bashrc
 
 RUN make install-libbpf

@@ -366,6 +366,11 @@ int probe_ret_write(struct pt_regs *ctx) {
   u64 current_pid_tgid = bpf_get_current_pid_tgid();
   u32 pid = current_pid_tgid >> 32;
 
+  // Check the call to close() was successful
+  int res = (int)PT_REGS_RC(ctx);
+  if (res < 0)
+    return 0;
+
   struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
 
   if (active_buf_t != NULL && active_buf_t->socket_event) {
@@ -456,15 +461,20 @@ int probe_read(struct pt_regs *ctx) {
   return 0;
 }
 
-SEC("kprobe/read")
+SEC("kretprobe/read")
 int probe_ret_read(struct pt_regs *ctx) {
   u64 current_pid_tgid = bpf_get_current_pid_tgid();
   u32 pid = current_pid_tgid >> 32;
 
+  // Check the call to close() was successful
+  int res = (int)PT_REGS_RC(ctx);
+  if (res < 0)
+    return 0;
+
   struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
 
   if (active_buf_t != NULL && active_buf_t->socket_event) {
-
+    bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
     // TODO: DRY up the duplication here with probe_red_write()
     const char *buf;
     u32 fd = active_buf_t->fd;
@@ -501,10 +511,10 @@ int probe_ret_read(struct pt_regs *ctx) {
       return 0;
     }
 
-    bpf_get_current_comm(&event->comm, sizeof(event->comm));
+    // bpf_get_current_comm(&event->comm, sizeof(event->comm));
     bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
   }
-  bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
+
   return 0;
 }
 

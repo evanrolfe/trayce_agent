@@ -1,60 +1,46 @@
 package main
 
-/*
-const (
-	port = 50051
+import (
+	"fmt"
+	"log"
+	"net"
+
+	"github.com/evanrolfe/dockerdog/api"
+	"github.com/evanrolfe/dockerdog/test/support"
+	"google.golang.org/grpc"
 )
 
-type Settings struct {
-	ContainerIds []string
-}
-
-// server is used to implement helloworld.GreeterServer.
-type server struct {
-	pb.UnimplementedDockerDogAgentServer
-}
-
-// SendFlowObserved implements helloworld.GreeterServer
-func (s *server) SendFlowObserved(ctx context.Context, in *pb.FlowObserved) (*pb.Reply, error) {
-	log.Printf("Request to: %s", in.RemoteAddr)
-	return &pb.Reply{Status: "success "}, nil
-}
-
-func (s *server) OpenCommandStream(srv pb.DockerDogAgent_OpenCommandStreamServer) error {
-	log.Println("start new stream")
-	hostname, err := os.Hostname()
-	if err != nil {
-		panic(err)
-	}
-
-	for i := 0; i < 1; i++ {
-		command := pb.Command{
-			Type:     "set_settings",
-			Settings: &pb.Settings{ContainerIds: []string{hostname}},
-		}
-
-		if err := srv.Send(&command); err != nil {
-			log.Printf("send error %v", err)
-		}
-		log.Printf("sent new command:", command.Type)
-		time.Sleep(time.Second)
-	}
-
-	return nil
-}
+const grpcPort = 50051
 
 func main() {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	var grpcHandler *support.GRPCHandler
+
+	// Start GRPC server
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	grpcHandler = support.NewGRPCHandler()
 	grpcServer := grpc.NewServer()
-	pb.RegisterDockerDogAgentServer(grpcServer, &server{})
+	api.RegisterDockerDogAgentServer(grpcServer, grpcHandler)
 
-	log.Printf("server listening at %v", lis.Addr())
-	if err := grpcServer.Serve(lis); err != nil {
+	// Callback
+	grpcHandler.SetCallback(func(input *api.Flows) {
+		for _, flow := range input.Flows {
+			if flow.Request != nil {
+				fmt.Println("Received request")
+			}
+
+			if flow.Response != nil {
+				fmt.Println("Received response")
+			}
+		}
+	})
+
+	// Server
+	err = grpcServer.Serve(lis)
+	if err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }
-*/
