@@ -17,8 +17,8 @@ var _ = Describe("GoOffsets", func() {
 		})
 
 		It("returns the enter and exit offsets", func() {
-			Expect(extOffset.Enter).To(Equal(uint64(2611840)))
-			Expect(extOffset.Exits).To(Equal([]uint64{209, 290, 474, 656, 1100, 1197, 1392}))
+			Expect(extOffset.Enter).To(Equal(uint64(2934272)))
+			Expect(extOffset.Exits).To(Equal([]uint64{2934454, 2934530, 2934707, 2934869, 2935362, 2935429, 2935605}))
 		})
 	})
 
@@ -26,7 +26,7 @@ var _ = Describe("GoOffsets", func() {
 		var offset uint64
 
 		BeforeAll(func() {
-			offset = GetStructMemberOffset(binPath, "internal/poll.FD", "Sysfd")
+			offset, _ = GetStructMemberOffset(binPath, "internal/poll.FD", "Sysfd")
 		})
 
 		It("returns the correct offsets", func() {

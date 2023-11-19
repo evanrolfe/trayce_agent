@@ -4,8 +4,9 @@
 Start the build container:
 ```
 docker build . -t ddbuild -f Dockerfile.build
-docker run --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash
+docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash
 ```
+(`--pid=host` is only necessary if you want to run the tests).
 
 Then from within the container run:
 ```
@@ -21,9 +22,19 @@ docker run --pid=host --privileged -it dd
 ```
 
 ### Test
-Run tests with:
+Run tests:
 ```
 make test
+```
+
+Run load tests (known issue the Go HTTP test cases send over a few duplicated flows):
+```
+make testload
+```
+
+Run unit tests:
+```
+make testunit
 ```
 
 ### Commands

@@ -250,8 +250,15 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	stream.goOffsetsMap.Update(key1Unsafe, value1Unsafe)
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
-	stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath)
-	stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath)
+	fmt.Println("Proc attaching Go Uprobes", proc.Pid)
+	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath)
+	if err == nil {
+		fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
+	}
+	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath)
+	if err == nil {
+		fmt.Println("Error bpfProg.AttachGoUProbes() read:", err)
+	}
 }
 
 func (stream *Stream) procClosed(proc docker.Proc) {

@@ -127,12 +127,11 @@ func GetSymbolOffset(filePath string, symbolName string) *GoExtendedOffset {
 			// Get the exit offsets
 			symStart := symbol.Value - textSection.Addr
 			symEnd := symStart + symbol.Size
-			fmt.Println(symStart, symEnd)
 			if symEnd > textSectionLen {
 				continue
 			}
 			symBytes := textSectionData[symStart:symEnd]
-			returnOffsets := getReturnOffsets(elfFile.Machine, symBytes)
+			returnOffsets := getExitOffsets(elfFile.Machine, symBytes)
 
 			for _, exitOffset := range returnOffsets {
 				extendedOffset.Exits = append(extendedOffset.Exits, exitOffset+extendedOffset.Enter)
@@ -198,13 +197,12 @@ func GetStructMemberOffset(filePath string, structName string, memberName string
 	return memberOffset, nil
 }
 
-func getReturnOffsets(machine elf.Machine, instructions []byte) []uint64 {
+func getExitOffsets(machine elf.Machine, instructions []byte) []uint64 {
 	var res []uint64
 	switch machine {
 	case elf.EM_X86_64:
 		for i := 0; i < len(instructions); {
 			ins, err := x86asm.Decode(instructions[i:], 64)
-			// fmt.Println("->", ins.Op)
 			if err == nil && ins.Op == x86asm.RET {
 				res = append(res, uint64(i))
 			}
