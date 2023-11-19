@@ -45,12 +45,7 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		os.Exit(-1)
 	}
 
-	goBinPath := "/app/test/scripts/go_request"
-
-	// uprobe for Go crypto/tls.(*Conn).Read & Write
-	bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", goBinPath)
-	bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", goBinPath)
-
+	// TODO: These SSL uprobes should be attached on-the-fly as containers are added to the tracking
 	// uprobe/SSL_read
 	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
@@ -109,8 +104,10 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		panic(err)
 	}
 
+	// TODO: This should be done on the fly as procs are intercepted
+	goBinPath := "/app/test/scripts/go_request"
 	fdOffset := go_offsets.GetStructMemberOffset(goBinPath, "internal/poll.FD", "Sysfd")
-	key1 := uint32(0)
+	key1 := uint32(0) // TODO: This should be the PID
 	value1 := offsets{goFdOffset: fdOffset}
 
 	key1Unsafe := unsafe.Pointer(&key1)
@@ -214,7 +211,6 @@ func (stream *Stream) refreshPids() {
 		for pid, newProc := range newInterceptedProcs {
 			_, exists := interceptedProcs[pid]
 			if !exists {
-				fmt.Println("New proc discovered!", newProc.Pid, "-", newProc.ExecPath)
 				interceptedProcs[pid] = newProc
 
 				stream.procOpened(newProc)
@@ -225,7 +221,6 @@ func (stream *Stream) refreshPids() {
 		for pid, oldProc := range interceptedProcs {
 			_, exists := newInterceptedProcs[pid]
 			if !exists {
-				fmt.Println("Oh no! this proc is gone", pid)
 				delete(interceptedProcs, pid)
 
 				stream.procClosed(oldProc)
@@ -237,8 +232,8 @@ func (stream *Stream) refreshPids() {
 }
 
 func (stream *Stream) procOpened(proc docker.Proc) {
-	fmt.Println("Proc opened:", proc.Pid)
-
+	fmt.Println("Proc opened:", proc.Pid, proc.ExecPath)
+	// Send the intercepted PIDs to ebpf
 	if stream.pidsMap != nil {
 		// Imporant that we copy these two vars by value here:
 		pid := proc.Pid
@@ -247,10 +242,18 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 		ipUnsafe := unsafe.Pointer(&ip)
 		stream.pidsMap.Update(pidUnsafe, ipUnsafe)
 	}
+
+	// Attach uprobes to the proc (if it is a Go executable being run)
+	stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath)
+	stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath)
 }
 
 func (stream *Stream) procClosed(proc docker.Proc) {
-	fmt.Println("Proc was closed:", proc.Pid)
+	fmt.Println("Proc closed:", proc.Pid, proc.ExecPath)
+	// For the moment we are not detaching the uprobes, it causes some issues and I'm not sure if there is actually any
+	// benefit to detaching them
+	// stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Write", proc.ExecPath)
+	// stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Read", proc.ExecPath)
 }
 
 func (stream *Stream) Close() {

@@ -43,6 +43,10 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 	for _, containerId := range c.containerIds {
 		// Get the container's IP address
 		container, _ := c.dockerClient.ContainerInspect(context.Background(), containerId)
+		if container.NetworkSettings == nil {
+			continue
+		}
+
 		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
 
 		// Get the container's proccess ids

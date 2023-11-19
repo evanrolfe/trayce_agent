@@ -199,13 +199,13 @@ func Test_agent(t *testing.T) {
 		},
 		// same issue with this one:
 		{
-			name: "[Go] an HTTP/1.1 request with a chunked response",
-			// focus:  true,
+			name:   "[Go] an HTTP/1.1 request with a chunked response",
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d/chunked", mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlowsChunked,
 		},
 		{
-			name:   "[Go] an HTTPS/1.1 request",
+			name: "[Go] an HTTPS/1.1 request",
+			// focus:  true,
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://localhost:%d", mockHttpsPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
