@@ -26,6 +26,7 @@ type Stream struct {
 
 	dataEventsBuf  *libbpfgo.RingBuffer
 	pidsMap        *libbpfgo.BPFMap
+	goOffsetsMap   *libbpfgo.BPFMap
 	dataEventsChan chan []byte
 	interruptChan  chan int
 
@@ -98,23 +99,6 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	// kprobe security_socket_recvmsg
 	bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
-	// Send Go offsets
-	goOffsetsMap, err := bpfProg.BpfModule.GetMap("offsets_map")
-	if err != nil {
-		panic(err)
-	}
-
-	// TODO: This should be done on the fly as procs are intercepted
-	goBinPath := "/app/test/scripts/go_request"
-	fdOffset := go_offsets.GetStructMemberOffset(goBinPath, "internal/poll.FD", "Sysfd")
-	key1 := uint32(0) // TODO: This should be the PID
-	value1 := offsets{goFdOffset: fdOffset}
-
-	key1Unsafe := unsafe.Pointer(&key1)
-	value1Unsafe := unsafe.Pointer(&value1)
-
-	goOffsetsMap.Update(key1Unsafe, value1Unsafe)
-
 	return &Stream{
 		bpfProg:        bpfProg,
 		containers:     containers,
@@ -151,6 +135,13 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 	}
 	stream.pidsMap = pidsMap
 	go stream.refreshPids()
+
+	// Offsets map
+	goOffsetsMap, err := stream.bpfProg.BpfModule.GetMap("offsets_map")
+	if err != nil {
+		panic(err)
+	}
+	stream.goOffsetsMap = goOffsetsMap
 
 	for {
 		// Check if the interrupt signal has been received
@@ -242,6 +233,21 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 		ipUnsafe := unsafe.Pointer(&ip)
 		stream.pidsMap.Update(pidUnsafe, ipUnsafe)
 	}
+
+	// Determine offsets for this PID and send them to ebpf
+	fdOffset, err := go_offsets.GetStructMemberOffset(proc.ExecPath, "internal/poll.FD", "Sysfd")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// TODO: This should be the PID, otherwise at the moment, this wont work if executables from different versions of
+	// Go are running if each version has a different offset
+	key1 := uint32(0)
+	value1 := offsets{goFdOffset: fdOffset}
+	key1Unsafe := unsafe.Pointer(&key1)
+	value1Unsafe := unsafe.Pointer(&value1)
+
+	stream.goOffsetsMap.Update(key1Unsafe, value1Unsafe)
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
 	stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath)

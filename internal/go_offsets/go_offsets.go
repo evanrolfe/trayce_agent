@@ -143,15 +143,15 @@ func GetSymbolOffset(filePath string, symbolName string) *GoExtendedOffset {
 	return &extendedOffset
 }
 
-func GetStructMemberOffset(filePath string, structName string, memberName string) uint64 {
+func GetStructMemberOffset(filePath string, structName string, memberName string) (uint64, error) {
 	elfFile, err := elf.Open(filePath)
 	if err != nil {
-		log.Fatal(err)
+		return 0, fmt.Errorf("elf.Open() failed for %s, err: %v", filePath, err)
 	}
 
 	dwarfData, err := elfFile.DWARF()
 	if err != nil {
-		log.Fatal(err)
+		return 0, fmt.Errorf("elfFile.DWARF() failed for %s, err: %v", filePath, err)
 	}
 
 	entryReader := dwarfData.Reader()
@@ -170,9 +170,7 @@ func GetStructMemberOffset(filePath string, structName string, memberName string
 		if entry.Tag == dwarf.TagStructType && entry.AttrField(dwarf.AttrName) != nil {
 			typeName, _ := entry.Val(dwarf.AttrName).(string)
 			if typeName == structName {
-				fmt.Println("	", typeName)
 				// Now, find the member's offset
-				fmt.Println(typeName, " - children: ", entry.Children)
 				onChildren = true
 			}
 		} else if onChildren {
@@ -197,7 +195,7 @@ func GetStructMemberOffset(filePath string, structName string, memberName string
 		}
 	}
 
-	return memberOffset
+	return memberOffset, nil
 }
 
 func getReturnOffsets(machine elf.Machine, instructions []byte) []uint64 {
