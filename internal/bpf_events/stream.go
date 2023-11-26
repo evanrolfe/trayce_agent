@@ -6,7 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -63,8 +67,13 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
 	bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 
+	// kprobe/accept
+	funcName := fmt.Sprintf("__%s_sys_accept4", ksymArch())
+	bpfProg.AttachToKProbe("probe_accept4", funcName)
+	bpfProg.AttachToKRetProbe("probe_ret_accept4", funcName)
+
 	// kprobe/connect
-	funcName := fmt.Sprintf("__%s_sys_connect", ksymArch())
+	funcName = fmt.Sprintf("__%s_sys_connect", ksymArch())
 	bpfProg.AttachToKProbe("probe_connect", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_connect", funcName)
 
@@ -162,6 +171,16 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				// }
 				fmt.Println("\n[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
 				fmt.Print(hex.Dump(payload))
+
+				socketInfo, err := getSocketInfo2(int(event.Pid), int(event.Fd))
+				if err != nil {
+					fmt.Printf("Error getting socket information: %v\n", err)
+				}
+
+				if err == nil {
+					fmt.Println("----------> socketInfo:", socketInfo)
+				}
+
 				outputChan <- &event
 
 				// DataEvent
@@ -177,7 +196,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 					continue
 				}
 				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
-				// fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
+				fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
 				outputChan <- &event
 
@@ -237,7 +256,7 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	// Determine offsets for this PID and send them to ebpf
 	fdOffset, err := go_offsets.GetStructMemberOffset(proc.ExecPath, "internal/poll.FD", "Sysfd")
 	if err != nil {
-		fmt.Println(err)
+		fdOffset = 16
 		return
 	}
 	// TODO: This should be the PID, otherwise at the moment, this wont work if executables from different versions of
@@ -293,4 +312,45 @@ func getEventType(payload []byte) int {
 	}
 
 	return int(eventType)
+}
+
+func getSocketInfo(pid, fd int) (string, error) {
+	// Build the path to the symbolic link for the file descriptor
+	fdPath := filepath.Join("/proc", strconv.Itoa(pid), "fd", strconv.Itoa(fd))
+	fmt.Println(fdPath)
+	// Use syscall.Exec to execute readlink command
+	cmd := exec.Command("readlink", fdPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("error running readlink: %v", err)
+	}
+
+	return string(output), nil
+}
+
+func getSocketInfo2(pid, fd int) (string, error) {
+	// Build the path to the symbolic link for the file descriptor
+	fdPath := filepath.Join("/proc", strconv.Itoa(pid), "fd", strconv.Itoa(fd))
+
+	// Read the symbolic link
+	link, err := os.Readlink(fdPath)
+	if err != nil {
+		return "", fmt.Errorf("error reading symbolic link: %v", err)
+	}
+
+	return link, nil
+}
+
+func parseSocketInfo(link string) (string, string, error) {
+	// Extract local and remote addresses and ports from the symbolic link
+	// The symbolic link format is usually like "socket:[inode]"
+	parts := strings.Split(link, ":")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("unexpected symbolic link format: %s", link)
+	}
+
+	inode := parts[1]
+
+	// You may need to parse the inode to get further details if necessary
+	return inode, "", nil
 }

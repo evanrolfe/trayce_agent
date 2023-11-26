@@ -152,6 +152,20 @@ const (
 	event12 = `00000000  39 0d 0a 43 68 75 6e 6b  20 23 35 0a 0d 0a        |9..Chunk #5...|`
 
 	event13 = `00000000  30 0d 0a 0d 0a                                    |0....|`
+
+	event14 = `00000000  48 54 54 50 2f 31 2e 31  20 32 30 30 20 4f 4b 0d  |HTTP/1.1 200 OK.|
+00000010  0a 53 65 72 76 65 72 3a  20 57 45 42 72 69 63 6b  |.Server: WEBrick|
+00000020  2f 31 2e 37 2e 30 20 28  52 75 62 79 2f 33 2e 30  |/1.7.0 (Ruby/3.0|
+00000030  2e 32 2f 32 30 32 31 2d  30 37 2d 30 37 29 0d 0a  |.2/2021-07-07)..|
+00000040  44 61 74 65 3a 20 53 75  6e 2c 20 32 36 20 4e 6f  |Date: Sun, 26 No|
+00000050  76 20 32 30 32 33 20 30  39 3a 35 31 3a 33 37 20  |v 2023 09:51:37 |
+00000060  47 4d 54 0d 0a 43 6f 6e  74 65 6e 74 2d 4c 65 6e  |GMT..Content-Len|
+00000070  67 74 68 3a 20 32 33 0d  0a 43 6f 6e 6e 65 63 74  |gth: 23..Connect|
+00000080  69 6f 6e 3a 20 4b 65 65  70 2d 41 6c 69 76 65 0d  |ion: Keep-Alive.|
+00000090  0a 0d 0a                                          |...|`
+
+	event15 = `00000000  48 65 6c 6c 6f 20 77 6f  72 6c 64 20 28 66 72 6f  |Hello world (fro|
+00000010  6d 20 72 75 62 79 29                              |m ruby)|`
 )
 
 var _ = Describe("SocketMap", func() {
@@ -169,6 +183,9 @@ var _ = Describe("SocketMap", func() {
 	event11Payload, _ := hexDumpToBytes(event11)
 	event12Payload, _ := hexDumpToBytes(event12)
 	event13Payload, _ := hexDumpToBytes(event13)
+
+	event14Payload, _ := hexDumpToBytes(event14)
+	event15Payload, _ := hexDumpToBytes(event15)
 
 	Context("Receiving a Connect, Data (request) events", Ordered, func() {
 		var socketsMap *sockets.SocketMap
@@ -399,6 +416,62 @@ var _ = Describe("SocketMap", func() {
 			// Expect(flows[1].Response).To(Equal(event7Payload)) // without the trailing zeroes
 
 			// fmt.Println(string(flows[1].Response))
+		})
+	})
+
+	Context("Receiving a Connect, Data (response headers), Data (response body)", Ordered, func() {
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
+
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+				Pid:  123,
+				Tid:  123,
+				Fd:   5,
+				Ip:   2130706433,
+				Port: 80,
+			})
+			payload1 := convertSliceToArray(event14Payload)
+			payload2 := convertSliceToArray(event15Payload)
+
+			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+				Pid:      123,
+				Tid:      123,
+				Fd:       5,
+				DataType: 3, // kprobe/write
+				Data:     payload1,
+				DataLen:  int32(len(payload1)),
+			})
+			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+				Pid:      123,
+				Tid:      123,
+				Fd:       5,
+				DataType: 3, // kprobe/write
+				Data:     payload2,
+				DataLen:  int32(len(payload2)),
+			})
+		})
+
+		It("returns one flow for the response", func() {
+			Expect(flows).To(HaveLen(1))
+
+			flow := flows[0]
+			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("http"))
+			Expect(flow.Pid).To(Equal(123))
+			Expect(flow.Fd).To(Equal(5))
+		})
+
+		It("the first flow contains an HTTP request", func() {
+			flow := flows[0]
+			expectedPayload := append(event14Payload, event15Payload...)
+
+			Expect(flow.Response).To(Equal(expectedPayload))
 		})
 	})
 })

@@ -125,6 +125,13 @@ func AssertFlowsChunked(t *testing.T, flows []*api.Flow) {
 }
 
 func Test_agent(t *testing.T) {
+	// Set dd_agent to track the container this is running from:
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+	grpcHandler.SetContainerIds([]string{hostname})
+
 	// Load test or single test?
 	var numRequests int
 	var timeout time.Duration
@@ -162,7 +169,8 @@ func Test_agent(t *testing.T) {
 		verify func(t *testing.T, requests []*api.Flow)
 	}{
 		{
-			name:   "[Ruby] an HTTP/1.1 request",
+			name: "[Ruby] an HTTP/1.1 request",
+			// focus:  true,
 			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/", mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
@@ -264,6 +272,102 @@ func Test_agent(t *testing.T) {
 			// Verify the result
 			assert.Equal(t, expectedNumFlows, len(requests))
 			tt.verify(t, requests)
+		})
+	}
+}
+
+func Test_agent_server(t *testing.T) {
+	// Set dd_agent to track the container running th server:
+	grpcHandler.SetContainerIds([]string{"72f32f4e6bc6"})
+
+	// Start dd_agent
+	cmd := exec.Command("/app/dd_agent")
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	// Wait for dd_agent to start, timeout of 5secs:
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
+
+	// Trigger the command and then wait for the context to complete
+	cmd.Start()
+	<-ctx.Done()
+
+	// Run tests
+	// Set focus: true in order to only run a single test case
+	tests := []struct {
+		name   string
+		cmd    *exec.Cmd
+		focus  bool
+		verify func(t *testing.T, requests []*api.Flow)
+	}{
+		{
+			name:   "[Ruby] SERVER an HTTP/1.1 request",
+			focus:  true,
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://172.17.0.3:%d/", mockHttpPort), "1"),
+			verify: AssertFlows,
+		},
+	}
+
+	hasFocus := false
+	for _, tt := range tests {
+		if tt.focus {
+			hasFocus = true
+		}
+	}
+
+	for _, tt := range tests {
+		if hasFocus && !tt.focus {
+			continue
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a context with a timeout
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+
+			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
+			var requests []*api.Flow
+			grpcHandler.SetCallback(func(input *api.Flows) {
+				requests = append(requests, input.Flows...)
+				if len(requests)%100 == 0 {
+					fmt.Println("Received", len(requests))
+				}
+				if len(requests) >= 2 {
+					cancel()
+				}
+			})
+
+			// time.Sleep(1 * time.Second)
+			// Make the request
+			tt.cmd.Start()
+
+			// Wait for the context to complete
+			<-ctx.Done()
+
+			if testing.Short() {
+				fmt.Println("*-------------------------------------------------------------------------* Start:")
+				fmt.Println(stdoutBuf.String())
+				fmt.Println("*-------------------------------------------------------------------------* End")
+			} else {
+				// This is necessary in a loadtest incase more than the expected num requests are sent
+				time.Sleep(2 * time.Second)
+			}
+
+			// Verify the result
+			assert.Equal(t, 2, len(requests))
+			// for _, flow := range requests {
+			// 	if len(flow.Request) > 0 {
+			// 		fmt.Println("Req:", string(flow.Request))
+			// 	}
+
+			// 	if len(flow.Response) > 0 {
+			// 		fmt.Println("Resp:", string(flow.Response))
+			// 	}
+			// }
 		})
 	}
 }

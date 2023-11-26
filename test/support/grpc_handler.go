@@ -3,8 +3,6 @@ package support
 import (
 	"context"
 	"log"
-	"os"
-	"time"
 
 	"github.com/evanrolfe/dockerdog/api"
 )
@@ -13,6 +11,7 @@ type GRPCHandler struct {
 	api.UnimplementedDockerDogAgentServer
 	callback             func(input *api.Flows)
 	agentStartedCallback func(input *api.AgentStarted)
+	containerIds         []string
 }
 
 func NewGRPCHandler() *GRPCHandler {
@@ -20,6 +19,10 @@ func NewGRPCHandler() *GRPCHandler {
 		callback:             func(input *api.Flows) {},
 		agentStartedCallback: func(input *api.AgentStarted) {},
 	}
+}
+
+func (ts *GRPCHandler) SetContainerIds(containerIds []string) {
+	ts.containerIds = containerIds
 }
 
 func (ts *GRPCHandler) SetCallback(callback func(input *api.Flows)) {
@@ -42,23 +45,16 @@ func (ts *GRPCHandler) SendAgentStarted(ctx context.Context, input *api.AgentSta
 
 func (ts *GRPCHandler) OpenCommandStream(srv api.DockerDogAgent_OpenCommandStreamServer) error {
 	log.Println("start new stream")
-	hostname, err := os.Hostname()
-	if err != nil {
-		panic(err)
+
+	command := api.Command{
+		Type:     "set_settings",
+		Settings: &api.Settings{ContainerIds: ts.containerIds},
 	}
 
-	for i := 0; i < 3; i++ {
-		command := api.Command{
-			Type:     "set_settings",
-			Settings: &api.Settings{ContainerIds: []string{hostname}},
-		}
-
-		if err := srv.Send(&command); err != nil {
-			log.Printf("send error %v", err)
-		}
-		log.Printf("sent new command:", command.Type)
-		time.Sleep(time.Second)
+	if err := srv.Send(&command); err != nil {
+		log.Printf("send error %v", err)
 	}
+	log.Printf("sent new command:", command.Type)
 
 	return nil
 }

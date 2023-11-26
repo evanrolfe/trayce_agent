@@ -42,6 +42,107 @@ struct {
   __uint(max_entries, 1024);
 } active_recvfrom_args_map SEC(".maps");
 
+// https://linux.die.net/man/3/accept
+// int accept(int socket, struct sockaddr *restrict address, socklen_t *restrict address_len);
+SEC("kprobe/accept4")
+int probe_accept4(struct pt_regs *ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32 *local_ip = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (local_ip == NULL) {
+        return 0;
+    }
+
+    struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
+
+    // Get the socket file descriptor
+    int fd;
+    bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
+
+    struct sockaddr *saddr;
+    bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
+
+    // Get the address family
+    sa_family_t address_family = 0;
+    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
+
+    // Get the new socket file descriptor
+    int fd2;
+    bpf_probe_read(&fd2, sizeof(int), &PT_REGS_RC(ctx2));
+    // dog_debug(pid, current_pid_tgid, fd2, "one");
+
+    // ---------------------------------------------------------------------------------------------
+    // struct socket *sock;
+    // struct sockaddr_in *addr_in;
+
+    // bpf_probe_read(&sock, sizeof(sock), &((struct file *)saddr)->private_data);
+
+    if (address_family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
+        // int dport;
+        // bpf_probe_read(&dport, sizeof(u16), &sin->sin_port);
+        // dog_debug(pid, current_pid_tgid, dport, "port");
+        u16 dport;
+        bpf_probe_read_user(&dport, sizeof(u16), &sin->sin_port);
+        dog_debug(pid, current_pid_tgid, dport, "port");
+
+    }
+    // ---------------------------------------------------------------------------------------------
+
+    // if (address_family == AF_INET6)
+    // TODO: Go appears to convert IPv4 hosts to v6, i.e. ::ffff:172.17.0.2, so we need to handle this
+    // See:
+    // strace -f -e trace=open,close,connect,sendto,recvfrom,send,recv,accept,accept4 -p 1046989
+
+    // Get the ip & port
+    struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
+    // Build the connect_event and save it to the map
+    struct connect_event_t conn_event;
+    __builtin_memset(&conn_event, 0, sizeof(conn_event));
+    conn_event.eventtype = eConnect;
+    conn_event.timestamp_ns = bpf_ktime_get_ns();
+    conn_event.pid = pid;
+    conn_event.tid = current_pid_tgid;
+    conn_event.fd = fd;
+    conn_event.local = false;
+    conn_event.ssl = false;
+    conn_event.protocol = pUnknown;
+    conn_event.local_ip = *local_ip;
+    bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
+    bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
+
+    bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
+
+
+    // Build the conn_info and save it to the map
+    u64 key = gen_pid_fd(current_pid_tgid, fd);
+    bpf_map_update_elem(&conn_infos, &key, &conn_event, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/accept4")
+int probe_ret_accept4(struct pt_regs *ctx) {
+  u64 current_pid_tgid = bpf_get_current_pid_tgid();
+  u32 pid = current_pid_tgid >> 32;
+
+  // Check the call to connect() was successful
+  int fd = (int)PT_REGS_RC(ctx);
+
+  // Send entry data from map
+  struct connect_event_t *conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
+  if (conn_event != NULL) {
+    conn_event->fd = fd;
+    bpf_ringbuf_output(&data_events, conn_event, sizeof(struct connect_event_t), 0);
+  }
+
+  bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
+
+  return 0;
+}
+
 // https://linux.die.net/man/3/connect
 // int connect(int socket, const struct sockaddr *address, socklen_t address_len);
 SEC("kprobe/connect")
@@ -74,8 +175,6 @@ int probe_connect(struct pt_regs *ctx) {
     return 0;
 
   // Get the ip & port
-  u32 ip;
-  u16 port;
   struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
 
   // Build the connect_event and save it to the map
@@ -467,13 +566,16 @@ int probe_ret_read(struct pt_regs *ctx) {
   u32 pid = current_pid_tgid >> 32;
 
   // Check the call to close() was successful
-  int res = (int)PT_REGS_RC(ctx);
-  if (res < 0)
+  int bytes_read = (int)PT_REGS_RC(ctx);
+  if (bytes_read < 0)
     return 0;
 
   struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
 
   if (active_buf_t != NULL && active_buf_t->socket_event) {
+    dog_debug(pid, current_pid_tgid, bytes_read, "read");
+    active_buf_t->buf_len = bytes_read;
+
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
     // TODO: DRY up the duplication here with probe_red_write()
     const char *buf;

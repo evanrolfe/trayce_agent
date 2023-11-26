@@ -45,7 +45,7 @@ build: generate
 
 test:
 	$(CGO_FLAGS) \
-	go test ./test -v -count=1 -short | sed $(SED_PASS) | sed $(SED_FAIL)
+	go test ./test -v -count=1 -short -run Test_agent | sed $(SED_PASS) | sed $(SED_FAIL)
 # -run Test_kprobe_write2
 
 testload:
@@ -57,10 +57,6 @@ testunit: generate
 	ginkgo \
 	-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
 	-v -r ./internal/...
-
-mockserver:
-	$(CGO_FLAGS) \
-	go run ./cmd/mock_server
 
 mockgrpc:
 	$(CGO_FLAGS) \

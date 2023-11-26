@@ -60,6 +60,9 @@ tc filter del dev eth0 egress pref 49152
 Tracing:
 `strace -o strace_curl.txt -f -e trace=open,close,connect,sendto,recvfrom,send,recv bash -c 'curl --parallel --parallel-immediate --http1.1 --config urls.txt'`
 
+`strace -f -e trace=open,close,connect,sendto,recvfrom,send,recv,accept,accept4 -p 3437319`
+*You need `-f` for Go especially because of threads.
+
 Trace library calls:
 `ltrace -x "@libssl.so.3" -o strace.txt curl https://www.pntest.io --http1.1`
 

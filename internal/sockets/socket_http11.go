@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/evanrolfe/dockerdog/internal/bpf_events"
@@ -104,7 +106,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf, isFromGo)
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
-
+		fmt.Println(hex.Dump(socket.dataBuf))
 		flow := NewFlowResponse(
 			socket.LocalAddr,
 			socket.RemoteAddr,
@@ -150,6 +152,9 @@ func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 	return req
 }
 
+// TODO: Go's HTTP parsing lib has some weird behaviour and doesn't always work in the way we need it to. We should
+// probably just write our own HTTP parsing function, there are so many work-arounds an extra checks I need to do here
+// just to be able to use the std lib, its probably more complicated then rolling our own parser..
 func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Response, []byte) {
 	// Hacky solution because http.ReadResponse does not return the Transfer-Encoding header for some stupid reason
 	isChunked := false
@@ -178,15 +183,6 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 		// fmt.Println("Error parsing response:", err)
 		return nil, []byte{}
 	}
-
-	// TODO: Handle chunked encoded bodies from Go here..
-	// fmt.Println("------------------------------------")
-	// result, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	fmt.Println("ERROR from io.ReadAll():", err)
-	// }
-	// fmt.Println("Result:", string(result))
-	// fmt.Println("------------------------------------")
 
 	// Readall from the body to ensure its complete
 	body, err := io.ReadAll(resp.Body)
@@ -223,6 +219,19 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 		bufReturn = &buf2
 	} else {
 		bufReturn = &buf
+	}
+
+	// Check we actually have the full body
+	contentLengthHdr := resp.Header.Get("Content-Length")
+	if contentLengthHdr != "" {
+		contentLength, err := strconv.Atoi(contentLengthHdr)
+		if err != nil {
+			return resp, *bufReturn
+		}
+
+		if len(body) < contentLength {
+			return nil, []byte{}
+		}
 	}
 
 	return resp, *bufReturn
