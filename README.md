@@ -22,6 +22,8 @@ docker run --pid=host --privileged -it dd
 ```
 
 ### Test
+First ensure the mega server is server is running (see next section).
+
 Run tests:
 ```
 make test
@@ -37,6 +39,29 @@ Run unit tests:
 make testunit
 ```
 
+### MegaServer
+
+Build and start:
+```
+cd test/mega_server
+docker build -t mega_server .
+docker run -v ./:/app -p 3000:3000 -it mega_server bash
+```
+
+Start Rails:
+```
+cd ror && ./run.sh
+```
+
+Start Flask:
+```
+cd flask && ./run.sh
+```
+
+Start a server with ltrace:
+```
+ltrace -f -x "@libssl.so.3" ruby start.rb s -b 'ssl://0.0.0.0:3000?key=./config/ssl/localhost.key&cert=./config/ssl/localhost.crt'
+```
 ### Commands
 
 `curl https://www.pntest.io --http1.1`
@@ -69,6 +94,9 @@ Trace library calls:
 Kernel args wrapped twice (https://stackoverflow.com/questions/69842674/cannot-read-arguements-properly-from-ebpf-kprobe)? Check:
 `$ sudo cat /boot/config-$(uname -r) | grep CONFIG_ARCH_HAS_SYSCALL_WRAPPER`
 
+SSL_Set_FD example:
+https://github.com/alessandrod/snuffy/blob/master/snuffy-probes/src/snuffy/main.rs#L130
+
 ### NsEnter
 `docker contaienr inspect ...` to get the PID of the container you want to intercept.
 
@@ -79,6 +107,13 @@ nsenter -t {PID} -n
 
 To strace Go you need use -f because of the way it uses threads:
 `strace -f ./go_request`
+
+### BPFTrace
+
+`bpftrace -e 'uretprobe:/usr/lib/x86_64-linux-gnu/libssl.so.3:SSL_read { printf("PID %d: SSL_read \n", pid); }'`
+
+`bpftrace trace_libssl_pid.bt`
+
 
 ### Installing curl:
 

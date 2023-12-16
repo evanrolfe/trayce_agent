@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 	"github.com/evanrolfe/dockerdog/api"
 	"github.com/evanrolfe/dockerdog/test/support"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +33,8 @@ const (
 	reqChunkRegex = `^GET /chunked HTTP/1\.1`
 
 	numRequestsLoad = 500
+
+	mega_server_image_name = "mega_server"
 )
 
 var grpcHandler *support.GRPCHandler
@@ -124,7 +128,8 @@ func AssertFlowsChunked(t *testing.T, flows []*api.Flow) {
 	}
 }
 
-func Test_agent(t *testing.T) {
+// Test_agent_client tests requests made from this container to another server, it listens to the client
+func Test_agent_client(t *testing.T) {
 	// Set dd_agent to track the container this is running from:
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -276,9 +281,41 @@ func Test_agent(t *testing.T) {
 	}
 }
 
+// Test_agent_client tests requests made from this container to another server, it listens to the server
 func Test_agent_server(t *testing.T) {
-	// Set dd_agent to track the container running th server:
-	grpcHandler.SetContainerIds([]string{"72f32f4e6bc6"})
+	// Find the mega_server container
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		panic(err)
+	}
+
+	megaserverId := ""
+	megaserverIp := ""
+	containers, err := dockerClient.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, container := range containers {
+		if container.Image == "mega_server" {
+			megaserverId = container.ID
+			for _, network := range container.NetworkSettings.Networks {
+				megaserverIp = network.IPAddress
+			}
+
+			fmt.Println("Found mega_server:", megaserverIp, "ID:", megaserverId)
+		}
+	}
+
+	// Check we have a mega server
+	if megaserverId == "" {
+		t.Errorf("No mega server found! See README.md to start it.")
+		assert.NotEmpty(t, megaserverId)
+		return
+	}
+
+	// Intercept it
+	grpcHandler.SetContainerIds([]string{megaserverId})
 
 	// Start dd_agent
 	cmd := exec.Command("/app/dd_agent")
@@ -307,7 +344,7 @@ func Test_agent_server(t *testing.T) {
 		{
 			name:   "[Ruby] SERVER an HTTP/1.1 request",
 			focus:  true,
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://172.17.0.3:%d/", mockHttpPort), "1"),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://172.17.0.3:%d/", 3000), "1"),
 			verify: AssertFlows,
 		},
 	}
@@ -326,7 +363,7 @@ func Test_agent_server(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a context with a timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
@@ -336,14 +373,16 @@ func Test_agent_server(t *testing.T) {
 				if len(requests)%100 == 0 {
 					fmt.Println("Received", len(requests))
 				}
-				if len(requests) >= 2 {
+				if len(requests) >= 4 {
 					cancel()
 				}
 			})
 
-			// time.Sleep(1 * time.Second)
+			// time.Sleep(500 * time.Millisecond)
 			// Make the request
-			tt.cmd.Start()
+
+			cmd := exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/1", megaserverIp, 3000), "1")
+			cmd.Start()
 
 			// Wait for the context to complete
 			<-ctx.Done()

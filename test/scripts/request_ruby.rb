@@ -1,0 +1,26 @@
+require 'uri'
+require 'net/http'
+
+puts "Process ID: #{Process.pid}"
+
+url = "https://pntest.io/"
+n = 1
+puts "Requesting URL: #{url}"
+uri = URI(url)
+
+n.times do |i|
+  http_session = Net::HTTP.new(uri.host, uri.port)
+
+  if uri.to_s.include?("https")
+    http_session.use_ssl = true
+    http_session.verify_mode = OpenSSL::SSL::VERIFY_NONE
+  end
+
+  res = http_session.start do |http|
+    # do some requests here
+    res = http.get(uri.path)
+    puts res
+  end
+
+  # sleep 0.05
+end

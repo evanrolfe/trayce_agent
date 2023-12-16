@@ -68,11 +68,6 @@ int probe_accept4(struct pt_regs *ctx) {
     sa_family_t address_family = 0;
     bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
 
-    // Get the new socket file descriptor
-    int fd2;
-    bpf_probe_read(&fd2, sizeof(int), &PT_REGS_RC(ctx2));
-    // dog_debug(pid, current_pid_tgid, fd2, "one");
-
     // ---------------------------------------------------------------------------------------------
     // struct socket *sock;
     // struct sockaddr_in *addr_in;
@@ -130,7 +125,9 @@ int probe_ret_accept4(struct pt_regs *ctx) {
 
   // Check the call to connect() was successful
   int fd = (int)PT_REGS_RC(ctx);
-
+    if (fd < 0) {
+        return 0;
+    }
   // Send entry data from map
   struct connect_event_t *conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
   if (conn_event != NULL) {

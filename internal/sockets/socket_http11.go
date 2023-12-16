@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,7 +105,6 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf, isFromGo)
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
-		fmt.Println(hex.Dump(socket.dataBuf))
 		flow := NewFlowResponse(
 			socket.LocalAddr,
 			socket.RemoteAddr,

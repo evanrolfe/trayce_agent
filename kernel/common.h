@@ -80,20 +80,6 @@ struct debug_event_t {
     char data[300];
 };
 
-struct active_buf {
-    /*
-     * protocol version (one of SSL2_VERSION, SSL3_VERSION, TLS1_VERSION,
-     * DTLS1_VERSION)
-     * from ssl/ssl_local.h struct ssl_st
-     */
-    s32 version;
-    u32 fd;
-    const char* buf;
-    size_t* ssl_ex_len_ptr;
-    int buf_len;
-    bool socket_event;
-};
-
 // OPENSSL struct to offset , via kern/README.md
 typedef long (*unused_fn)();
 
@@ -117,6 +103,21 @@ struct ssl_st {
     struct unused* method;
     struct BIO* rbio;  // used by SSL_read
     struct BIO* wbio;  // used by SSL_write
+};
+
+struct active_buf {
+    /*
+     * protocol version (one of SSL2_VERSION, SSL3_VERSION, TLS1_VERSION,
+     * DTLS1_VERSION)
+     * from ssl/ssl_local.h struct ssl_st
+     */
+    s32 version;
+    u32 fd;
+    const char* buf;
+    size_t* ssl_ex_len_ptr;
+    int buf_len;
+    bool socket_event;
+    const struct ssl_st* ssl_info;
 };
 
 struct offsets {
@@ -192,7 +193,6 @@ static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
     return pid | (u32)fd;
 }
 
-
 static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len) {
     int len = (int)PT_REGS_RC(ctx);
 
@@ -218,7 +218,7 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     bpf_probe_read_user(event->data, event->data_len, buf);
     bpf_get_current_comm(&event->comm, sizeof(event->comm));
 
-    // bpf_printk("-----------> process_data() publishing to data_events, len: %d", event->data_len);
+    // bpf_printk("-----------> process_data() publishing to data_events, len: %d, rand: %d", event->data_len, event->rand);
     // bpf_perf_event_output(ctx, &data_events, BPF_F_CURRENT_CPU, event, sizeof(struct data_event_t));
     bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
     return 0;

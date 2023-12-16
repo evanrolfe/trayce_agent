@@ -45,8 +45,7 @@ build: generate
 
 test:
 	$(CGO_FLAGS) \
-	go test ./test -v -count=1 -short -run Test_agent | sed $(SED_PASS) | sed $(SED_FAIL)
-# -run Test_kprobe_write2
+	go test ./test -v -count=1 -short -run Test_agent_client | sed $(SED_PASS) | sed $(SED_FAIL)
 
 testload:
 	$(CGO_FLAGS) \
