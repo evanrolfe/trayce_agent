@@ -174,8 +174,7 @@ func Test_agent_client(t *testing.T) {
 		verify func(t *testing.T, requests []*api.Flow)
 	}{
 		{
-			name: "[Ruby] an HTTP/1.1 request",
-			// focus:  true,
+			name:   "[Ruby] an HTTP/1.1 request",
 			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/", mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
@@ -314,6 +313,18 @@ func Test_agent_server(t *testing.T) {
 		return
 	}
 
+	// Load test or single test?
+	var numRequests int
+	var timeout time.Duration
+	if testing.Short() {
+		numRequests = 1
+		timeout = 3 * time.Second
+	} else {
+		numRequests = numRequestsLoad
+		timeout = 30 * time.Second
+	}
+	expectedNumFlows := numRequests * 2
+
 	// Intercept it
 	grpcHandler.SetContainerIds([]string{megaserverId})
 
@@ -344,7 +355,7 @@ func Test_agent_server(t *testing.T) {
 		{
 			name:   "[Ruby] SERVER an HTTP/1.1 request",
 			focus:  true,
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://172.17.0.3:%d/", 3000), "1"),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/1", megaserverIp, 3000), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 	}
@@ -363,7 +374,7 @@ func Test_agent_server(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a context with a timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
@@ -373,40 +384,30 @@ func Test_agent_server(t *testing.T) {
 				if len(requests)%100 == 0 {
 					fmt.Println("Received", len(requests))
 				}
-				if len(requests) >= 4 {
+				if len(requests) >= expectedNumFlows {
 					cancel()
 				}
 			})
 
-			// time.Sleep(500 * time.Millisecond)
 			// Make the request
-
-			cmd := exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/1", megaserverIp, 3000), "1")
-			cmd.Start()
+			tt.cmd.Start()
 
 			// Wait for the context to complete
 			<-ctx.Done()
 
-			if testing.Short() {
-				fmt.Println("*-------------------------------------------------------------------------* Start:")
-				fmt.Println(stdoutBuf.String())
-				fmt.Println("*-------------------------------------------------------------------------* End")
-			} else {
+			if !testing.Short() {
 				// This is necessary in a loadtest incase more than the expected num requests are sent
 				time.Sleep(2 * time.Second)
 			}
 
-			// Verify the result
-			assert.Equal(t, 2, len(requests))
-			// for _, flow := range requests {
-			// 	if len(flow.Request) > 0 {
-			// 		fmt.Println("Req:", string(flow.Request))
-			// 	}
+			if testing.Verbose() {
+				fmt.Println("*-------------------------------------------------------------------------* Output Start:")
+				fmt.Println(stdoutBuf.String())
+				fmt.Println("*-------------------------------------------------------------------------* Output End")
+			}
 
-			// 	if len(flow.Response) > 0 {
-			// 		fmt.Println("Resp:", string(flow.Response))
-			// 	}
-			// }
+			// Verify the result
+			assert.Equal(t, expectedNumFlows, len(requests))
 		})
 	}
 }

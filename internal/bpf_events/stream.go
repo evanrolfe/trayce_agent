@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -22,6 +23,8 @@ import (
 const (
 	bufPollRateMs              = 50
 	containerPIDsRefreshRateMs = 5
+	// TODO: Make it search for this in multpile places:
+	defaultLibSslPath = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 )
 
 type Stream struct {
@@ -49,23 +52,6 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
-
-	// TODO: These SSL uprobes should be attached on-the-fly as containers are added to the tracking
-	// uprobe/SSL_read
-	bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
-
-	// uprobe/SSL_read_ex
-	bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
-
-	// uprobe/SSL_write
-	bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
-
-	// uprobe/SSL_write_ex
-	bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
-	bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 
 	// kprobe/accept
 	funcName := fmt.Sprintf("__%s_sys_accept4", ksymArch())
@@ -205,7 +191,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				event := DebugEvent{}
 				event.Decode(payload)
 				fmt.Println("\n[DebugEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " - ", string(event.Payload()))
-				// fmt.Print(hex.Dump(payload))
+				fmt.Print(hex.Dump(payload))
 			}
 		}
 	}
@@ -213,9 +199,11 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 
 func (stream *Stream) refreshPids() {
 	interceptedProcs := map[uint32]docker.Proc{}
+	interceptedContainers := map[string]docker.Container{}
 
 	for {
 		newInterceptedProcs := stream.containers.GetProcsToIntercept()
+		newInterceptedContainers := stream.containers.GetContainersToIntercept()
 
 		// Check for new procs
 		for pid, newProc := range newInterceptedProcs {
@@ -237,8 +225,56 @@ func (stream *Stream) refreshPids() {
 			}
 		}
 
+		// Check for new containers
+		for containerId, newContainer := range newInterceptedContainers {
+			_, exists := interceptedContainers[containerId]
+			if !exists {
+				interceptedContainers[containerId] = newContainer
+
+				go stream.containerOpened(newContainer)
+			}
+		}
+
+		// Check for closed container
+		for containerId, oldContainer := range interceptedContainers {
+			_, exists := newInterceptedContainers[containerId]
+			if !exists {
+				delete(interceptedContainers, containerId)
+
+				stream.containerClosed(oldContainer)
+			}
+		}
+
 		time.Sleep(containerPIDsRefreshRateMs * time.Millisecond)
 	}
+}
+
+// This is causing the first test case to fail for some reason
+func (stream *Stream) containerOpened(container docker.Container) {
+	fmt.Println("Container opened:", container.RootFSPath)
+
+	libSslPath := path.Join(container.RootFSPath, defaultLibSslPath)
+	fmt.Println("Attaching uprobes to:", libSslPath)
+
+	// uprobe/SSL_read
+	stream.bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
+	stream.bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
+
+	// uprobe/SSL_read_ex
+	stream.bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
+	stream.bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
+
+	// uprobe/SSL_write
+	stream.bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
+	stream.bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
+
+	// uprobe/SSL_write_ex
+	stream.bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
+	stream.bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
+}
+
+func (stream *Stream) containerClosed(container docker.Container) {
+	fmt.Println("Container closed:", container.RootFSPath)
 }
 
 func (stream *Stream) procOpened(proc docker.Proc) {

@@ -45,7 +45,7 @@ Build and start:
 ```
 cd test/mega_server
 docker build -t mega_server .
-docker run -v ./:/app -p 3000:3000 -it mega_server bash
+docker run -v ./:/app -p 3000:3000 -it mega_server
 ```
 
 Start Rails:

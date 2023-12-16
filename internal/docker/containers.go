@@ -24,6 +24,12 @@ type Proc struct {
 	ExecPath string
 }
 
+type Container struct {
+	Pid        uint32
+	Ip         uint32
+	RootFSPath string
+}
+
 func NewContainers(filterCmd string) *Containers {
 	dockerC, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
@@ -47,6 +53,7 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 			continue
 		}
 
+		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
 		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
 
 		// Get the container's proccess ids
@@ -60,7 +67,6 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 			}
 
 			// Prepend the path to the proc's container's filesystem so we get the path to the bin from the host container
-			containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
 			execPathHost := path.Join(containerFSPath, execPath)
 			_, err = os.Stat(execPathHost)
 			if err != nil {
@@ -77,6 +83,29 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 	}
 
 	return procs
+}
+
+func (c *Containers) GetContainersToIntercept() map[string]Container {
+	containers := map[string]Container{}
+
+	for _, containerId := range c.containerIds {
+		// Get the container's IP address
+		container, _ := c.dockerClient.ContainerInspect(context.Background(), containerId)
+		if container.NetworkSettings == nil {
+			continue
+		}
+
+		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
+		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
+
+		containers[containerId] = Container{
+			Pid:        uint32(container.State.Pid),
+			Ip:         ip,
+			RootFSPath: containerFSPath,
+		}
+	}
+
+	return containers
 }
 
 func (c *Containers) GetIdFromPid(pid int) string {

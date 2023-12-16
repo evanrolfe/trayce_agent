@@ -74,16 +74,16 @@ int probe_accept4(struct pt_regs *ctx) {
 
     // bpf_probe_read(&sock, sizeof(sock), &((struct file *)saddr)->private_data);
 
-    if (address_family == AF_INET) {
-        struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
-        // int dport;
-        // bpf_probe_read(&dport, sizeof(u16), &sin->sin_port);
-        // dog_debug(pid, current_pid_tgid, dport, "port");
-        u16 dport;
-        bpf_probe_read_user(&dport, sizeof(u16), &sin->sin_port);
-        dog_debug(pid, current_pid_tgid, dport, "port");
+    // if (address_family == AF_INET) {
+    //     struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
+    //     // int dport;
+    //     // bpf_probe_read(&dport, sizeof(u16), &sin->sin_port);
+    //     // dog_debug(pid, current_pid_tgid, dport, "port");
+    //     u16 dport;
+    //     bpf_probe_read_user(&dport, sizeof(u16), &sin->sin_port);
+    //     dog_debug(pid, current_pid_tgid, dport, "port");
 
-    }
+    // }
     // ---------------------------------------------------------------------------------------------
 
     // if (address_family == AF_INET6)
@@ -570,7 +570,7 @@ int probe_ret_read(struct pt_regs *ctx) {
   struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
 
   if (active_buf_t != NULL && active_buf_t->socket_event) {
-    dog_debug(pid, current_pid_tgid, bytes_read, "read");
+    // dog_debug(pid, current_pid_tgid, bytes_read, "read");
     active_buf_t->buf_len = bytes_read;
 
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);

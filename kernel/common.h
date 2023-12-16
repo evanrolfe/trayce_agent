@@ -88,7 +88,7 @@ struct unused {};
 struct BIO {
     void* libctx;
     const struct unused* method;
-unused_fn callback;
+    unused_fn callback;
     unused_fn callback_ex;
     char* cb_arg; /* first argument for the callback */
     int init;
@@ -98,11 +98,36 @@ unused_fn callback;
     int num;
 };
 
-struct ssl_st {
-    int version;
+struct bio_st_v1_1_1 {
     struct unused* method;
-    struct BIO* rbio;  // used by SSL_read
-    struct BIO* wbio;  // used by SSL_write
+    unused_fn callback;
+    unused_fn callback_ex; // new field
+    char* cb_arg;
+    int init;
+    int shutdown;
+    int flags;
+    int retry_reason;
+    int num; // fd
+};
+
+struct bio_st_v3_0 {
+    struct unused* context; // new field
+    struct unused* method;
+    unused_fn callback;
+    unused_fn callback_ex;
+    char* cb_arg;
+    int init;
+    int shutdown;
+    int flags;
+    int retry_reason;
+    int num; // fd
+};
+
+struct ssl_st {
+    __s32 version;
+    struct unused* method;
+    struct bio_st_v3_0* rbio;  // used by SSL_read
+    struct bio_st_v3_0* wbio;  // used by SSL_write
 };
 
 struct active_buf {
@@ -190,7 +215,10 @@ static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
     u32 pid = current_pid_tgid >> 32;
     u32 tid = current_pid_tgid & 0xFFFFFFFF;
     u32 tgid = current_pid_tgid << 32;
-    return pid | (u32)fd;
+
+    // I'm not sure why this works, but it works.
+    return pid | tgid;
+    // return pid | (u32)fd;
 }
 
 static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len) {

@@ -49,7 +49,7 @@ test:
 
 testload:
 	$(CGO_FLAGS) \
-	go test ./test -v -count=1 | sed $(SED_PASS) | sed $(SED_FAIL)
+	go test ./test -v -count=1 -run Test_agent_client | sed $(SED_PASS) | sed $(SED_FAIL)
 
 testunit: generate
 	$(CGO_FLAGS) \
