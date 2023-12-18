@@ -43,6 +43,7 @@ build: generate
 
 	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./dd_agent\n$(DIV)"
 
+# NOTE: Change Test_agent_client to Test_agent_server to test a server receiving requests rather than a client making them
 test:
 	$(CGO_FLAGS) \
 	go test ./test -v -count=1 -short -run Test_agent_client | sed $(SED_PASS) | sed $(SED_FAIL)
@@ -60,6 +61,9 @@ testunit: generate
 mockgrpc:
 	$(CGO_FLAGS) \
 	go run ./cmd/grpc_server
+
+buildmock:
+	go build -buildvcs=false -o ./test/mega_server/go/mock_server ./cmd/mock_server/
 
 clean:
 	rm -rf .output

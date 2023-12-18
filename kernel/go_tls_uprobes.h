@@ -90,9 +90,35 @@ static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi)
     __u64 pid_go = pid << 32 | goroutine_id | 0x8000000000000000;
     // bpf_printk("read: go routine id: %d", goroutine_id);
 
+    // Get the offset values from user space
+    u64 fd_offset = 16;
+    u32 kZero = 0;
+    struct offsets *off = bpf_map_lookup_elem(&offsets_map, &kZero);
+    if (off != NULL) {
+        fd_offset = off->go_fd_offset;
+    }
+
+    // Get the FD
+    // Note here fd_ptr refers to the pointer to the net.netFD struct:
+    // net.Conn(*net.TCPConn) *{
+    //     conn: net.conn {
+    //         fd: *(*net.netFD)(0xc00017a300),},}
+    void* conn_ptr = go_get_argument(ctx, is_register_abi, 1);
+
+    struct go_interface conn_intf;
+    bpf_probe_read(&conn_intf, sizeof(conn_intf), conn_ptr);
+
+    void* fd_ptr;
+    bpf_probe_read(&fd_ptr, sizeof(fd_ptr), conn_intf.ptr);
+
+    // TODO: Get the offset (16) from dwarf, see "FD_Sysfd_offset" in pixie..
+    int64_t fd;
+    bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
+
+    // Create the event
     struct active_go_buf active_buf_t;
     __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
-    active_buf_t.fd = 6;
+    active_buf_t.fd = fd;
 
     const char *buf = (void *)go_get_argument(ctx, is_register_abi, 2);
     void *len_ptr = (void *)go_get_argument(ctx, is_register_abi, 3);

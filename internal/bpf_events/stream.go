@@ -211,7 +211,7 @@ func (stream *Stream) refreshPids() {
 			if !exists {
 				interceptedProcs[pid] = newProc
 
-				stream.procOpened(newProc)
+				go stream.procOpened(newProc)
 			}
 		}
 
@@ -292,8 +292,8 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	// Determine offsets for this PID and send them to ebpf
 	fdOffset, err := go_offsets.GetStructMemberOffset(proc.ExecPath, "internal/poll.FD", "Sysfd")
 	if err != nil {
+		fmt.Println("Error finding fdOffset:", err)
 		fdOffset = 16
-		return
 	}
 	// TODO: This should be the PID, otherwise at the moment, this wont work if executables from different versions of
 	// Go are running if each version has a different offset
@@ -305,13 +305,13 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	stream.goOffsetsMap.Update(key1Unsafe, value1Unsafe)
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
-	fmt.Println("Proc attaching Go Uprobes", proc.Pid)
+	fmt.Println("Proc attaching Go Uprobes", proc.Pid, proc.ExecPath)
 	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath)
-	if err == nil {
+	if err != nil {
 		fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
 	}
 	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath)
-	if err == nil {
+	if err != nil {
 		fmt.Println("Error bpfProg.AttachGoUProbes() read:", err)
 	}
 }

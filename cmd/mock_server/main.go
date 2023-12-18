@@ -54,7 +54,7 @@ func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 	// HTTP server
 	go func() {
 		fmt.Println("Starting HTTP server on port", httpPort)
-		err := http.ListenAndServe(fmt.Sprintf(":%d", httpPort), nil)
+		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", httpPort), nil)
 		if err != nil {
 			log.Fatal("ListenAndServe: ", err)
 		}
@@ -65,7 +65,7 @@ func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 	keyPath := filepath.Join(keyDir, keyFile)
 
 	fmt.Println("Starting HTTPS server on port", httpsPort)
-	err := http.ListenAndServeTLS(fmt.Sprintf("127.0.0.1:%d", httpsPort), crtPath, keyPath, nil)
+	err := http.ListenAndServeTLS(fmt.Sprintf("0.0.0.0:%d", httpsPort), crtPath, keyPath, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
@@ -102,5 +102,5 @@ func serverHandlerChunked(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	StartMockServer(4122, 4123, "/app/test/support")
+	StartMockServer(4122, 4123, ".")
 }

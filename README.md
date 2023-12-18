@@ -45,7 +45,7 @@ Build and start:
 ```
 cd test/mega_server
 docker build -t mega_server .
-docker run -v ./:/app -p 3000:3000 -it mega_server
+docker run -v ./:/app -it mega_server
 ```
 
 Start Rails:
@@ -131,6 +131,16 @@ make install
 Try: `/usr/local/bin/curl --version`
 
 May need to run `ldconfig`
+
+### Using dlv
+(Go 1.21.4)
+
+dlv debug ./cmd/request/ --build-flags="-buildvcs=false"
+
+b /usr/local/go/src/crypto/tls/conn.go:1182
+b /usr/local/go/src/crypto/tls/conn.go:1365
+c
+print c.conn.fd.pfd.Sysfd
 
 ### Links
 https://www.linuxjournal.com/article/7905

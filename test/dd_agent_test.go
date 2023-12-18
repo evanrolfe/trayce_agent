@@ -40,9 +40,6 @@ const (
 var grpcHandler *support.GRPCHandler
 
 func TestMain(m *testing.M) {
-	// Start HTTP(S) Mock Server
-	go support.StartMockServer(mockHttpPort, mockHttpsPort, "./support")
-
 	// Start GRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
 	if err != nil {
@@ -128,15 +125,42 @@ func AssertFlowsChunked(t *testing.T, flows []*api.Flow) {
 	}
 }
 
-// Test_agent_client tests requests made from this container to another server, it listens to the client
-func Test_agent_client(t *testing.T) {
-	// Set dd_agent to track the container this is running from:
-	hostname, err := os.Hostname()
+func getMegaServer(t *testing.T) (string, string) {
+	// Find the mega_server container
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err)
 	}
-	grpcHandler.SetContainerIds([]string{hostname})
 
+	megaserverId := ""
+	megaserverIp := ""
+	containers, err := dockerClient.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, container := range containers {
+		if container.Image == "mega_server" {
+			megaserverId = container.ID
+			for _, network := range container.NetworkSettings.Networks {
+				megaserverIp = network.IPAddress
+			}
+
+			fmt.Println("Found mega_server:", megaserverIp, "ID:", megaserverId)
+		}
+	}
+
+	// Check we have a mega server
+	if megaserverId == "" {
+		t.Errorf("No mega server found! See README.md to start it.")
+		assert.NotEmpty(t, megaserverId)
+		return "", ""
+	}
+
+	return megaserverId, megaserverIp
+}
+
+func getTestConfig() (int, int, time.Duration) {
 	// Load test or single test?
 	var numRequests int
 	var timeout time.Duration
@@ -147,7 +171,22 @@ func Test_agent_client(t *testing.T) {
 		numRequests = numRequestsLoad
 		timeout = 30 * time.Second
 	}
-	expectedNumFlows := numRequests * 2
+
+	return numRequests, numRequests * 2, timeout
+}
+
+// Test_agent_client tests requests made from this container to another server, it listens to the client
+func Test_agent_client(t *testing.T) {
+	// Set dd_agent to track the container this is running from:
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+	grpcHandler.SetContainerIds([]string{hostname})
+
+	// Find the mega_server container
+	_, megaserverIp := getMegaServer(t)
+	numRequests, expectedNumFlows, timeout := getTestConfig()
 
 	// Start dd_agent
 	cmd := exec.Command("/app/dd_agent", "--filtercmd", "/app/test/scripts/")
@@ -175,55 +214,55 @@ func Test_agent_client(t *testing.T) {
 	}{
 		{
 			name:   "[Ruby] an HTTP/1.1 request",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/", mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://%s:%d/", megaserverIp, mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Ruby] an HTTP/1.1 request with a chunked response",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://localhost:%d/chunked", mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("http://%s:%d/chunked", megaserverIp, mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlowsChunked,
 		},
 		{
 			name:   "[Ruby] an HTTPS/1.1 request",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://localhost:%d/", mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Ruby] an HTTPS/1.1 request with a chunked response",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://localhost:%d/chunked", mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/chunked", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests)),
 			verify: AssertFlowsChunked,
 		},
 		{
 			name:   "[Python] an HTTP/1.1 request",
-			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("http://localhost:%d", mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("http://%s:%d", megaserverIp, mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Python] an HTTPS/1.1 request",
-			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://localhost:%d", mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestPythonScript, fmt.Sprintf("https://%s:%d", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 		// NOTE: This (load) test sometimes fails because it receives more than 2000 flows
 		{
 			name:   "[Go] an HTTP/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d", mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d", megaserverIp, mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 		// same issue with this one:
 		{
 			name:   "[Go] an HTTP/1.1 request with a chunked response",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://localhost:%d/chunked", mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/chunked", megaserverIp, mockHttpPort), strconv.Itoa(numRequests)),
 			verify: AssertFlowsChunked,
 		},
 		{
 			name: "[Go] an HTTPS/1.1 request",
 			// focus:  true,
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://localhost:%d", mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Go] an HTTPS/1.1 request with a chunked response",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://localhost:%d/chunked", mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/chunked", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests)),
 			verify: AssertFlowsChunked,
 		},
 	}
@@ -283,47 +322,8 @@ func Test_agent_client(t *testing.T) {
 // Test_agent_client tests requests made from this container to another server, it listens to the server
 func Test_agent_server(t *testing.T) {
 	// Find the mega_server container
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		panic(err)
-	}
-
-	megaserverId := ""
-	megaserverIp := ""
-	containers, err := dockerClient.ContainerList(context.Background(), types.ContainerListOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	for _, container := range containers {
-		if container.Image == "mega_server" {
-			megaserverId = container.ID
-			for _, network := range container.NetworkSettings.Networks {
-				megaserverIp = network.IPAddress
-			}
-
-			fmt.Println("Found mega_server:", megaserverIp, "ID:", megaserverId)
-		}
-	}
-
-	// Check we have a mega server
-	if megaserverId == "" {
-		t.Errorf("No mega server found! See README.md to start it.")
-		assert.NotEmpty(t, megaserverId)
-		return
-	}
-
-	// Load test or single test?
-	var numRequests int
-	var timeout time.Duration
-	if testing.Short() {
-		numRequests = 1
-		timeout = 3 * time.Second
-	} else {
-		numRequests = numRequestsLoad
-		timeout = 30 * time.Second
-	}
-	expectedNumFlows := numRequests * 2
+	megaserverId, megaserverIp := getMegaServer(t)
+	numRequests, expectedNumFlows, timeout := getTestConfig()
 
 	// Intercept it
 	grpcHandler.SetContainerIds([]string{megaserverId})
@@ -353,9 +353,18 @@ func Test_agent_server(t *testing.T) {
 		verify func(t *testing.T, requests []*api.Flow)
 	}{
 		{
-			name:   "[Ruby] SERVER an HTTP/1.1 request",
-			focus:  true,
+			name:   "[Ruby] Server an HTTPS/1.1 request",
 			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/1", megaserverIp, 3000), strconv.Itoa(numRequests)),
+			verify: AssertFlows,
+		},
+		{
+			name:   "[Python] Server an HTTPS/1.1 request",
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 3001), strconv.Itoa(numRequests)),
+			verify: AssertFlows,
+		},
+		{
+			name:   "[Go] Server an HTTPS/1.1 request",
+			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
 	}
@@ -390,6 +399,7 @@ func Test_agent_server(t *testing.T) {
 			})
 
 			// Make the request
+			time.Sleep(500 * time.Millisecond)
 			tt.cmd.Start()
 
 			// Wait for the context to complete
