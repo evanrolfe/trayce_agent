@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -13,21 +14,31 @@ import (
 )
 
 type Containers struct {
-	containerIds []string
-	dockerClient *client.Client
-	filterCmd    string
+	containerIds     []string
+	dockerClient     *client.Client
+	filterCmd        string
+	libSSLVersionMap map[string]LibSSL
 }
 
 type Proc struct {
-	Pid      uint32
-	Ip       uint32
-	ExecPath string
+	Pid           uint32
+	Ip            uint32
+	ExecPath      string
+	LibSSLVersion int
+	LibSSLPath    string
 }
 
 type Container struct {
-	Pid        uint32
-	Ip         uint32
-	RootFSPath string
+	Pid           uint32
+	Ip            uint32
+	RootFSPath    string
+	LibSSLVersion int
+	LibSSLPath    string
+}
+
+type LibSSL struct {
+	Version int
+	Path    string
 }
 
 func NewContainers(filterCmd string) *Containers {
@@ -37,9 +48,10 @@ func NewContainers(filterCmd string) *Containers {
 	}
 
 	return &Containers{
-		containerIds: []string{},
-		dockerClient: dockerC,
-		filterCmd:    filterCmd,
+		containerIds:     []string{},
+		dockerClient:     dockerC,
+		filterCmd:        filterCmd,
+		libSSLVersionMap: map[string]LibSSL{},
 	}
 }
 
@@ -55,6 +67,8 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 
 		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
 		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
+
+		libSSL := c.getLibSSL(containerId, containerFSPath)
 
 		// Get the container's proccess ids
 		for _, pid := range c.getPidsForContainer(containerId) {
@@ -75,9 +89,11 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 			}
 
 			procs[uint32(pid)] = Proc{
-				Pid:      uint32(pid),
-				Ip:       ip,
-				ExecPath: execPathHost,
+				Pid:           uint32(pid),
+				Ip:            ip,
+				ExecPath:      execPathHost,
+				LibSSLVersion: libSSL.Version,
+				LibSSLPath:    libSSL.Path,
 			}
 		}
 	}
@@ -98,10 +114,14 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
 		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
 
+		libSSL := c.getLibSSL(containerId, containerFSPath)
+
 		containers[containerId] = Container{
-			Pid:        uint32(container.State.Pid),
-			Ip:         ip,
-			RootFSPath: containerFSPath,
+			Pid:           uint32(container.State.Pid),
+			Ip:            ip,
+			RootFSPath:    containerFSPath,
+			LibSSLVersion: libSSL.Version,
+			LibSSLPath:    libSSL.Path,
 		}
 	}
 
@@ -180,4 +200,36 @@ func ipStringToUint32(ipStr string) uint32 {
 	ipUint32 := uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
 
 	return ipUint32
+}
+
+func (c *Containers) getLibSSL(containerId string, rootFSPath string) LibSSL {
+	// First check if we have cached the version for this containerId
+	version, exists := c.libSSLVersionMap[containerId]
+	if exists {
+		return version
+	}
+
+	libPaths := map[string]int{
+		"/usr/lib/x86_64-linux-gnu/libssl.so.3":   3,
+		"/usr/lib/x86_64-linux-gnu/libssl.so.1.1": 1,
+	}
+
+	foundVersion := 0
+	foundPath := ""
+	for libPath, version := range libPaths {
+		fullPath := path.Join(rootFSPath, libPath)
+		if checkFileExists(fullPath) {
+			foundVersion = version
+			foundPath = fullPath
+		}
+	}
+
+	libSSL := LibSSL{Version: foundVersion, Path: foundPath}
+	c.libSSLVersionMap[containerId] = libSSL
+	return libSSL
+}
+
+func checkFileExists(filePath string) bool {
+	_, error := os.Stat(filePath)
+	return !errors.Is(error, os.ErrNotExist)
 }

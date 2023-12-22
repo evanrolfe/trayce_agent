@@ -35,13 +35,7 @@ int process_ssl_read_entry(struct pt_regs *ctx, bool is_ex_call) {
         bpf_printk("SSL_read enty bpf_probe_read_user ssl_info failed: %d", res);
     }
 
-    struct BIO bio_r;
-    res = bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
-    if (res < 0) {
-        bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
-    }
-
-    u32 fd = bio_r.num;
+    u32 fd = get_fd_from_libssl(ssl_info, pid);
 
     // ---------------------------------------------------------------------------------------------
     // Workaround: for incoming SSL requests to Ruby servers, for some reason bio_r.num is always = -1
@@ -133,25 +127,22 @@ int process_ssl_read_return(struct pt_regs *ctx, bool is_ex_call) {
 }
 
 int process_ssl_write_entry(struct pt_regs *ctx, bool is_ex_call) {
-  u64 current_pid_tgid = bpf_get_current_pid_tgid();
-  u32 pid = current_pid_tgid >> 32;
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
 
-  // Check if PID is intercepted
-  u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-  if (pid_intercepted == NULL) {
+    // Check if PID is intercepted
+    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
     return 0;
-  }
-  // bpf_printk("openssl uprobe/SSL_write_ex pid :%d\n", pid);
+    }
+    // bpf_printk("openssl uprobe/SSL_write_ex pid :%d\n", pid);
 
-  void *ssl = (void *)PT_REGS_PARM1(ctx);
-  // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
-  struct ssl_st ssl_info;
-  bpf_probe_read_user(&ssl_info, sizeof(ssl_info), ssl);
+    void *ssl = (void *)PT_REGS_PARM1(ctx);
+    // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
+    struct ssl_st ssl_info;
+    bpf_probe_read_user(&ssl_info, sizeof(ssl_info), ssl);
 
-  struct BIO bio_w;
-  bpf_probe_read_user(&bio_w, sizeof(bio_w), ssl_info.wbio);
-
-    u32 fd = bio_w.num;
+    u32 fd = get_fd_from_libssl(ssl_info, pid);
 
     // Workaround: see comment in process_ssl_read_entry()
     if (fd == -1) {
@@ -256,40 +247,4 @@ int probe_entry_SSL_write_ex(struct pt_regs *ctx) {
 SEC("uretprobe/SSL_write_ex")
 int probe_ret_SSL_write_ex(struct pt_regs *ctx) {
   return process_ssl_write_return(ctx, true);
-}
-
-
-SEC("uprobe/SSL_set_fd")
-int probe_entry_SSL_set_fd(struct pt_regs *ctx) {
-  u64 current_pid_tgid = bpf_get_current_pid_tgid();
-  u32 pid = current_pid_tgid >> 32;
-
-    void *ssl = (void *)PT_REGS_PARM1(ctx);
-    int fd = (int)PT_REGS_PARM2(ctx);
-  bpf_printk("!!!!!! SSL_set_fd() called pid: %d, tid: %d, ssl: %d, fd: %d", pid, current_pid_tgid, ssl, fd);
-  return 0;
-}
-
-
-SEC("uprobe/SSL_do_handshake")
-int probe_entry_SSL_do_handshake(struct pt_regs *ctx) {
-  u64 current_pid_tgid = bpf_get_current_pid_tgid();
-  u32 pid = current_pid_tgid >> 32;
-
-    // int fd = (int)PT_REGS_PARM2(ctx);
-  bpf_printk("!!!!!! SSL_do_handshake() called pid: %d, tid: %d, fd: %d", pid, current_pid_tgid, 0);
-  return 0;
-}
-
-SEC("uprobe/SSL_set_bio")
-int probe_entry_SSL_set_bio(struct pt_regs *ctx) {
-  u64 current_pid_tgid = bpf_get_current_pid_tgid();
-  u32 pid = current_pid_tgid >> 32;
-
-  struct BIO bio_r;
-  bpf_probe_read_user(&bio_r, sizeof(bio_r), (void *)PT_REGS_PARM2(ctx));
-
-    // int fd = (int)PT_REGS_PARM2(ctx);
-  bpf_printk("!!!!!! SSL_set_bio() called pid: %d, tid: %d, fd: %d", pid, current_pid_tgid, bio_r.num);
-  return 0;
 }

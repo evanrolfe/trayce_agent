@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -25,17 +24,19 @@ const (
 	containerPIDsRefreshRateMs = 5
 	// TODO: Make it search for this in multpile places:
 	defaultLibSslPath = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
+	libSslPath1       = "/usr/lib/x86_64-linux-gnu/libssl.so.1.1"
 )
 
 type Stream struct {
 	bpfProg    *BPFProgram
 	containers *docker.Containers
 
-	dataEventsBuf  *libbpfgo.RingBuffer
-	pidsMap        *libbpfgo.BPFMap
-	goOffsetsMap   *libbpfgo.BPFMap
-	dataEventsChan chan []byte
-	interruptChan  chan int
+	dataEventsBuf     *libbpfgo.RingBuffer
+	pidsMap           *libbpfgo.BPFMap
+	goOffsetsMap      *libbpfgo.BPFMap
+	libSSLVersionsMap *libbpfgo.BPFMap
+	dataEventsChan    chan []byte
+	interruptChan     chan int
 
 	connectCallbacks []func(ConnectEvent)
 	dataCallbacks    []func(DataEvent)
@@ -137,6 +138,13 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 		panic(err)
 	}
 	stream.goOffsetsMap = goOffsetsMap
+
+	// libssl versions map
+	libSSLVersionsMap, err := stream.bpfProg.BpfModule.GetMap("libssl_versions_map")
+	if err != nil {
+		panic(err)
+	}
+	stream.libSSLVersionsMap = libSSLVersionsMap
 
 	for {
 		// Check if the interrupt signal has been received
@@ -253,7 +261,9 @@ func (stream *Stream) refreshPids() {
 func (stream *Stream) containerOpened(container docker.Container) {
 	fmt.Println("Container opened:", container.RootFSPath)
 
-	libSslPath := path.Join(container.RootFSPath, defaultLibSslPath)
+	// TODO: Find where libssl is and also send the version to ebpf
+
+	libSslPath := container.LibSSLPath
 	fmt.Println("Attaching uprobes to:", libSslPath)
 
 	// uprobe/SSL_read
@@ -278,7 +288,7 @@ func (stream *Stream) containerClosed(container docker.Container) {
 }
 
 func (stream *Stream) procOpened(proc docker.Proc) {
-	fmt.Println("Proc opened:", proc.Pid, proc.ExecPath)
+	fmt.Println("Proc opened:", proc.Pid, proc.ExecPath, "libSSL:", proc.LibSSLVersion)
 	// Send the intercepted PIDs to ebpf
 	if stream.pidsMap != nil {
 		// Imporant that we copy these two vars by value here:
@@ -301,8 +311,14 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	value1 := offsets{goFdOffset: fdOffset}
 	key1Unsafe := unsafe.Pointer(&key1)
 	value1Unsafe := unsafe.Pointer(&value1)
-
 	stream.goOffsetsMap.Update(key1Unsafe, value1Unsafe)
+
+	// Send the libssl version for this PID's container to ebpf
+	pid := proc.Pid
+	version := proc.LibSSLVersion
+	pidUnsafe := unsafe.Pointer(&pid)
+	versionUnsafe := unsafe.Pointer(&version)
+	stream.libSSLVersionsMap.Update(pidUnsafe, versionUnsafe)
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
 	fmt.Println("Proc attaching Go Uprobes", proc.Pid, proc.ExecPath)

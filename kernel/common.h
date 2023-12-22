@@ -85,19 +85,6 @@ typedef long (*unused_fn)();
 
 struct unused {};
 
-struct BIO {
-    void* libctx;
-    const struct unused* method;
-    unused_fn callback;
-    unused_fn callback_ex;
-    char* cb_arg; /* first argument for the callback */
-    int init;
-    int shutdown;
-    int flags; /* extra storage */
-    int retry_reason;
-    int num;
-};
-
 struct bio_st_v1_1_1 {
     struct unused* method;
     unused_fn callback;
@@ -126,8 +113,8 @@ struct bio_st_v3_0 {
 struct ssl_st {
     __s32 version;
     struct unused* method;
-    struct bio_st_v3_0* rbio;  // used by SSL_read
-    struct bio_st_v3_0* wbio;  // used by SSL_write
+    struct bio_st_v1_1_1* rbio;  // used by SSL_read
+    struct bio_st_v1_1_1* wbio;  // used by SSL_write
 };
 
 struct active_buf {
@@ -165,6 +152,13 @@ struct {
     __type(value, struct offsets);
     __uint(max_entries, 1024);
 } offsets_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u32);
+    __type(value, struct offsets);
+    __uint(max_entries, 1024);
+} libssl_versions_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -250,6 +244,32 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     // bpf_perf_event_output(ctx, &data_events, BPF_F_CURRENT_CPU, event, sizeof(struct data_event_t));
     bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
     return 0;
+}
+
+static u32 get_fd_from_libssl(struct ssl_st ssl_info, u32 pid) {
+    int res;
+    u32 fd;
+    int *libssl_version = bpf_map_lookup_elem(&libssl_versions_map, &pid);
+    if (libssl_version == NULL) {
+        return 0;
+    }
+    if (*libssl_version == 1) {
+        struct bio_st_v1_1_1 bio_r;
+        res = bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
+        if (res < 0) {
+            bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
+        }
+        fd = bio_r.num;
+    } else if(*libssl_version == 3) {
+        struct bio_st_v3_0 bio_r;
+        res = bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
+        if (res < 0) {
+            bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
+        }
+        fd = bio_r.num;
+    }
+
+    return fd;
 }
 
 int dog_debug(u32 pid, u64 tid, int fd, char *str) {

@@ -140,7 +140,7 @@ func getMegaServer(t *testing.T) (string, string) {
 	}
 
 	for _, container := range containers {
-		if container.Image == "mega_server" {
+		if container.Image == mega_server_image_name {
 			megaserverId = container.ID
 			for _, network := range container.NetworkSettings.Networks {
 				megaserverIp = network.IPAddress
