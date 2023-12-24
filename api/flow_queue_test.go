@@ -7,9 +7,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/evanrolfe/dockerdog/api"
-	"github.com/evanrolfe/dockerdog/internal/sockets"
-	"github.com/evanrolfe/dockerdog/test/support"
+	"github.com/evanrolfe/trayce_agent/api"
+	"github.com/evanrolfe/trayce_agent/internal/sockets"
+	"github.com/evanrolfe/trayce_agent/test/support"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc"
@@ -39,7 +39,7 @@ var _ = Describe("FlowQueue", func() {
 
 			grpcHandler = support.NewGRPCHandler()
 			grpcServer := grpc.NewServer()
-			api.RegisterDockerDogAgentServer(grpcServer, grpcHandler)
+			api.RegisterTrayceAgentServer(grpcServer, grpcHandler)
 
 			go func() {
 				err = grpcServer.Serve(lis)
@@ -55,7 +55,7 @@ var _ = Describe("FlowQueue", func() {
 				fmt.Println("[ERROR] could not connect to GRPC server:", err)
 				return
 			}
-			grpcClient := api.NewDockerDogAgentClient(conn)
+			grpcClient := api.NewTrayceAgentClient(conn)
 
 			// FlowQueue
 			flowQueue = api.NewFlowQueue(grpcClient, batchSize)

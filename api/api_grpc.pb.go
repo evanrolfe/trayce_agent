@@ -18,65 +18,65 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// DockerDogAgentClient is the client API for DockerDogAgent service.
+// TrayceAgentClient is the client API for TrayceAgent service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type DockerDogAgentClient interface {
+type TrayceAgentClient interface {
 	SendFlowsObserved(ctx context.Context, in *Flows, opts ...grpc.CallOption) (*Reply, error)
 	SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error)
-	OpenCommandStream(ctx context.Context, opts ...grpc.CallOption) (DockerDogAgent_OpenCommandStreamClient, error)
+	OpenCommandStream(ctx context.Context, opts ...grpc.CallOption) (TrayceAgent_OpenCommandStreamClient, error)
 }
 
-type dockerDogAgentClient struct {
+type trayceAgentClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewDockerDogAgentClient(cc grpc.ClientConnInterface) DockerDogAgentClient {
-	return &dockerDogAgentClient{cc}
+func NewTrayceAgentClient(cc grpc.ClientConnInterface) TrayceAgentClient {
+	return &trayceAgentClient{cc}
 }
 
-func (c *dockerDogAgentClient) SendFlowsObserved(ctx context.Context, in *Flows, opts ...grpc.CallOption) (*Reply, error) {
+func (c *trayceAgentClient) SendFlowsObserved(ctx context.Context, in *Flows, opts ...grpc.CallOption) (*Reply, error) {
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, "/api.DockerDogAgent/SendFlowsObserved", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api.TrayceAgent/SendFlowsObserved", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dockerDogAgentClient) SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error) {
+func (c *trayceAgentClient) SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error) {
 	out := new(Reply)
-	err := c.cc.Invoke(ctx, "/api.DockerDogAgent/SendAgentStarted", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api.TrayceAgent/SendAgentStarted", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dockerDogAgentClient) OpenCommandStream(ctx context.Context, opts ...grpc.CallOption) (DockerDogAgent_OpenCommandStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &DockerDogAgent_ServiceDesc.Streams[0], "/api.DockerDogAgent/OpenCommandStream", opts...)
+func (c *trayceAgentClient) OpenCommandStream(ctx context.Context, opts ...grpc.CallOption) (TrayceAgent_OpenCommandStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &TrayceAgent_ServiceDesc.Streams[0], "/api.TrayceAgent/OpenCommandStream", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &dockerDogAgentOpenCommandStreamClient{stream}
+	x := &trayceAgentOpenCommandStreamClient{stream}
 	return x, nil
 }
 
-type DockerDogAgent_OpenCommandStreamClient interface {
+type TrayceAgent_OpenCommandStreamClient interface {
 	Send(*NooP) error
 	Recv() (*Command, error)
 	grpc.ClientStream
 }
 
-type dockerDogAgentOpenCommandStreamClient struct {
+type trayceAgentOpenCommandStreamClient struct {
 	grpc.ClientStream
 }
 
-func (x *dockerDogAgentOpenCommandStreamClient) Send(m *NooP) error {
+func (x *trayceAgentOpenCommandStreamClient) Send(m *NooP) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *dockerDogAgentOpenCommandStreamClient) Recv() (*Command, error) {
+func (x *trayceAgentOpenCommandStreamClient) Recv() (*Command, error) {
 	m := new(Command)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -84,97 +84,97 @@ func (x *dockerDogAgentOpenCommandStreamClient) Recv() (*Command, error) {
 	return m, nil
 }
 
-// DockerDogAgentServer is the server API for DockerDogAgent service.
-// All implementations must embed UnimplementedDockerDogAgentServer
+// TrayceAgentServer is the server API for TrayceAgent service.
+// All implementations must embed UnimplementedTrayceAgentServer
 // for forward compatibility
-type DockerDogAgentServer interface {
+type TrayceAgentServer interface {
 	SendFlowsObserved(context.Context, *Flows) (*Reply, error)
 	SendAgentStarted(context.Context, *AgentStarted) (*Reply, error)
-	OpenCommandStream(DockerDogAgent_OpenCommandStreamServer) error
-	mustEmbedUnimplementedDockerDogAgentServer()
+	OpenCommandStream(TrayceAgent_OpenCommandStreamServer) error
+	mustEmbedUnimplementedTrayceAgentServer()
 }
 
-// UnimplementedDockerDogAgentServer must be embedded to have forward compatible implementations.
-type UnimplementedDockerDogAgentServer struct {
+// UnimplementedTrayceAgentServer must be embedded to have forward compatible implementations.
+type UnimplementedTrayceAgentServer struct {
 }
 
-func (UnimplementedDockerDogAgentServer) SendFlowsObserved(context.Context, *Flows) (*Reply, error) {
+func (UnimplementedTrayceAgentServer) SendFlowsObserved(context.Context, *Flows) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendFlowsObserved not implemented")
 }
-func (UnimplementedDockerDogAgentServer) SendAgentStarted(context.Context, *AgentStarted) (*Reply, error) {
+func (UnimplementedTrayceAgentServer) SendAgentStarted(context.Context, *AgentStarted) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendAgentStarted not implemented")
 }
-func (UnimplementedDockerDogAgentServer) OpenCommandStream(DockerDogAgent_OpenCommandStreamServer) error {
+func (UnimplementedTrayceAgentServer) OpenCommandStream(TrayceAgent_OpenCommandStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method OpenCommandStream not implemented")
 }
-func (UnimplementedDockerDogAgentServer) mustEmbedUnimplementedDockerDogAgentServer() {}
+func (UnimplementedTrayceAgentServer) mustEmbedUnimplementedTrayceAgentServer() {}
 
-// UnsafeDockerDogAgentServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to DockerDogAgentServer will
+// UnsafeTrayceAgentServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to TrayceAgentServer will
 // result in compilation errors.
-type UnsafeDockerDogAgentServer interface {
-	mustEmbedUnimplementedDockerDogAgentServer()
+type UnsafeTrayceAgentServer interface {
+	mustEmbedUnimplementedTrayceAgentServer()
 }
 
-func RegisterDockerDogAgentServer(s grpc.ServiceRegistrar, srv DockerDogAgentServer) {
-	s.RegisterService(&DockerDogAgent_ServiceDesc, srv)
+func RegisterTrayceAgentServer(s grpc.ServiceRegistrar, srv TrayceAgentServer) {
+	s.RegisterService(&TrayceAgent_ServiceDesc, srv)
 }
 
-func _DockerDogAgent_SendFlowsObserved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _TrayceAgent_SendFlowsObserved_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Flows)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DockerDogAgentServer).SendFlowsObserved(ctx, in)
+		return srv.(TrayceAgentServer).SendFlowsObserved(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.DockerDogAgent/SendFlowsObserved",
+		FullMethod: "/api.TrayceAgent/SendFlowsObserved",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DockerDogAgentServer).SendFlowsObserved(ctx, req.(*Flows))
+		return srv.(TrayceAgentServer).SendFlowsObserved(ctx, req.(*Flows))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DockerDogAgent_SendAgentStarted_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _TrayceAgent_SendAgentStarted_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AgentStarted)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DockerDogAgentServer).SendAgentStarted(ctx, in)
+		return srv.(TrayceAgentServer).SendAgentStarted(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.DockerDogAgent/SendAgentStarted",
+		FullMethod: "/api.TrayceAgent/SendAgentStarted",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DockerDogAgentServer).SendAgentStarted(ctx, req.(*AgentStarted))
+		return srv.(TrayceAgentServer).SendAgentStarted(ctx, req.(*AgentStarted))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DockerDogAgent_OpenCommandStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(DockerDogAgentServer).OpenCommandStream(&dockerDogAgentOpenCommandStreamServer{stream})
+func _TrayceAgent_OpenCommandStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TrayceAgentServer).OpenCommandStream(&trayceAgentOpenCommandStreamServer{stream})
 }
 
-type DockerDogAgent_OpenCommandStreamServer interface {
+type TrayceAgent_OpenCommandStreamServer interface {
 	Send(*Command) error
 	Recv() (*NooP, error)
 	grpc.ServerStream
 }
 
-type dockerDogAgentOpenCommandStreamServer struct {
+type trayceAgentOpenCommandStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *dockerDogAgentOpenCommandStreamServer) Send(m *Command) error {
+func (x *trayceAgentOpenCommandStreamServer) Send(m *Command) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *dockerDogAgentOpenCommandStreamServer) Recv() (*NooP, error) {
+func (x *trayceAgentOpenCommandStreamServer) Recv() (*NooP, error) {
 	m := new(NooP)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -182,26 +182,26 @@ func (x *dockerDogAgentOpenCommandStreamServer) Recv() (*NooP, error) {
 	return m, nil
 }
 
-// DockerDogAgent_ServiceDesc is the grpc.ServiceDesc for DockerDogAgent service.
+// TrayceAgent_ServiceDesc is the grpc.ServiceDesc for TrayceAgent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var DockerDogAgent_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.DockerDogAgent",
-	HandlerType: (*DockerDogAgentServer)(nil),
+var TrayceAgent_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.TrayceAgent",
+	HandlerType: (*TrayceAgentServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "SendFlowsObserved",
-			Handler:    _DockerDogAgent_SendFlowsObserved_Handler,
+			Handler:    _TrayceAgent_SendFlowsObserved_Handler,
 		},
 		{
 			MethodName: "SendAgentStarted",
-			Handler:    _DockerDogAgent_SendAgentStarted_Handler,
+			Handler:    _TrayceAgent_SendAgentStarted_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "OpenCommandStream",
-			Handler:       _DockerDogAgent_OpenCommandStream_Handler,
+			Handler:       _TrayceAgent_OpenCommandStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

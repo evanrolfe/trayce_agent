@@ -1,8 +1,8 @@
 package sockets_test
 
 import (
-	"github.com/evanrolfe/dockerdog/internal/bpf_events"
-	"github.com/evanrolfe/dockerdog/internal/sockets"
+	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-option go_package = "github.com/evanrolfe/dockerdog/api";
+option go_package = "github.com/evanrolfe/trayce_agent/api";
 
 package api;
 
 import "google/protobuf/any.proto";
 
-service DockerDogAgent {
+service TrayceAgent {
     rpc SendFlowsObserved (Flows) returns (Reply) {}
     rpc SendAgentStarted (AgentStarted) returns (Reply) {}
     rpc OpenCommandStream (stream NooP) returns (stream Command) {}

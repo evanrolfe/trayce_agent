@@ -1,4 +1,4 @@
-# DockerDog Agent
+# Trayce Agent
 
 **EBPF Probes:**
 

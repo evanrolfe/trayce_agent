@@ -1,6 +1,6 @@
 package sockets
 
-import "github.com/evanrolfe/dockerdog/internal/bpf_events"
+import "github.com/evanrolfe/trayce_agent/internal/bpf_events"
 
 type SocketI interface {
 	Key() string

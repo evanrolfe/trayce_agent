@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evanrolfe/dockerdog/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
 )
 
 type SocketHttp11 struct {

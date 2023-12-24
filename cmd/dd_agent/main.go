@@ -12,10 +12,10 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/evanrolfe/dockerdog/api"
-	"github.com/evanrolfe/dockerdog/internal"
-	"github.com/evanrolfe/dockerdog/internal/sockets"
-	"github.com/evanrolfe/dockerdog/internal/utils"
+	"github.com/evanrolfe/trayce_agent/api"
+	"github.com/evanrolfe/trayce_agent/internal"
+	"github.com/evanrolfe/trayce_agent/internal/sockets"
+	"github.com/evanrolfe/trayce_agent/internal/utils"
 	"github.com/zcalusic/sysinfo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -88,7 +88,7 @@ func main() {
 	}
 	defer func() { fmt.Println("closing grpc conn"); conn.Close() }()
 
-	grpcClient := api.NewDockerDogAgentClient(conn)
+	grpcClient := api.NewTrayceAgentClient(conn)
 
 	// Open command stream via GRPC
 	stream, err := grpcClient.OpenCommandStream(context.Background())

@@ -1,9 +1,9 @@
 package internal
 
 import (
-	"github.com/evanrolfe/dockerdog/internal/bpf_events"
-	"github.com/evanrolfe/dockerdog/internal/docker"
-	"github.com/evanrolfe/dockerdog/internal/sockets"
+	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/docker"
+	"github.com/evanrolfe/trayce_agent/internal/sockets"
 )
 
 type Listener struct {

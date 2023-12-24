@@ -15,8 +15,8 @@ import (
 	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
-	"github.com/evanrolfe/dockerdog/internal/docker"
-	"github.com/evanrolfe/dockerdog/internal/go_offsets"
+	"github.com/evanrolfe/trayce_agent/internal/docker"
+	"github.com/evanrolfe/trayce_agent/internal/go_offsets"
 )
 
 const (

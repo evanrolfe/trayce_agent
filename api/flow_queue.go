@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/evanrolfe/dockerdog/internal/sockets"
+	"github.com/evanrolfe/trayce_agent/internal/sockets"
 )
 
 type FlowQueue struct {
-	grpcClient DockerDogAgentClient
+	grpcClient TrayceAgentClient
 	flows      []*Flow
 	batchSize  int
 }
 
-func NewFlowQueue(grpcClient DockerDogAgentClient, batchSize int) *FlowQueue {
+func NewFlowQueue(grpcClient TrayceAgentClient, batchSize int) *FlowQueue {
 	return &FlowQueue{
 		grpcClient: grpcClient,
 		batchSize:  batchSize,

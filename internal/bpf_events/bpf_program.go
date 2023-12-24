@@ -7,7 +7,7 @@ import (
 
 	bpf "github.com/aquasecurity/libbpfgo"
 	"github.com/aquasecurity/libbpfgo/helpers"
-	"github.com/evanrolfe/dockerdog/internal/go_offsets"
+	"github.com/evanrolfe/trayce_agent/internal/go_offsets"
 )
 
 type BPFProgram struct {

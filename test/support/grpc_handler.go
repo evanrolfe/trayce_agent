@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 
-	"github.com/evanrolfe/dockerdog/api"
+	"github.com/evanrolfe/trayce_agent/api"
 )
 
 type GRPCHandler struct {
-	api.UnimplementedDockerDogAgentServer
+	api.UnimplementedTrayceAgentServer
 	callback             func(input *api.Flows)
 	agentStartedCallback func(input *api.AgentStarted)
 	containerIds         []string
@@ -43,7 +43,7 @@ func (ts *GRPCHandler) SendAgentStarted(ctx context.Context, input *api.AgentSta
 	return &api.Reply{Status: "success "}, nil
 }
 
-func (ts *GRPCHandler) OpenCommandStream(srv api.DockerDogAgent_OpenCommandStreamServer) error {
+func (ts *GRPCHandler) OpenCommandStream(srv api.TrayceAgent_OpenCommandStreamServer) error {
 	log.Println("start new stream")
 
 	command := api.Command{

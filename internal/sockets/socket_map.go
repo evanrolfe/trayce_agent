@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/evanrolfe/dockerdog/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
 )
 
 // SocketMap tracks sockets which have been observed in ebpf

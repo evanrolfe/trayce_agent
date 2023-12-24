@@ -15,8 +15,8 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/evanrolfe/dockerdog/api"
-	"github.com/evanrolfe/dockerdog/test/support"
+	"github.com/evanrolfe/trayce_agent/api"
+	"github.com/evanrolfe/trayce_agent/test/support"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 )
@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 
 	grpcHandler = support.NewGRPCHandler()
 	grpcServer := grpc.NewServer()
-	api.RegisterDockerDogAgentServer(grpcServer, grpcHandler)
+	api.RegisterTrayceAgentServer(grpcServer, grpcHandler)
 
 	go func() {
 		err = grpcServer.Serve(lis)

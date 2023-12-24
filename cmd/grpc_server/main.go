@@ -5,8 +5,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/evanrolfe/dockerdog/api"
-	"github.com/evanrolfe/dockerdog/test/support"
+	"github.com/evanrolfe/trayce_agent/api"
+	"github.com/evanrolfe/trayce_agent/test/support"
 	"google.golang.org/grpc"
 )
 
@@ -23,7 +23,7 @@ func main() {
 
 	grpcHandler = support.NewGRPCHandler()
 	grpcServer := grpc.NewServer()
-	api.RegisterDockerDogAgentServer(grpcServer, grpcHandler)
+	api.RegisterTrayceAgentServer(grpcServer, grpcHandler)
 
 	// Callback
 	grpcHandler.SetCallback(func(input *api.Flows) {

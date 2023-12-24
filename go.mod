@@ -1,4 +1,4 @@
-module github.com/evanrolfe/dockerdog
+module github.com/evanrolfe/trayce_agent
 
 go 1.21
 

@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/evanrolfe/dockerdog/internal/utils"
+	"github.com/evanrolfe/trayce_agent/internal/utils"
 )
 
 const (
