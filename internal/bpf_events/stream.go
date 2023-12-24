@@ -55,7 +55,12 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	}
 
 	// kprobe/accept
-	funcName := fmt.Sprintf("__%s_sys_accept4", ksymArch())
+	funcName := fmt.Sprintf("__%s_sys_accept", ksymArch())
+	bpfProg.AttachToKProbe("probe_accept4", funcName)
+	bpfProg.AttachToKRetProbe("probe_ret_accept4", funcName)
+
+	// kprobe/accept4
+	funcName = fmt.Sprintf("__%s_sys_accept4", ksymArch())
 	bpfProg.AttachToKProbe("probe_accept4", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_accept4", funcName)
 

@@ -6,7 +6,7 @@ ADD . /app
 
 # Build dependencies:
 RUN apt update -y
-RUN apt install -y ruby-full python3-pip wget libssl-dev git libyaml-dev
+RUN apt install -y ruby-full python3-pip wget libssl-dev git libyaml-dev default-jre default-jdk
 
 # Debugging tools:
 RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
