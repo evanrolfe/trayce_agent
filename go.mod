@@ -9,10 +9,10 @@ require (
 	github.com/aquasecurity/libbpfgo/helpers v0.4.5
 	github.com/docker/docker v24.0.6+incompatible
 	github.com/golang/protobuf v1.5.3
-	github.com/keyval-dev/offsets-tracker v0.0.0-20230204190443-44ea935c31d7
 	github.com/onsi/ginkgo/v2 v2.12.0
 	github.com/onsi/gomega v1.27.10
 	github.com/stretchr/testify v1.8.4
+	github.com/zcalusic/sysinfo v1.0.2
 	golang.org/x/arch v0.6.0
 	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
@@ -29,7 +29,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
-	github.com/hashicorp/go-version v1.4.0 // indirect
+	github.com/google/uuid v1.3.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect

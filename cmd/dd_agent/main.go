@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -15,13 +16,15 @@ import (
 	"github.com/evanrolfe/dockerdog/internal"
 	"github.com/evanrolfe/dockerdog/internal/sockets"
 	"github.com/evanrolfe/dockerdog/internal/utils"
+	"github.com/zcalusic/sysinfo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
 	bpfFilePath       = "bundle/main.bpf.o"
-	btfFilePath       = "bundle/6.2.0-26-generic.btf"
+	btfFilePath5      = "bundle/5.8.0-23-generic.btf"
+	btfFilePath6      = "bundle/6.2.0-26-generic.btf"
 	sslLibDefault     = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 	grpcServerDefault = "localhost:50051"
 )
@@ -40,8 +43,16 @@ func main() {
 	flag.StringVar(&filterCmd, "filtercmd", "", "Only observe traffic from processes who's command contains this string")
 	flag.Parse()
 
-	fmt.Println("PID: ", pid)
-	fmt.Println("libssl: ", libSslPath)
+	kernelVersion := getKernelVersionMajor()
+
+	var btfFilePath string
+	if kernelVersion == 6 {
+		btfFilePath = btfFilePath6
+	} else if kernelVersion == 5 {
+		btfFilePath = btfFilePath5
+	} else {
+		fmt.Println("Linux kernel version", kernelVersion, "is not supported, please upgrade to >= 5.0.0")
+	}
 
 	// Extract bundled files
 	bpfBytes := internal.MustAsset(bpfFilePath)
@@ -102,33 +113,6 @@ func main() {
 	flowQueue := api.NewFlowQueue(grpcClient, 100)
 	go flowQueue.Start(socketFlowChan)
 
-	// go func() {
-	// 	for {
-	// 		// Check if the interrupt signal has been received
-	// 		select {
-	// 		case flow := <-socketFlowChan:
-	// 			// Contact the server and print out its response.
-	// 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	// 			defer cancel()
-
-	// 			apiFlow := &api.Flow{
-	// 				LocalAddr:  flow.LocalAddr,
-	// 				RemoteAddr: flow.RemoteAddr,
-	// 				L4Protocol: flow.L4Protocol,
-	// 				L7Protocol: flow.L7Protocol,
-	// 				Request:    flow.Request,
-	// 				Response:   flow.Response,
-	// 			}
-	// 			apiFlows := &api.Flows{Flows: []*api.Flow{apiFlow}}
-
-	// 			_, err := grpcClient.SendFlowsObserved(ctx, apiFlows)
-	// 			if err != nil {
-	// 				fmt.Println("[ERROR] could not request: %v", err)
-	// 			}
-	// 		}
-	// 	}
-	// }()
-
 	// IMPORTANT: This seems to block the entire thing if it doesn't receive the set_settings message from the server!!!
 	// TODO: Figure this out
 	go func() {
@@ -156,4 +140,19 @@ func main() {
 	wg.Wait()
 
 	fmt.Printf("Done, closing agent. PID: %d. GID: %d. EGID: %d \n", os.Getpid(), os.Getgid(), os.Getegid())
+}
+
+func getKernelVersionMajor() int {
+	var info sysinfo.SysInfo
+
+	info.GetSysInfo()
+	majorVersionStr := string(info.Kernel.Release[0])
+
+	majorVersion, err := strconv.Atoi(majorVersionStr)
+	if err != nil {
+		fmt.Println("WARNING - could not get linux kernel version. Assuming 5. error:", err)
+		majorVersion = 5
+	}
+
+	return majorVersion
 }
