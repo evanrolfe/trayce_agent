@@ -177,7 +177,7 @@ func getTestConfig() (int, int, time.Duration) {
 
 // Test_agent_client tests requests made from this container to another server, it listens to the client
 func Test_agent_client(t *testing.T) {
-	// Set dd_agent to track the container this is running from:
+	// Set trayce_agent to track the container this is running from:
 	hostname, err := os.Hostname()
 	if err != nil {
 		panic(err)
@@ -188,14 +188,14 @@ func Test_agent_client(t *testing.T) {
 	_, megaserverIp := getMegaServer(t)
 	numRequests, expectedNumFlows, timeout := getTestConfig()
 
-	// Start dd_agent
-	cmd := exec.Command("/app/dd_agent", "--filtercmd", "/app/test/scripts/")
+	// Start trayce_agent
+	cmd := exec.Command("/app/trayce_agent", "--filtercmd", "/app/test/scripts/")
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	// Wait for dd_agent to start, timeout of 5secs:
+	// Wait for trayce_agent to start, timeout of 5secs:
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
@@ -328,14 +328,14 @@ func Test_agent_server(t *testing.T) {
 	// Intercept it
 	grpcHandler.SetContainerIds([]string{megaserverId})
 
-	// Start dd_agent
-	cmd := exec.Command("/app/dd_agent")
+	// Start trayce_agent
+	cmd := exec.Command("/app/trayce_agent")
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	// Wait for dd_agent to start, timeout of 5secs:
+	// Wait for trayce_agent to start, timeout of 5secs:
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })

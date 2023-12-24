@@ -14,7 +14,7 @@ make
 ```
 
 ### Run
-Once you have the built binary at `./dd_agent` run:
+Once you have the built binary at `./trayce_agent` run:
 
 ```
 docker build . -t dd

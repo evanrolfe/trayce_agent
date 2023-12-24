@@ -35,13 +35,13 @@ generate:
 
 # Compile our Go binary using .output/main.bpf.o
 build: generate
-# Compile the Go app to our final executable ./dd_agent
+# Compile the Go app to our final executable ./trayce_agent
 	$(CGO_FLAGS) \
 	go build \
 	-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-	-o dd_agent ./cmd/dd_agent/main.go
+	-o trayce_agent ./cmd/trayce_agent/main.go
 
-	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./dd_agent\n$(DIV)"
+	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./trayce_agent\n$(DIV)"
 
 # NOTE: Change Test_agent_client to Test_agent_server to test a server receiving requests rather than a client making them
 test:
