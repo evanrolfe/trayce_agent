@@ -410,6 +410,27 @@ static __inline void infer_http_message(struct connect_event_t *conn_info, const
   if (buf[0] == 'G' && buf[1] == 'E' && buf[2] == 'T') {
     conn_info->protocol = pHttp;
   }
+  if (buf[0] == 'H' && buf[1] == 'E' && buf[2] == 'A' && buf[3] == 'D') {
+    conn_info->protocol = pHttp;
+  }
+  if (buf[0] == 'P' && buf[1] == 'O' && buf[2] == 'S' && buf[3] == 'T') {
+    conn_info->protocol = pHttp;
+  }
+  if (buf[0] == 'P' && buf[1] == 'U' && buf[2] == 'T') {
+    conn_info->protocol = pHttp;
+  }
+  if (buf[0] == 'P' && buf[1] == 'A' && buf[2] == 'T' && buf[3] == 'C' && buf[4] == 'H') {
+    conn_info->protocol = pHttp;
+  }
+  if (buf[0] == 'D' && buf[1] == 'E' && buf[2] == 'L' && buf[3] == 'E' && buf[4] == 'T' && buf[5] == 'E') {
+    conn_info->protocol = pHttp;
+  }
+  if (buf[0] == 'O' && buf[1] == 'P' && buf[2] == 'T' && buf[3] == 'I' && buf[4] == 'O' && buf[5] == 'N' && buf[6] == 'S') {
+    conn_info->protocol = pHttp;
+  }
+  if (buf[0] == 'T' && buf[1] == 'R' && buf[2] == 'A' && buf[3] == 'C' && buf[4] == 'E') {
+    conn_info->protocol = pHttp;
+  }
 }
 
 SEC("kprobe/write")

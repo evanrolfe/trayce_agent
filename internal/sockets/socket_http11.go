@@ -71,7 +71,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 
 	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe
 	// this check fixes that because the encrypted data is dropped since it doesnt start with GET
-	if string(event.Payload()[0:3]) == "GET" || string(event.Payload()[0:4]) == "HTTP" {
+	if isStartOfHTTPMessage(event.Payload()) {
 		socket.clearDataBuffer()
 		fmt.Println("[SocketHttp1.1] clearing dataBuffer")
 	}
@@ -284,4 +284,19 @@ func parseHTTPResponseHeaders(responseBytes []byte) (map[string][]string, error)
 
 	return headers, nil
 
+}
+
+func isStartOfHTTPMessage(payload []byte) bool {
+	if string(payload[0:4]) == "HTTP" ||
+		string(payload[0:3]) == "GET" ||
+		string(payload[0:4]) == "HEAD" ||
+		string(payload[0:4]) == "POST" ||
+		string(payload[0:3]) == "PUT" ||
+		string(payload[0:5]) == "PATCH" ||
+		string(payload[0:6]) == "DELETE" ||
+		string(payload[0:7]) == "OPTIONS" ||
+		string(payload[0:5]) == "TRACE" {
+		return true
+	}
+	return false
 }
