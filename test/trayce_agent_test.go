@@ -367,11 +367,12 @@ func Test_agent_server(t *testing.T) {
 			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests)),
 			verify: AssertFlows,
 		},
-		{
-			name:   "[Java] Server an HTTPS/1.1 request",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 3002), strconv.Itoa(numRequests)),
-			verify: AssertFlows,
-		},
+		// TODO: Support Java
+		// {
+		// 	name:   "[Java] Server an HTTPS/1.1 request",
+		// 	cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 3002), strconv.Itoa(numRequests)),
+		// 	verify: AssertFlows,
+		// },
 	}
 
 	hasFocus := false

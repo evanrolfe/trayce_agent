@@ -4,8 +4,6 @@ option go_package = "github.com/evanrolfe/trayce_agent/api";
 
 package api;
 
-import "google/protobuf/any.proto";
-
 service TrayceAgent {
     rpc SendFlowsObserved (Flows) returns (Reply) {}
     rpc SendAgentStarted (AgentStarted) returns (Reply) {}

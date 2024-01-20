@@ -125,12 +125,15 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			if resp.Type == "set_settings" {
+			if resp != nil && resp.Type == "set_settings" {
 				fmt.Println(resp.Settings.ContainerIds)
 				listener.SetContainers(resp.Settings.ContainerIds)
 			}
 		}
 	}()
+
+	// Send a NooP to the stream so the server send back the settings
+	stream.Send(&api.NooP{})
 
 	_, err = grpcClient.SendAgentStarted(context.Background(), &api.AgentStarted{})
 	if err != nil {

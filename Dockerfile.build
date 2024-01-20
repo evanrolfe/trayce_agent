@@ -1,7 +1,6 @@
 FROM ubuntu:22.04
 
 WORKDIR /app
-# VOLUME [ "/app" ]
 
 ADD . /app
 
