@@ -1,5 +1,12 @@
 # Notes
 
+### DockerHub
+1. Sign in via command line: `docker login -u pntest`
+
+2. Build with the correct tag: `docker build . -t pntest/trayce_agent`
+
+2. Publish the image with: `docker push pntest/trayce_agent`
+
 ### Useful Commands
 
 Start a server with ltrace:

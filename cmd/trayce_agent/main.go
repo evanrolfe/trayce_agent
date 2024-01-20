@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/signal"
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/evanrolfe/trayce_agent/api"
 	"github.com/evanrolfe/trayce_agent/internal"
@@ -18,7 +19,9 @@ import (
 	"github.com/evanrolfe/trayce_agent/internal/utils"
 	"github.com/zcalusic/sysinfo"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -31,6 +34,17 @@ const (
 
 type Settings struct {
 	ContainerIds []string
+}
+
+type Error string
+
+const (
+	ErrServerUnavailable Error = "server unavailable"
+	ErrStreamClosed      Error = "stream closed"
+)
+
+func (e Error) Error() string {
+	return string(e)
 }
 
 func main() {
@@ -63,86 +77,108 @@ func main() {
 
 	// Create a channel to receive interrupt signals
 	interruptChan := make(chan os.Signal, 1)
-	interruptChan2 := make(chan os.Signal, 2)
 	socketFlowChan := make(chan sockets.Flow, 999)
 	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
-	signal.Notify(interruptChan2, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 
 	// Start the listener
 	listener := internal.NewListener(bpfBytes, btfFilePath, libSslPath, filterCmd)
 	defer listener.Close()
 
-	fmt.Println("Agent listing...")
 	go listener.Start(socketFlowChan)
+	fmt.Println("Agent listening...")
 
 	// Start a goroutine to handle the interrupt signal
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	// API Client
-	// Set up a connection to the server.
-	conn, err := grpc.Dial(grpcServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		fmt.Println("[ERROR] could not connect to GRPC server: %v", err)
-		return
-	}
-	defer func() { fmt.Println("closing grpc conn"); conn.Close() }()
-
-	grpcClient := api.NewTrayceAgentClient(conn)
-
-	// Open command stream via GRPC
-	stream, err := grpcClient.OpenCommandStream(context.Background())
-	if err != nil {
-		fmt.Println("[ERROR] openn stream error %v", err)
-	}
-
+	// Go routine to detect interrupt signal
 	go func() {
 		for {
 			<-interruptChan
-			fmt.Println("Interrupt received")
-			// Tell the Server to close this Stream, used to clean up running on the server
-			err := stream.CloseSend()
-			if err != nil {
-				log.Fatal("Failed to close stream: ", err.Error())
-			}
 			wg.Done()
 			return
 		}
 	}()
 
-	flowQueue := api.NewFlowQueue(grpcClient, 100)
-	go flowQueue.Start(socketFlowChan)
-
-	// IMPORTANT: This seems to block the entire thing if it doesn't receive the set_settings message from the server!!!
-	// TODO: Figure this out
+	// Try to connect to GRPC server, if the server is unavailable them keep retrying every second
 	go func() {
 		for {
-			// Recieve on the stream
-			resp, err := stream.Recv()
-			if err == io.EOF {
+			// Connect to the GRPC server
+			fmt.Println("[GRPC] connecting to server...")
+			conn, err := grpc.Dial(grpcServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
 				return
 			}
-			if err != nil {
-				panic(err)
+			defer func() { fmt.Println("closing grpc conn"); conn.Close() }()
+
+			grpcClient := api.NewTrayceAgentClient(conn)
+
+			// Send flows from the socket flow channel to the GRPC client via FlowQueue (for batching + rate limiting)
+			flowQueue := api.NewFlowQueue(grpcClient, 100)
+			go flowQueue.Start(socketFlowChan)
+
+			// Start the main event loop which recieves commands from the GRPC CommandStream
+			// openCommandStreamAndAwait blocks until an error occurs
+			err = openCommandStreamAndAwait(grpcClient, listener, interruptChan)
+			if errors.Is(err, ErrStreamClosed) {
+				fmt.Println("[GRPC] StreamClosed:", err)
+			} else if errors.Is(err, ErrServerUnavailable) {
+				fmt.Println("[GRPC] ServerUnavailable:", err)
+				time.Sleep(time.Second)
+				continue
+			} else {
+				fmt.Println("[ERROR]", err)
 			}
-			if resp != nil && resp.Type == "set_settings" {
-				fmt.Println(resp.Settings.ContainerIds)
-				listener.SetContainers(resp.Settings.ContainerIds)
-			}
+			return
 		}
 	}()
+
+	// Wait until the interrupt signal is received
+	wg.Wait()
+
+	fmt.Printf("Done, closing agent. PID: %d. GID: %d. EGID: %d \n", os.Getpid(), os.Getgid(), os.Getegid())
+}
+
+func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *internal.Listener, interruptChan chan os.Signal) error {
+	// Open command stream via GRPC
+	stream, err := grpcClient.OpenCommandStream(context.Background())
+	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+			return ErrServerUnavailable
+		} else {
+			return err
+		}
+	}
 
 	// Send a NooP to the stream so the server send back the settings
 	stream.Send(&api.NooP{})
 
+	// Let em know we're here
 	_, err = grpcClient.SendAgentStarted(context.Background(), &api.AgentStarted{})
 	if err != nil {
-		fmt.Println("[ERROR] could not request: %v", err)
+		return err
 	}
 
-	wg.Wait()
-
-	fmt.Printf("Done, closing agent. PID: %d. GID: %d. EGID: %d \n", os.Getpid(), os.Getgid(), os.Getegid())
+	// NOTE: This seems to block the entire thing if it doesn't receive the set_settings message from the server
+	for {
+		// Recieve on the stream
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			return ErrStreamClosed
+		}
+		if err != nil {
+			stream.CloseSend()
+			if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+				return ErrServerUnavailable
+			} else {
+				return err
+			}
+		}
+		if resp != nil && resp.Type == "set_settings" {
+			fmt.Println(resp.Settings.ContainerIds)
+			listener.SetContainers(resp.Settings.ContainerIds)
+		}
+	}
 }
 
 func getKernelVersionMajor() int {
