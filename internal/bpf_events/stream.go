@@ -371,7 +371,6 @@ func (stream *Stream) procClosed(proc docker.Proc) {
 		stream.pidsMap.DeleteKey(pidUnsafe)
 	}
 
-	// TODO: Detach the go uprobes
 	stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Write", proc.ExecPath, proc.Pid)
 	stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Read", proc.ExecPath, proc.Pid)
 }
