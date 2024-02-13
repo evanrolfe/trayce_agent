@@ -22,7 +22,7 @@ import (
 
 const (
 	bufPollRateMs              = 50
-	containerPIDsRefreshRateMs = 5
+	containerPIDsRefreshRateMs = 10
 	// TODO: Make it search for this in multpile places:
 	defaultLibSslPath = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 	libSslPath1       = "/usr/lib/x86_64-linux-gnu/libssl.so.1.1"
@@ -238,7 +238,7 @@ func (stream *Stream) refreshPids() {
 			if !exists {
 				delete(interceptedProcs, pid)
 
-				stream.procClosed(oldProc)
+				go stream.procClosed(oldProc)
 			}
 		}
 
@@ -258,7 +258,7 @@ func (stream *Stream) refreshPids() {
 			if !exists {
 				delete(interceptedContainers, containerId)
 
-				stream.containerClosed(oldContainer)
+				go stream.containerClosed(oldContainer)
 			}
 		}
 
@@ -350,11 +350,11 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
 	fmt.Println("Proc attaching Go Uprobes", proc.Pid, proc.ExecPath)
-	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath)
+	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath, proc.Pid)
 	if err != nil {
 		fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
 	}
-	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath)
+	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath, proc.Pid)
 	if err != nil {
 		fmt.Println("Error bpfProg.AttachGoUProbes() read:", err)
 	}
@@ -372,8 +372,8 @@ func (stream *Stream) procClosed(proc docker.Proc) {
 	}
 
 	// TODO: Detach the go uprobes
-	stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Write", proc.ExecPath)
-	stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Read", proc.ExecPath)
+	stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Write", proc.ExecPath, proc.Pid)
+	stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Read", proc.ExecPath, proc.Pid)
 }
 
 func (stream *Stream) Close() {

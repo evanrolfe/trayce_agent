@@ -46,7 +46,6 @@ make testunit
 
 Build and start:
 ```
-cd test/mega_server
-docker build -t mega_server .
-docker run -v ./:/app -it mega_server
+docker build -t mega_server test/mega_server
+docker run -v ./test/mega_server:/app -it mega_server
 ```

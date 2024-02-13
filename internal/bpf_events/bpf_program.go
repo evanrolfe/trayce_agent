@@ -174,9 +174,10 @@ func (prog *BPFProgram) AttachToURetProbe(funcName string, probeFuncName string,
 
 // AttachGoUProbe attach uprobes to the entry and exits of a Go function. URetProbes will not work with Go.
 // Each return statement in the function is an exit which is probed. This will also only work for cryptos/tls.Conn.Read and Write.
-func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, binaryPath string) error {
+// TODO: Should probably just accept a Proc struct instead to avoid primitive obsession
+func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, binaryPath string, pid uint32) error {
 	// If there are already GoUprobes attached to this binary+func, then dont re-attach thm
-	uprobeKey := fmt.Sprintf("%s:%s", binaryPath, probeFuncName)
+	uprobeKey := fmt.Sprintf("%d:%s:%s", pid, binaryPath, probeFuncName)
 	_, exists := prog.uprobes[uprobeKey]
 	if exists {
 		return nil
@@ -226,8 +227,8 @@ func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, pr
 	return nil
 }
 
-func (prog *BPFProgram) DetachGoUProbes(probeFuncName string, binaryPath string) error {
-	uprobeKey := fmt.Sprintf("%s:%s", binaryPath, probeFuncName)
+func (prog *BPFProgram) DetachGoUProbes(probeFuncName string, binaryPath string, pid uint32) error {
+	uprobeKey := fmt.Sprintf("%d:%s:%s", pid, binaryPath, probeFuncName)
 	bpfLinks, exists := prog.uprobes[uprobeKey]
 	if !exists {
 		return nil

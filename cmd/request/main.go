@@ -113,12 +113,13 @@ func main() {
 
 	// Because Go is so much faster than python/ruby/node, we need to add this sleep here to ensure that the agent picks up
 	// this new process in the container which is refreshed every 5ms
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	requester := myRequester{hello: "world", fd: 123, conn: myConn{fd: 333333}}
 	for i := 0; i < n; i++ {
 		requester.makeRequest(url, i)
 		// time.Sleep(5 * time.Millisecond)
 	}
+	time.Sleep(200 * time.Millisecond)
 }
 
 // func makeRequest(url string, i int, wg *sync.WaitGroup) {
