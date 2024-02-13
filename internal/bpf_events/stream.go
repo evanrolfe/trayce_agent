@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
+	bpf "github.com/aquasecurity/libbpfgo"
 	"github.com/evanrolfe/trayce_agent/internal/docker"
 	"github.com/evanrolfe/trayce_agent/internal/go_offsets"
 )
@@ -30,6 +31,8 @@ const (
 type Stream struct {
 	bpfProg    *BPFProgram
 	containers *docker.Containers
+
+	containerUProbes map[string][]*bpf.BPFLink
 
 	dataEventsBuf     *libbpfgo.RingBuffer
 	pidsMap           *libbpfgo.BPFMap
@@ -101,10 +104,11 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
 	return &Stream{
-		bpfProg:        bpfProg,
-		containers:     containers,
-		interruptChan:  make(chan int),
-		dataEventsChan: make(chan []byte, 10000),
+		bpfProg:          bpfProg,
+		containers:       containers,
+		containerUProbes: map[string][]*bpf.BPFLink{},
+		interruptChan:    make(chan int),
+		dataEventsChan:   make(chan []byte, 10000),
 	}
 }
 
@@ -265,31 +269,50 @@ func (stream *Stream) refreshPids() {
 // This is causing the first test case to fail for some reason
 func (stream *Stream) containerOpened(container docker.Container) {
 	fmt.Println("Container opened:", container.RootFSPath)
+	links := []*bpf.BPFLink{}
 
 	// TODO: Find where libssl is and also send the version to ebpf
-
 	libSslPath := container.LibSSLPath
 	fmt.Println("Attaching uprobes to:", libSslPath)
 
 	// uprobe/SSL_read
-	stream.bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
+	link, _ := stream.bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
+	links = append(links, link)
 	stream.bpfProg.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
+	links = append(links, link)
 
 	// uprobe/SSL_read_ex
-	stream.bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
-	stream.bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
+	link, _ = stream.bpfProg.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
+	links = append(links, link)
+	link, _ = stream.bpfProg.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
+	links = append(links, link)
 
 	// uprobe/SSL_write
-	stream.bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
-	stream.bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
+	link, _ = stream.bpfProg.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
+	links = append(links, link)
+	link, _ = stream.bpfProg.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
+	links = append(links, link)
 
 	// uprobe/SSL_write_ex
-	stream.bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
-	stream.bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
+	link, _ = stream.bpfProg.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
+	links = append(links, link)
+	link, _ = stream.bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
+	links = append(links, link)
+
+	stream.containerUProbes[container.Id] = links
 }
 
 func (stream *Stream) containerClosed(container docker.Container) {
 	fmt.Println("Container closed:", container.RootFSPath)
+	_, exists := stream.containerUProbes[container.Id]
+	if !exists {
+		fmt.Println("	No links found for", container.Id)
+		return
+	}
+	for _, link := range stream.containerUProbes[container.Id] {
+		fmt.Println("	Destroying BPFLink:", link)
+		link.Destroy()
+	}
 }
 
 func (stream *Stream) procOpened(proc docker.Proc) {
@@ -339,10 +362,18 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 
 func (stream *Stream) procClosed(proc docker.Proc) {
 	fmt.Println("Proc closed:", proc.Pid, proc.ExecPath)
-	// For the moment we are not detaching the uprobes, it causes some issues and I'm not sure if there is actually any
-	// benefit to detaching them
-	// stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Write", proc.ExecPath)
-	// stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Read", proc.ExecPath)
+
+	// Delete the intercepted PIDs from ebpf map
+	if stream.pidsMap != nil {
+		// Imporant that we copy these two vars by value here:
+		pid := proc.Pid
+		pidUnsafe := unsafe.Pointer(&pid)
+		stream.pidsMap.DeleteKey(pidUnsafe)
+	}
+
+	// TODO: Detach the go uprobes
+	stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Write", proc.ExecPath)
+	stream.bpfProg.DetachGoUProbes("crypto/tls.(*Conn).Read", proc.ExecPath)
 }
 
 func (stream *Stream) Close() {

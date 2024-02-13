@@ -77,7 +77,7 @@ func main() {
 
 	// Create a channel to receive interrupt signals
 	interruptChan := make(chan os.Signal, 1)
-	socketFlowChan := make(chan sockets.Flow, 999)
+	socketFlowChan := make(chan sockets.Flow, 1)
 	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 
 	// Start the listener
@@ -126,10 +126,9 @@ func main() {
 				fmt.Println("[GRPC] ServerUnavailable:", err)
 				time.Sleep(time.Second)
 				continue
-			} else {
+			} else if err != nil {
 				fmt.Println("[ERROR]", err)
 			}
-			return
 		}
 	}()
 
@@ -150,21 +149,21 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 		}
 	}
 
+	// Let em know we're here
+	// _, err = grpcClient.SendAgentStarted(context.Background(), &api.AgentStarted{})
+	// if err != nil {
+	// 	return err
+	// }
+
 	// Send a NooP to the stream so the server send back the settings
 	stream.Send(&api.NooP{})
-
-	// Let em know we're here
-	_, err = grpcClient.SendAgentStarted(context.Background(), &api.AgentStarted{})
-	if err != nil {
-		return err
-	}
-
+	fmt.Println("[GRPC] sent NooP to command stream")
 	// NOTE: This seems to block the entire thing if it doesn't receive the set_settings message from the server
 	for {
 		// Recieve on the stream
 		resp, err := stream.Recv()
-		if err == io.EOF {
-			return ErrStreamClosed
+		if err == io.EOF || resp == nil {
+			continue
 		}
 		if err != nil {
 			stream.CloseSend()
@@ -175,8 +174,9 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 			}
 		}
 		if resp != nil && resp.Type == "set_settings" {
-			fmt.Println(resp.Settings.ContainerIds)
+			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds)
 			listener.SetContainers(resp.Settings.ContainerIds)
+			fmt.Println("[GRPC] done setting container_ids")
 		}
 	}
 }

@@ -29,6 +29,7 @@ func (fq *FlowQueue) Start(inputChan chan sockets.Flow) {
 
 			// Convert socket.Flow to Flow
 			apiFlow := &Flow{
+				Uuid:       flow.UUID,
 				LocalAddr:  flow.LocalAddr,
 				RemoteAddr: flow.RemoteAddr,
 				L4Protocol: flow.L4Protocol,

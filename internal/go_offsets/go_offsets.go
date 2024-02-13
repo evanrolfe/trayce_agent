@@ -165,7 +165,11 @@ func GetStructMemberOffset(filePath string, structName string, memberName string
 			// We've reached the end of DWARF entries
 			break
 		}
+		if entry == nil {
+			continue
+		}
 
+		// TODO: This line can panic
 		if entry.Tag == dwarf.TagStructType && entry.AttrField(dwarf.AttrName) != nil {
 			typeName, _ := entry.Val(dwarf.AttrName).(string)
 			if typeName == structName {

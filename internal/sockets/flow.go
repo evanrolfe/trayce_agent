@@ -6,6 +6,7 @@ import (
 
 // Flow represents an exchange of data over a socket in the form of request + response.
 type Flow struct {
+	UUID       string
 	LocalAddr  string
 	RemoteAddr string
 	L4Protocol string
@@ -16,8 +17,9 @@ type Flow struct {
 	Fd         int
 }
 
-func NewFlow(localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request []byte) *Flow {
+func NewFlow(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request []byte) *Flow {
 	m := &Flow{
+		UUID:       uuid,
 		LocalAddr:  localAddr,
 		RemoteAddr: remoteAddr,
 		L4Protocol: l4protocol,
@@ -30,8 +32,9 @@ func NewFlow(localAddr string, remoteAddr string, l4protocol string, l7protocol 
 	return m
 }
 
-func NewFlowResponse(localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, response []byte) *Flow {
+func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, response []byte) *Flow {
 	m := &Flow{
+		UUID:       uuid,
 		LocalAddr:  localAddr,
 		RemoteAddr: remoteAddr,
 		L4Protocol: l4protocol,
@@ -45,6 +48,7 @@ func NewFlowResponse(localAddr string, remoteAddr string, l4protocol string, l7p
 
 func (flow *Flow) Clone() Flow {
 	m := Flow{
+		UUID:       flow.UUID,
 		LocalAddr:  flow.LocalAddr,
 		RemoteAddr: flow.RemoteAddr,
 		L4Protocol: flow.L4Protocol,
@@ -74,8 +78,8 @@ func (flow *Flow) Debug() {
 	if flow.Response != nil {
 		fmt.Println("Response:")
 
-		if len(flow.Response) >= 256 {
-			fmt.Println(string(flow.Response[0:256]))
+		if len(flow.Response) >= 512 {
+			fmt.Println(string(flow.Response[0:512]))
 		} else {
 			fmt.Println(string(flow.Response))
 		}

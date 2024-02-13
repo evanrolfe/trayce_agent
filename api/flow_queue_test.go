@@ -82,6 +82,7 @@ var _ = Describe("FlowQueue", func() {
 			// Send some flows to the FlowQueue
 			for i := 0; i < numFlows; i++ {
 				flow1 := sockets.NewFlow(
+					"1999742d-d2b0-4f3a-a8d7-ae7a546e95c1",
 					"127.0.0.1",
 					"192.168.0.1",
 					"tcp",

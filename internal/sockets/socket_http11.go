@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/google/uuid"
 )
 
 type SocketHttp11 struct {
@@ -26,15 +27,18 @@ type SocketHttp11 struct {
 	dataBuf []byte
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
+	// When a request is observed, this value is set, when the response comes, we send this value back with the response
+	requestUuid string
 }
 
 func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 	socket := SocketHttp11{
-		LocalAddr: "unknown",
-		Pid:       event.Pid,
-		Fd:        event.Fd,
-		SSL:       false,
-		dataBuf:   []byte{},
+		LocalAddr:   "unknown",
+		Pid:         event.Pid,
+		Fd:          event.Fd,
+		SSL:         false,
+		dataBuf:     []byte{},
+		requestUuid: "",
 	}
 
 	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
@@ -81,8 +85,10 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 	// 1. Attempt to parse buffer as an HTTP request
 	req := socket.parseHTTPRequest(socket.dataBuf)
 	if req != nil {
+		socket.requestUuid = uuid.NewString()
 		fmt.Println("[SocketHttp1.1] HTTP request complete")
 		flow := NewFlow(
+			socket.requestUuid,
 			socket.LocalAddr,
 			socket.RemoteAddr,
 			"tcp", // TODO Use constants here instead
@@ -106,6 +112,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
 		flow := NewFlowResponse(
+			socket.requestUuid,
 			socket.LocalAddr,
 			socket.RemoteAddr,
 			"tcp", // TODO Use constants here instead
@@ -123,7 +130,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 }
 
 func (socket *SocketHttp11) sendFlowBack(flow Flow) {
-	fmt.Printf("[Flow] %s - Local: %s, Remote: %s\n", "", flow.LocalAddr, flow.RemoteAddr)
+	fmt.Printf("[Flow] %s - Local: %s, Remote: %s, UUID: %s\n", "", flow.LocalAddr, flow.RemoteAddr, flow.UUID)
+	// fmt.Println(flow.UUID)
 	flow.Debug()
 
 	for _, callback := range socket.flowCallbacks {

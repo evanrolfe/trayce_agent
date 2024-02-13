@@ -29,6 +29,7 @@ type Proc struct {
 }
 
 type Container struct {
+	Id            string
 	Pid           uint32
 	Ip            uint32
 	RootFSPath    string
@@ -71,7 +72,13 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 		libSSL := c.getLibSSL(containerId, containerFSPath)
 
 		// Get the container's proccess ids
-		for _, pid := range c.getPidsForContainer(containerId) {
+		pids, err := c.getPidsForContainer(containerId)
+		if err != nil {
+			fmt.Println("[ERROR] getPidsForContainer()", containerId, ", err:", err)
+			continue
+		}
+
+		for _, pid := range pids {
 			// On linux, given a proc id 123, the file at /proc/123/exe is a symlink to the actual binary being run
 			// However its path is relative to the container its running on
 			execPath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
@@ -117,6 +124,7 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 		libSSL := c.getLibSSL(containerId, containerFSPath)
 
 		containers[containerId] = Container{
+			Id:            containerId,
 			Pid:           uint32(container.State.Pid),
 			Ip:            ip,
 			RootFSPath:    containerFSPath,
@@ -136,10 +144,10 @@ func (c *Containers) SetContainers(containerIds []string) {
 	c.containerIds = containerIds
 }
 
-func (c *Containers) getPidsForContainer(containerId string) []int {
+func (c *Containers) getPidsForContainer(containerId string) ([]int, error) {
 	result, err := c.dockerClient.ContainerTop(context.Background(), containerId, []string{})
 	if err != nil {
-		fmt.Println("[Containers] ContainerTop() error:", err)
+		return nil, err
 	}
 
 	// Extract the index of the PID in the results
@@ -150,7 +158,7 @@ func (c *Containers) getPidsForContainer(containerId string) []int {
 		}
 	}
 	if indexPid == -1 {
-		panic("no index found for PID from docker.ContainerTop()")
+		return nil, fmt.Errorf("no index found for PID from docker.ContainerTop()")
 	}
 
 	// Extract the index of the Command in the results
@@ -161,7 +169,7 @@ func (c *Containers) getPidsForContainer(containerId string) []int {
 		}
 	}
 	if indexCmd == -1 {
-		panic("no index found for CMD from docker.ContainerTop()")
+		return nil, fmt.Errorf("no index found for CMD from docker.ContainerTop()")
 	}
 
 	// Collect the PIDs
@@ -179,7 +187,7 @@ func (c *Containers) getPidsForContainer(containerId string) []int {
 		}
 	}
 
-	return pids
+	return pids, nil
 }
 
 func ipStringToUint32(ipStr string) uint32 {
