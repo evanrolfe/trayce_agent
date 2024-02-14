@@ -10,5 +10,6 @@
 #include "socket_kprobes.h"
 #include "openssl_uprobes.h"
 #include "go_tls_uprobes.h"
+#include "node_openssl_trace.h"
 
 char __license[] SEC("license") = "GPL";

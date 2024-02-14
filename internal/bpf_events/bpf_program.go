@@ -129,21 +129,18 @@ func (prog *BPFProgram) AttachToUProbe(funcName string, probeFuncName string, bi
 	// Get Offset
 	offset, err := helpers.SymbolToOffset(binaryPath, probeFuncName)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
+		return nil, err
 	}
 
 	// Attach Entry Probe
 	probeEntry, err := prog.BpfModule.GetProgram(funcName)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
+		return nil, err
 	}
 
 	bpfLink, err := probeEntry.AttachUprobe(-1, binaryPath, offset)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
+		return nil, err
 	}
 
 	return bpfLink, nil

@@ -35,6 +35,7 @@ type Container struct {
 	RootFSPath    string
 	LibSSLVersion int
 	LibSSLPath    string
+	NodePath      string
 }
 
 type LibSSL struct {
@@ -121,6 +122,7 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
 		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
 
+		nodePath := path.Join(containerFSPath, "/usr/bin/node")
 		libSSL := c.getLibSSL(containerId, containerFSPath)
 
 		containers[containerId] = Container{
@@ -130,6 +132,7 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 			RootFSPath:    containerFSPath,
 			LibSSLVersion: libSSL.Version,
 			LibSSLPath:    libSSL.Path,
+			NodePath:      nodePath,
 		}
 	}
 

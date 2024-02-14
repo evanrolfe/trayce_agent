@@ -273,7 +273,7 @@ func (stream *Stream) containerOpened(container docker.Container) {
 
 	// TODO: Find where libssl is and also send the version to ebpf
 	libSslPath := container.LibSSLPath
-	fmt.Println("Attaching uprobes to:", libSslPath)
+	fmt.Println("Attaching openssl uprobes to:", libSslPath)
 
 	// uprobe/SSL_read
 	link, _ := stream.bpfProg.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
@@ -298,6 +298,15 @@ func (stream *Stream) containerOpened(container docker.Container) {
 	links = append(links, link)
 	link, _ = stream.bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 	links = append(links, link)
+
+	// uprobe/node/
+	// TODO: Handle nodejs
+	// fmt.Println("Attaching node uprobes to:", container.NodePath)
+	// link, err := stream.bpfProg.AttachToUProbe("probe_entry_TLSWrap_memfn", "_ZN4node7TLSWrap8ClearOutE", container.NodePath)
+	// if err != nil {
+	// 	fmt.Println("[ERROR] AttachToUProbe(probe_entry_TLSWrap_memfn):", err)
+	// }
+	// links = append(links, link)
 
 	stream.containerUProbes[container.Id] = links
 }
