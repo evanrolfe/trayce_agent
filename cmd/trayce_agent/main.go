@@ -162,16 +162,18 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 	for {
 		// Recieve on the stream
 		resp, err := stream.Recv()
-		if err == io.EOF || resp == nil {
-			continue
-		}
 		if err != nil {
 			stream.CloseSend()
+
 			if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
 				return ErrServerUnavailable
-			} else {
-				return err
 			}
+			if err == io.EOF {
+				continue
+			}
+		}
+		if resp == nil {
+			continue
 		}
 		if resp != nil && resp.Type == "set_settings" {
 			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds)

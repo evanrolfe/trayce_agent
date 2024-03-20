@@ -90,6 +90,12 @@ b /usr/local/go/src/crypto/tls/conn.go:1365
 c
 print c.conn.fd.pfd.Sysfd
 
+### NodeJS
+Get symbols from nodejs (must use a later version, not the one from apt)
+
+`nm -D ./test/mega_server/node/node | grep _ZN4node6crypto7TLSWrap`
+
+
 ### Links
 https://www.linuxjournal.com/article/7905
 https://lwn.net/Articles/132196/
