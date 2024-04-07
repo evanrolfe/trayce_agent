@@ -114,20 +114,24 @@ func main() {
 			grpcClient := api.NewTrayceAgentClient(conn)
 
 			// Send flows from the socket flow channel to the GRPC client via FlowQueue (for batching + rate limiting)
+			ctx, cancel := context.WithCancel(context.Background())
 			flowQueue := api.NewFlowQueue(grpcClient, 100)
-			go flowQueue.Start(socketFlowChan)
+			flowQueue.Start(ctx, socketFlowChan)
 
 			// Start the main event loop which recieves commands from the GRPC CommandStream
 			// openCommandStreamAndAwait blocks until an error occurs
 			err = openCommandStreamAndAwait(grpcClient, listener, interruptChan)
 			if errors.Is(err, ErrStreamClosed) {
 				fmt.Println("[GRPC] StreamClosed:", err)
+				cancel()
 			} else if errors.Is(err, ErrServerUnavailable) {
 				fmt.Println("[GRPC] ServerUnavailable:", err)
+				cancel()
 				time.Sleep(time.Second)
 				continue
 			} else if err != nil {
 				fmt.Println("[ERROR]", err)
+				cancel()
 			}
 		}
 	}()
