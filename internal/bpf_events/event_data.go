@@ -107,6 +107,15 @@ func (se *DataEvent) Type() string {
 		return TypeIngress
 	case kWrite:
 		return TypeEgress
+	case kRecvfrom:
+		return TypeIngress
+	case kSendto:
+		return TypeEgress
+	case goTlsRead:
+		return TypeIngress
+	case goTlsWrite:
+		return TypeEgress
+
 	default:
 		return ""
 	}
@@ -122,10 +131,10 @@ func (se *DataEvent) Source() string {
 		return "kprobe/read"
 	case kWrite:
 		return "kprobe/write"
-	case kSendto:
-		return "kprobe/sendto"
 	case kRecvfrom:
 		return "kprobe/recvfrom"
+	case kSendto:
+		return "kprobe/sendto"
 	case goTlsRead:
 		return "uprobe/go_tls_read"
 	case goTlsWrite:

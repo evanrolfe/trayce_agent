@@ -69,6 +69,15 @@ func (flow *Flow) AddResponse(response []byte) {
 	flow.Response = response
 }
 
+// AddData adds bytes onto either the request or the response depending on which type the flow is
+func (flow *Flow) AddData(data []byte) {
+	if len(flow.Request) > 0 {
+		flow.Request = append(flow.Request, data...)
+	} else if len(flow.Response) > 0 {
+		flow.Response = append(flow.Response, data...)
+	}
+}
+
 func (flow *Flow) Debug() {
 	if flow.Request != nil {
 		fmt.Println("Request:")

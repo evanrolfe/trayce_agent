@@ -105,3 +105,43 @@ https://github.com/weaveworks/tcptracer-bpf
 https://github.com/yuuki/go-conntracer-bpf
 
 https://www.grant.pizza/blog/tracing-go-functions-with-ebpf-part-2/
+
+### Issues with Ruby HTTPS
+
+The FD is never set in Ruby HTTPS requests. One solution I tried was to set the fd to the pointer num of ssl which does work in correleating
+the SSL_Reads and SSL_Writes together, but it means we never get to know which connect event they relate to, which means we dont get the
+dest or src address.
+Instead what I have done now is to set the fd=0 and then in socket_map.go we just pick the first open socket from the map. This needs to be
+investigated further because if ruby lets us have multiple sockets open this would cause issues. We might want to use the thread idea because
+presumabely there can only be one open socket per thread in Ruby.
+
+```c
+    // Instead we use the address of the *ssl arg as a way of correleating SSL_reads with SSL_writes.
+    if (fd == -1) {
+        fd = ssl;
+
+        struct connect_event_t conn_event;
+        __builtin_memset(&conn_event, 0, sizeof(conn_event));
+        conn_event.eventtype = eConnect;
+        conn_event.timestamp_ns = bpf_ktime_get_ns();
+        conn_event.pid = pid;
+        conn_event.tid = current_pid_tgid;
+        conn_event.fd = fd;
+        conn_event.local = false;
+        conn_event.ssl = false;
+        conn_event.protocol = pUnknown;
+        conn_event.local_ip = 0;
+        bpf_probe_read_user(&conn_event.ip, sizeof(u32), &local_ip);
+        conn_event.port = 0; // We dont know the port
+
+        bpf_ringbuf_output(&data_events, &conn_event, sizeof(struct connect_event_t), 0);
+    }
+```
+
+### Go HTTP2 Tracing
+
+https://blog.px.dev/ebpf-http2-tracing/
+https://github.com/pixie-io/pixie-demos/tree/main/http2-tracing
+
+HPack Static Table:
+https://datatracker.ietf.org/doc/html/rfc7541#appendix-A

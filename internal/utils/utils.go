@@ -39,3 +39,13 @@ func CToGoString(c []byte) string {
 	}
 	return string(c[:n+1])
 }
+
+func PrintBytesHex(bytes []byte) {
+	for i, b := range bytes {
+		if i > 0 {
+			fmt.Print(", ")
+		}
+		fmt.Printf("0x%02X", b)
+	}
+	fmt.Println()
+}

@@ -363,6 +363,11 @@ func Test_agent_server(t *testing.T) {
 			verify: AssertFlows,
 		},
 		{
+			name:   "[Go] Server an HTTPS/2 request",
+			cmd:    exec.Command("curl", fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), "--insecure"),
+			verify: AssertFlows,
+		},
+		{
 			name:   "[Go] Server an HTTPS/1.1 request",
 			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests)),
 			verify: AssertFlows,

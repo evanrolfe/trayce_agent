@@ -59,7 +59,7 @@ var _ = Describe("FlowQueue", func() {
 
 			// FlowQueue
 			flowQueue = api.NewFlowQueue(grpcClient, batchSize)
-			go flowQueue.Start(inputChan)
+			go flowQueue.Start(context.Background(), inputChan)
 
 			// Create a context with a timeout
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

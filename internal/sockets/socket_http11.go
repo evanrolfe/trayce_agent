@@ -47,6 +47,20 @@ func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 	return socket
 }
 
+func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
+	socket := SocketHttp11{
+		LocalAddr:   unkownSocket.LocalAddr,
+		RemoteAddr:  unkownSocket.RemoteAddr,
+		Pid:         unkownSocket.Pid,
+		Fd:          unkownSocket.Fd,
+		SSL:         false,
+		dataBuf:     []byte{},
+		requestUuid: "",
+	}
+
+	return socket
+}
+
 func (socket *SocketHttp11) Key() string {
 	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
 }

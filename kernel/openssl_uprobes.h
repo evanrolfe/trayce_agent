@@ -27,7 +27,6 @@ int process_ssl_read_entry(struct pt_regs *ctx, bool is_ex_call) {
     }
 
     void *ssl = (void *)PT_REGS_PARM1(ctx);
-    bpf_printk("SSL_read ---------------------> ssl: %d, local IP: %d", ssl, local_ip);
     // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
     struct ssl_st ssl_info;
     int res = bpf_probe_read_user(&ssl_info, sizeof(ssl_info), ssl);
@@ -36,35 +35,14 @@ int process_ssl_read_entry(struct pt_regs *ctx, bool is_ex_call) {
     }
 
     u32 fd = get_fd_from_libssl(ssl_info, pid);
+    // bpf_printk("SSL_read ---------------------> fd: %d, local IP: %d", fd, local_ip);
 
     // ---------------------------------------------------------------------------------------------
     // Workaround: for incoming SSL requests to Ruby servers, for some reason bio_r.num is always = -1
-    // so we dont have access to the FD number. Instead we use the address of the *ssl arg as a way of correleating
-    // SSL_reads with SSL_writes.
+    // so we dont have access to the FD number.
     if (fd == -1) {
-        fd = ssl;
-
-        struct connect_event_t conn_event;
-        __builtin_memset(&conn_event, 0, sizeof(conn_event));
-        conn_event.eventtype = eConnect;
-        conn_event.timestamp_ns = bpf_ktime_get_ns();
-        conn_event.pid = pid;
-        conn_event.tid = current_pid_tgid;
-        conn_event.fd = fd;
-        conn_event.local = false;
-        conn_event.ssl = false;
-        conn_event.protocol = pUnknown;
-        conn_event.local_ip = 0;
-        bpf_probe_read_user(&conn_event.ip, sizeof(u32), &local_ip);
-        conn_event.port = 0; // We dont know the port
-
-        bpf_ringbuf_output(&data_events, &conn_event, sizeof(struct connect_event_t), 0);
+        fd = 0;
     }
-    // if (is_ex_call) {
-    //     bpf_printk("SSL_read_ex entry pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
-    // } else {
-    //     bpf_printk("SSL_read entry pid: %d,, current_pid_tgid %d, fd: %d", pid, current_pid_tgid, fd);
-    // }
 
     const char *buf = (const char *)PT_REGS_PARM2(ctx);
     struct active_buf active_buf_t;
@@ -146,7 +124,7 @@ int process_ssl_write_entry(struct pt_regs *ctx, bool is_ex_call) {
 
     // Workaround: see comment in process_ssl_read_entry()
     if (fd == -1) {
-        fd = ssl;
+        fd = 0;
     }
 
     const char *buf = (const char *)PT_REGS_PARM2(ctx);

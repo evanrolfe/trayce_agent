@@ -21,7 +21,7 @@ docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/d
 Then from within the container run:
 ```
 make
-./trayce_agent
+./trayce_agent -grpcaddr 192.168.0.20:50051
 ```
 
 ### Test

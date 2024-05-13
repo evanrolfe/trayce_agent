@@ -113,8 +113,8 @@ struct bio_st_v3_0 {
 struct ssl_st {
     __s32 version;
     struct unused* method;
-    struct bio_st_v1_1_1* rbio;  // used by SSL_read
-    struct bio_st_v1_1_1* wbio;  // used by SSL_write
+    struct bio_st_v3_0* rbio;  // used by SSL_read
+    struct bio_st_v3_0* wbio;  // used by SSL_write
 };
 
 struct active_buf {
@@ -267,6 +267,7 @@ static u32 get_fd_from_libssl(struct ssl_st ssl_info, u32 pid) {
             bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
         fd = bio_r.num;
+        bpf_printk("fd: %d", fd);
     }
 
     return fd;
