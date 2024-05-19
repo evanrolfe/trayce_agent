@@ -13,6 +13,7 @@ type SocketHttp2 struct {
 	RemoteAddr string
 	Protocol   string
 	Pid        uint32
+	Tid        uint32
 	Fd         uint32
 	SSL        bool
 
@@ -29,6 +30,7 @@ func NewSocketHttp2(event *bpf_events.ConnectEvent) SocketHttp2 {
 	socket := SocketHttp2{
 		LocalAddr:   "unknown",
 		Pid:         event.Pid,
+		Tid:         event.Tid,
 		Fd:          event.Fd,
 		SSL:         false,
 		requestUuid: "",
@@ -50,6 +52,7 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 		LocalAddr:   unkownSocket.LocalAddr,
 		RemoteAddr:  unkownSocket.RemoteAddr,
 		Pid:         unkownSocket.Pid,
+		Tid:         unkownSocket.Tid,
 		Fd:          unkownSocket.Fd,
 		SSL:         false,
 		requestUuid: "",

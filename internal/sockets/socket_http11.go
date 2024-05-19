@@ -21,6 +21,7 @@ type SocketHttp11 struct {
 	RemoteAddr string
 	Protocol   string
 	Pid        uint32
+	Tid        uint32
 	Fd         uint32
 	SSL        bool
 	// Stores the bytes being received from DataEvent until they form a full HTTP request or response
@@ -35,6 +36,7 @@ func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
 	socket := SocketHttp11{
 		LocalAddr:   "unknown",
 		Pid:         event.Pid,
+		Tid:         event.Tid,
 		Fd:          event.Fd,
 		SSL:         false,
 		dataBuf:     []byte{},
@@ -52,6 +54,7 @@ func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 		LocalAddr:   unkownSocket.LocalAddr,
 		RemoteAddr:  unkownSocket.RemoteAddr,
 		Pid:         unkownSocket.Pid,
+		Tid:         unkownSocket.Tid,
 		Fd:          unkownSocket.Fd,
 		SSL:         false,
 		dataBuf:     []byte{},

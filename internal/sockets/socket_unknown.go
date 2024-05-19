@@ -11,6 +11,7 @@ type SocketUnknown struct {
 	RemoteAddr string
 	Protocol   string
 	Pid        uint32
+	Tid        uint32
 	Fd         uint32
 	SSL        bool
 	// Stores
@@ -26,6 +27,7 @@ func NewSocketUnknown(event *bpf_events.ConnectEvent) SocketUnknown {
 	socket := SocketUnknown{
 		LocalAddr:   "unknown",
 		Pid:         event.Pid,
+		Tid:         event.Tid,
 		Fd:          event.Fd,
 		SSL:         false,
 		requestUuid: "",

@@ -39,6 +39,9 @@ Tracing:
 Trace library calls:
 `ltrace -x "@libssl.so.3" -o strace.txt curl https://www.pntest.io --http1.1`
 
+Trace libssl with rails (cd ror):
+`ltrace -f -x "@libssl.so.3" ruby run.rb s  -b 'ssl://0.0.0.0:3000?key=./config/ssl/localhost.key&cert=./config/ssl/localhost.crt'`
+
 Kernel args wrapped twice (https://stackoverflow.com/questions/69842674/cannot-read-arguements-properly-from-ebpf-kprobe)? Check:
 `$ sudo cat /boot/config-$(uname -r) | grep CONFIG_ARCH_HAS_SYSCALL_WRAPPER`
 
@@ -137,6 +140,10 @@ presumabely there can only be one open socket per thread in Ruby.
         bpf_ringbuf_output(&data_events, &conn_event, sizeof(struct connect_event_t), 0);
     }
 ```
+
+Update: it seems that the TID value is unreliable (connects happen on one TID, then data events on another, sometimes close on a third). However If I ignore the TID and only use PID-FD as the socket key then this all works because the as soon as new connection is opened, the previous one is closed.
+
+It seems to be that puma is calling connect() and SSL_read/write() on separate PIDs and threads, so theres no way to correleate. We should test with a different server and have a fail-safe where if we can correleate simply using the *ssl pointer to correleate requests/response but they won't get the src/dest addresses.
 
 ### Go HTTP2 Tracing
 

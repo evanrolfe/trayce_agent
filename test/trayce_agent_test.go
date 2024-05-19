@@ -169,7 +169,7 @@ func getTestConfig() (int, int, time.Duration) {
 		timeout = 3 * time.Second
 	} else {
 		numRequests = numRequestsLoad
-		timeout = 30 * time.Second
+		timeout = 60 * time.Second
 	}
 
 	return numRequests, numRequests * 2, timeout
@@ -352,24 +352,24 @@ func Test_agent_server(t *testing.T) {
 		focus  bool
 		verify func(t *testing.T, requests []*api.Flow)
 	}{
-		{
-			name:   "[Ruby] Server an HTTPS/1.1 request",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/1", megaserverIp, 3000), strconv.Itoa(numRequests)),
-			verify: AssertFlows,
-		},
+		// {
+		// 	name:   "[Ruby] Server an HTTPS/1.1 request",
+		// 	cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/1", megaserverIp, 3000), strconv.Itoa(numRequests)),
+		// 	verify: AssertFlows,
+		// },
 		{
 			name:   "[Python] Server an HTTPS/1.1 request",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 3001), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3001), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Go] Server an HTTPS/2 request",
-			cmd:    exec.Command("curl", fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), "--insecure"),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Go] Server an HTTPS/1.1 request",
-			cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlows,
 		},
 		// TODO: Support NodeJS

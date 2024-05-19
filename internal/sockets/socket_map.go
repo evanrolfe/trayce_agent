@@ -68,7 +68,7 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 		for key := range m.sockets {
 			keys = append(keys, key)
 		}
-
+		fmt.Println("==================> Data Event Keys:", keys)
 		// TODO: It needs to be investigated if this can happen with ruby, multiple open sockets in the same thread. If it can
 		// happen then this will be an issue because we won't know which open socket to chose from.
 		// See openssl_uprobes.h "workaround" comment for more details and also NOTES.md
@@ -84,7 +84,7 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 		socket, exists = m.GetSocket(event.Key())
 
 		if !exists {
-			fmt.Println("[SocketMap] not socket found for event")
+			fmt.Println("[SocketMap] no socket found for event with key:", event.Key())
 			return
 		}
 	}
@@ -117,7 +117,7 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 func (m *SocketMap) ProcessCloseEvent(event bpf_events.CloseEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	fmt.Println("[SocketMap] CloseEvent - deleting socket for:", event.Key())
+	// fmt.Println("[SocketMap] CloseEvent - deleting socket for:", event.Key())
 	delete(m.sockets, event.Key())
 }
 

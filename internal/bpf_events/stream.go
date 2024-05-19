@@ -173,7 +173,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 				// }
 				fmt.Println("\n[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
-				fmt.Print(hex.Dump(payload))
+				// fmt.Print(hex.Dump(payload))
 
 				socketInfo, err := getSocketInfo2(int(event.Pid), int(event.Fd))
 				if err != nil {
@@ -199,8 +199,14 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 					continue
 				}
 				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
-				fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
+				// fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
+				outputChan <- &event
+
+			} else if eventType == 2 {
+				event := CloseEvent{}
+				event.Decode(payload)
+				fmt.Println("\n[CloseEvent] PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 				outputChan <- &event
 
 				// DebugEvent

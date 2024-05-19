@@ -69,7 +69,7 @@ type myRequester struct {
 	conn  myConn
 }
 
-func (my *myRequester) makeRequest(url string, i int) {
+func (my *myRequester) makeRequest(url string, i int, http2 bool) {
 	// url = fmt.Sprintf("%s/%v", url, i)
 	fmt.Println("Requesting", url)
 
@@ -98,12 +98,16 @@ func (my *myRequester) makeRequest(url string, i int) {
 
 func main() {
 	var url, nStr string
-	if len(os.Args) < 3 {
+	var http2 bool
+	if len(os.Args) < 4 {
 		url = "https://www.synack.com"
 		nStr = "1"
+		http2 = false
 	} else {
 		url = os.Args[1]
 		nStr = os.Args[2]
+		http2Str := os.Args[3]
+		http2 = (http2Str == "http2")
 	}
 
 	n, err := strconv.Atoi(nStr)
@@ -116,8 +120,8 @@ func main() {
 	time.Sleep(200 * time.Millisecond)
 	requester := myRequester{hello: "world", fd: 123, conn: myConn{fd: 333333}}
 	for i := 0; i < n; i++ {
-		requester.makeRequest(url, i)
-		// time.Sleep(5 * time.Millisecond)
+		go requester.makeRequest(url, i, http2)
+		time.Sleep(100 * time.Millisecond)
 	}
 	time.Sleep(200 * time.Millisecond)
 }
