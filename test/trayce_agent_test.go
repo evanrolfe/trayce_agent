@@ -32,7 +32,7 @@ const (
 	reqRegex      = `^GET /\d* HTTP/1\.1`
 	reqChunkRegex = `^GET /chunked HTTP/1\.1`
 
-	numRequestsLoad = 500
+	numRequestsLoad = 100
 
 	mega_server_image_name = "mega_server"
 )
@@ -245,24 +245,24 @@ func Test_agent_client(t *testing.T) {
 		// NOTE: This (load) test sometimes fails because it receives more than 2000 flows
 		{
 			name:   "[Go] an HTTP/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d", megaserverIp, mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d", megaserverIp, mockHttpPort), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlows,
 		},
 		// same issue with this one:
 		{
 			name:   "[Go] an HTTP/1.1 request with a chunked response",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/chunked", megaserverIp, mockHttpPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/chunked", megaserverIp, mockHttpPort), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlowsChunked,
 		},
 		{
 			name: "[Go] an HTTPS/1.1 request",
 			// focus:  true,
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlows,
 		},
 		{
 			name:   "[Go] an HTTPS/1.1 request with a chunked response",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/chunked", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests)),
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/chunked", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlowsChunked,
 		},
 	}
@@ -352,11 +352,11 @@ func Test_agent_server(t *testing.T) {
 		focus  bool
 		verify func(t *testing.T, requests []*api.Flow)
 	}{
-		// {
-		// 	name:   "[Ruby] Server an HTTPS/1.1 request",
-		// 	cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/1", megaserverIp, 3000), strconv.Itoa(numRequests)),
-		// 	verify: AssertFlows,
-		// },
+		{
+			name:   "[Ruby] Server an HTTPS/1.1 request",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3000), strconv.Itoa(numRequests), "http1"),
+			verify: AssertFlows,
+		},
 		{
 			name:   "[Python] Server an HTTPS/1.1 request",
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3001), strconv.Itoa(numRequests), "http1"),

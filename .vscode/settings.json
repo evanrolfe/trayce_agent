@@ -2,6 +2,8 @@
     "files.associations": {
         "*.tf": "tf",
         "*.proto": "go",
+        "*.ui": "xml",
+        "*.qss": "css",
         "vmlinux.h": "c",
         "unistd.h": "c",
         "__node_handle": "c",
@@ -19,6 +21,9 @@
         "*.h": "c",
         "bpf_tracing.h": "c",
         "common.h": "c",
-        "numbers": "c"
+        "numbers": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c"
     }
 }

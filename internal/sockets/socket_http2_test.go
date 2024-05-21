@@ -104,7 +104,7 @@ var _ = Describe("SocketHTTP2", func() {
 		})
 	})
 
-	FContext("Receiving a Connect & Data events (GET request)", Ordered, func() {
+	Context("Receiving a Connect & Data events (GET request)", Ordered, func() {
 		flows := []*sockets.Flow{}
 
 		payloads := [][]byte{

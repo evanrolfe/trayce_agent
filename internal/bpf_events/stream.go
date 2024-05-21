@@ -198,7 +198,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 					fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
 					continue
 				}
-				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
+				fmt.Println("\n[DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr)
 				// fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
 				outputChan <- &event
@@ -206,7 +206,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 			} else if eventType == 2 {
 				event := CloseEvent{}
 				event.Decode(payload)
-				fmt.Println("\n[CloseEvent] PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+				// fmt.Println("\n[CloseEvent] PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 				outputChan <- &event
 
 				// DebugEvent

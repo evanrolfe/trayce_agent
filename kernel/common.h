@@ -43,7 +43,7 @@ struct data_event_t {
     char comm[TASK_COMM_LEN];
     u32 fd;
     s32 version;
-    u32 rand;
+    u64 rand;
     s32 data_len;
     char data[MAX_DATA_SIZE_OPENSSL];
 };
@@ -130,6 +130,7 @@ struct active_buf {
     int buf_len;
     bool socket_event;
     const struct ssl_st* ssl_info;
+    u64 ssl_ptr;                    // ssl_ptr is used when fd=0 to correleate requests with responses
 };
 
 struct offsets {
@@ -198,7 +199,7 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     event->pid = current_pid_tgid >> 32;
     event->tid = current_pid_tgid & kMask32b;
     event->fd = invalidFD;
-    event->rand = bpf_get_prandom_u32();
+    event->rand = 0;
 
     return event;
 }
@@ -215,7 +216,7 @@ static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
     // return pid | (u32)fd;
 }
 
-static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len) {
+static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len, u64 ssl_ptr) {
     int len = (int)PT_REGS_RC(ctx);
 
     if (len < 0) {
@@ -229,7 +230,7 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     event->type = type;
     event->fd = fd;
     event->version = version;
-    event->rand = bpf_get_prandom_u32();
+    event->rand = ssl_ptr;
 
     // This is a max function, but it is written in such a way to keep older BPF verifiers happy.
     if (ssl_ex_len > 0) {
@@ -240,8 +241,6 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     bpf_probe_read_user(event->data, event->data_len, buf);
     bpf_get_current_comm(&event->comm, sizeof(event->comm));
 
-    // bpf_printk("-----------> process_data() publishing to data_events, len: %d, rand: %d", event->data_len, event->rand);
-    // bpf_perf_event_output(ctx, &data_events, BPF_F_CURRENT_CPU, event, sizeof(struct data_event_t));
     bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
     return 0;
 }

@@ -31,7 +31,7 @@ type DataEvent struct {
 	Comm      [16]byte          `json:"Comm"`
 	Fd        uint32            `json:"fd"`
 	Version   int32             `json:"version"`
-	Rand      int32             `json:"version"`
+	SslPtr    int64             `json:"sslPtr"`
 	DataLen   int32             `json:"dataLen"`
 	Data      [MaxDataSize]byte `json:"data"`
 }
@@ -62,7 +62,7 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &se.Version); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.Rand); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &se.SslPtr); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.DataLen); err != nil {

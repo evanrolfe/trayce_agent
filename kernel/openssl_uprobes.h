@@ -35,7 +35,6 @@ int process_ssl_read_entry(struct pt_regs *ctx, bool is_ex_call) {
     }
 
     u32 fd = get_fd_from_libssl(ssl_info, pid);
-    // bpf_printk("SSL_read ---------------------> fd: %d, local IP: %d", fd, local_ip);
 
     // ---------------------------------------------------------------------------------------------
     // Workaround: for incoming SSL requests to Ruby servers, for some reason bio_r.num is always = -1
@@ -51,6 +50,7 @@ int process_ssl_read_entry(struct pt_regs *ctx, bool is_ex_call) {
     active_buf_t.version = ssl_info.version;
     active_buf_t.buf = buf;
     active_buf_t.ssl_info = (const struct ssl_st *)PT_REGS_PARM1(ctx);
+    active_buf_t.ssl_ptr = (u64)ssl;
 
     if (is_ex_call) {
         size_t *ssl_ex_len_ptr = (size_t *)PT_REGS_PARM4(ctx);
@@ -97,7 +97,7 @@ int process_ssl_read_return(struct pt_regs *ctx, bool is_ex_call) {
       conn_info->ssl = true;
     }
 
-    process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, ssl_ex_len);
+    process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, ssl_ex_len, active_buf_t->ssl_ptr);
   }
   bpf_map_delete_elem(&active_ssl_read_args_map, &current_pid_tgid);
 
@@ -113,9 +113,9 @@ int process_ssl_write_entry(struct pt_regs *ctx, bool is_ex_call) {
     if (pid_intercepted == NULL) {
     return 0;
     }
-    // bpf_printk("openssl uprobe/SSL_write_ex pid :%d\n", pid);
 
     void *ssl = (void *)PT_REGS_PARM1(ctx);
+
     // https://github.com/openssl/openssl/blob/OpenSSL_1_1_1-stable/crypto/bio/bio_local.h
     struct ssl_st ssl_info;
     bpf_probe_read_user(&ssl_info, sizeof(ssl_info), ssl);
@@ -133,6 +133,7 @@ int process_ssl_write_entry(struct pt_regs *ctx, bool is_ex_call) {
     active_buf_t.fd = fd;
     active_buf_t.version = ssl_info.version;
     active_buf_t.buf = buf;
+    active_buf_t.ssl_ptr = (u64)ssl;
 
   if (is_ex_call) {
     size_t *ssl_ex_len_ptr = (size_t *)PT_REGS_PARM4(ctx);
@@ -175,7 +176,7 @@ int process_ssl_write_return(struct pt_regs *ctx, bool is_ex_call) {
       conn_info->ssl = true;
     }
 
-    process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, ssl_ex_len);
+    process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, ssl_ex_len, active_buf_t->ssl_ptr);
   }
   bpf_map_delete_elem(&active_ssl_write_args_map, &current_pid_tgid);
   return 0;

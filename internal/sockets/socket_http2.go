@@ -87,7 +87,7 @@ func (socket *SocketHttp2) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
 
 // TODO: Have a structure for handling the frame header + payload?
 func (socket *SocketHttp2) ProcessDataEvent(event *bpf_events.DataEvent) {
-	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " rand:", event.Rand)
+	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr)
 	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 	// utils.PrintBytesHex(event.Payload())
 

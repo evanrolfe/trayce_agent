@@ -421,63 +421,6 @@ var _ = Describe("SocketMap", func() {
 		})
 	})
 
-	// Commented out because I'm not sure why we would just receive a response with no request
-	// FContext("Receiving a Connect, Data (response headers), Data (response body)", Ordered, func() {
-	// 	var socketsMap *sockets.SocketMap
-	// 	var flows []*sockets.Flow
-
-	// 	BeforeAll(func() {
-	// 		socketsMap = sockets.NewSocketMap()
-	// 		socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
-	// 			flows = append(flows, &flowFromCb)
-	// 		})
-	// 		socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
-	// 			Pid:  123,
-	// 			Tid:  123,
-	// 			Fd:   5,
-	// 			Ip:   2130706433,
-	// 			Port: 80,
-	// 		})
-	// 		payload1 := convertSliceToArray(event14Payload)
-	// 		payload2 := convertSliceToArray(event15Payload)
-
-	// 		socketsMap.ProcessDataEvent(bpf_events.DataEvent{
-	// 			Pid:      123,
-	// 			Tid:      123,
-	// 			Fd:       5,
-	// 			DataType: 3, // kprobe/write
-	// 			Data:     payload1,
-	// 			DataLen:  int32(len(payload1)),
-	// 		})
-	// 		socketsMap.ProcessDataEvent(bpf_events.DataEvent{
-	// 			Pid:      123,
-	// 			Tid:      123,
-	// 			Fd:       5,
-	// 			DataType: 3, // kprobe/write
-	// 			Data:     payload2,
-	// 			DataLen:  int32(len(payload2)),
-	// 		})
-	// 	})
-
-	// 	It("returns one flow for the response", func() {
-	// 		Expect(flows).To(HaveLen(1))
-
-	// 		flow := flows[0]
-	// 		Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
-	// 		Expect(flow.L4Protocol).To(Equal("tcp"))
-	// 		Expect(flow.L7Protocol).To(Equal("http"))
-	// 		Expect(flow.Pid).To(Equal(123))
-	// 		Expect(flow.Fd).To(Equal(5))
-	// 	})
-
-	// 	It("the first flow contains an HTTP request", func() {
-	// 		flow := flows[0]
-	// 		expectedPayload := append(event14Payload, event15Payload...)
-
-	// 		Expect(flow.Response).To(Equal(expectedPayload))
-	// 	})
-	// })
-
 	Context("Receiving a Connect, Data (HTTP2)", Ordered, func() {
 		var socketsMap *sockets.SocketMap
 		var flows []*sockets.Flow
@@ -566,6 +509,73 @@ var _ = Describe("SocketMap", func() {
 			Expect(lines[2]).To(Equal("content-length: 13"))
 			Expect(lines[3]).To(Equal("date: Mon, 06 May 2024 16:32:41 GMT"))
 			Expect(lines[5]).To(Equal("Hello world."))
+		})
+	})
+
+	Context("Receiving multiple Connects, Data (request), Data (response) events with FD=0", Ordered, func() {
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
+
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+				Pid:  123,
+				Tid:  455,
+				Fd:   6,
+				Ip:   2130706433,
+				Port: 80,
+			})
+			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+				Pid:  123,
+				Tid:  456,
+				Fd:   5,
+				Ip:   2130706433,
+				Port: 80,
+			})
+			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+				Pid:      123,
+				Tid:      457,
+				Fd:       0,
+				SslPtr:   111,
+				DataType: 1,
+				Data:     convertSliceToArray(event1Payload),
+				DataLen:  int32(len(event1Payload)),
+			})
+			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+				Pid:      123,
+				Tid:      458,
+				Fd:       0,
+				SslPtr:   111,
+				DataType: 0,
+				Data:     convertSliceToArray(event2Payload),
+				DataLen:  int32(len(event2Payload)),
+			})
+		})
+
+		It("returns two flows", func() {
+			Expect(flows).To(HaveLen(2))
+
+			for _, flow := range flows {
+				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("http"))
+				Expect(flow.Pid).To(Equal(123))
+				Expect(flow.Fd).To(Equal(111))
+			}
+		})
+
+		It("the first flow contains an HTTP request", func() {
+			flow := flows[0]
+			Expect(flow.Request).To(Equal(event1Payload))
+			Expect(flow.Response).To(BeNil())
+		})
+
+		It("the second flow contains an HTTP request and response", func() {
+			Expect(flows[1].Request).To(BeNil())
+			Expect(flows[1].Response).To(Equal(event2Payload))
 		})
 	})
 })
