@@ -1,0 +1,130 @@
+package test
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"testing"
+	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
+	"github.com/evanrolfe/trayce_agent/api"
+	"github.com/stretchr/testify/assert"
+)
+
+const (
+	reqRegex               = `^GET /\d* HTTP/1\.1`
+	reqChunkRegex          = `^GET /chunked HTTP/1\.1`
+	numRequestsLoad        = 100
+	mega_server_image_name = "mega_server"
+)
+
+func AssertFlows(t *testing.T, flows []*api.Flow) {
+	for _, flow := range flows {
+		assert.Greater(t, len(flows[0].LocalAddr), 0)
+		assert.Greater(t, len(flows[0].RemoteAddr), 0)
+
+		if len(flow.Request) > 0 {
+			assert.Regexp(t, regexp.MustCompile(reqRegex), string(flows[0].Request))
+			assert.Equal(t, "tcp", flows[0].L4Protocol)
+			assert.Equal(t, "http", flows[0].L7Protocol)
+		} else if len(flow.Response) > 0 {
+			assert.Equal(t, "HTTP/1.1 200 OK", string(flows[1].Response[0:15]))
+			assert.Equal(t, "tcp", flows[1].L4Protocol)
+			assert.Equal(t, "http", flows[1].L7Protocol)
+		}
+	}
+}
+
+func AssertFlowsChunked(t *testing.T, flows []*api.Flow) {
+	for _, flow := range flows {
+		assert.Greater(t, len(flows[0].LocalAddr), 0)
+		assert.Greater(t, len(flows[0].RemoteAddr), 0)
+
+		if len(flow.Request) > 0 {
+			assert.Regexp(t, regexp.MustCompile(reqChunkRegex), string(flows[0].Request))
+			assert.Equal(t, "tcp", flows[0].L4Protocol)
+			assert.Equal(t, "http", flows[0].L7Protocol)
+		} else if len(flow.Response) > 0 {
+			assert.Equal(t, "HTTP/1.1 200 OK", string(flows[1].Response[0:15]))
+			assert.Equal(t, "tcp", flows[1].L4Protocol)
+			assert.Equal(t, "http", flows[1].L7Protocol)
+		}
+	}
+}
+
+func getMegaServer(t *testing.T) (string, string) {
+	// Find the mega_server container
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		panic(err)
+	}
+
+	megaserverId := ""
+	megaserverIp := ""
+	containers, err := dockerClient.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, container := range containers {
+		if container.Image == mega_server_image_name {
+			megaserverId = container.ID
+			for _, network := range container.NetworkSettings.Networks {
+				megaserverIp = network.IPAddress
+			}
+
+			fmt.Println("Found mega_server:", megaserverIp, "ID:", megaserverId)
+		}
+	}
+
+	// Check we have a mega server
+	if megaserverId == "" {
+		t.Errorf("No mega server found! See README.md to start it.")
+		assert.NotEmpty(t, megaserverId)
+		return "", ""
+	}
+
+	return megaserverId, megaserverIp
+}
+
+func getTestConfig() (int, int, time.Duration) {
+	// Load test or single test?
+	var numRequests int
+	var timeout time.Duration
+	if testing.Short() {
+		numRequests = 1
+		timeout = 3 * time.Second
+	} else {
+		numRequests = numRequestsLoad
+		timeout = 60 * time.Second
+	}
+
+	return numRequests, numRequests * 2, timeout
+}
+
+// TODO: Make this verify that it has all the correct requests
+// func hasAllFlows(flows []*api.Flow) {
+// 	collectedMatches := []int{}
+
+// 	for _, f := range flows {
+// 		if f.Request == nil {
+// 			continue
+// 		}
+
+// 		req := string(f.Request[0:8])
+// 		pattern := `GET /(\d+)`
+// 		re := regexp.MustCompile(pattern)
+// 		matches := re.FindStringSubmatch(req)
+
+// 		if len(matches) >= 2 {
+// 			// The number is in the first capture group (index 1)
+// 			number := matches[1]
+// 			n, _ := strconv.Atoi(number)
+// 			collectedMatches = append(collectedMatches, n)
+// 		}
+// 	}
+
+// 	fmt.Println(collectedMatches)
+// }
