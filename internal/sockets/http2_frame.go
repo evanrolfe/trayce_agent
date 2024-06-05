@@ -81,6 +81,7 @@ func (f *Http2Frame) Headers() ([]hpack.HeaderField, error) {
 	return hf, nil
 }
 
+// HeadersText converts this to an HTTP1.1 formatted message
 func (f *Http2Frame) HeadersText() string {
 	if !f.Complete() || f.Type() != 1 {
 		return ""
@@ -92,12 +93,12 @@ func (f *Http2Frame) HeadersText() string {
 	headersText := ""
 	if psuedoHeaders[":method"] != "" {
 		// Build the HTTP request line
-		headersText += fmt.Sprintf("%s %s HTTP/2\n", psuedoHeaders[":method"], psuedoHeaders[":path"])
-		headersText += fmt.Sprintf("host: %s\n", psuedoHeaders[":authority"])
+		headersText += fmt.Sprintf("%s %s HTTP/2\r\n", psuedoHeaders[":method"], psuedoHeaders[":path"])
+		headersText += fmt.Sprintf("host: %s\r\n", psuedoHeaders[":authority"])
 
 	} else if psuedoHeaders[":status"] != "" {
 		// Build the HTTP response line
-		headersText += fmt.Sprintf("HTTP/2 %s\n", psuedoHeaders[":status"])
+		headersText += fmt.Sprintf("HTTP/2 %s\r\n", psuedoHeaders[":status"])
 	}
 
 	// Add the remaining non-psuedo headers
@@ -111,10 +112,9 @@ func (f *Http2Frame) HeadersText() string {
 			continue
 		}
 
-		headersText += fmt.Sprintf("%s: %s\n", header.Name, header.Value)
+		headersText += fmt.Sprintf("%s: %s\r\n", header.Name, header.Value)
 	}
 
-	// TODO: There is already a \n before this, do we need that or not?
 	headersText += "\r\n"
 
 	return headersText
