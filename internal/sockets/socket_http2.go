@@ -2,7 +2,6 @@ package sockets
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
@@ -22,8 +21,6 @@ type SocketHttp2 struct {
 
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
-	// When a request is observed, this value is set, when the response comes, we send this value back with the response
-	requestUuid string
 }
 
 func NewSocketHttp2(event *bpf_events.ConnectEvent) SocketHttp2 {
@@ -33,7 +30,6 @@ func NewSocketHttp2(event *bpf_events.ConnectEvent) SocketHttp2 {
 		Tid:         event.Tid,
 		Fd:          event.Fd,
 		SSL:         false,
-		requestUuid: "",
 		streams:     map[uint32]*Http2Stream{},
 		frameBuffer: map[string][]byte{},
 	}
@@ -55,7 +51,6 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 		Tid:         unkownSocket.Tid,
 		Fd:          unkownSocket.Fd,
 		SSL:         false,
-		requestUuid: "",
 		streams:     map[uint32]*Http2Stream{},
 		frameBuffer: map[string][]byte{},
 	}
@@ -87,8 +82,7 @@ func (socket *SocketHttp2) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
 
 // TODO: Have a structure for handling the frame header + payload?
 func (socket *SocketHttp2) ProcessDataEvent(event *bpf_events.DataEvent) {
-	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr)
-	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
+	// fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr, "\n", hex.Dump(event.Payload()))
 	// utils.PrintBytesHex(event.Payload())
 
 	// Ignore the http2 magic string (PRI * SM...)
@@ -103,13 +97,12 @@ func (socket *SocketHttp2) ProcessDataEvent(event *bpf_events.DataEvent) {
 	frame := NewHttp2Frame(frameBytes)
 
 	if !frame.Complete() {
-		fmt.Println("[SocketHttp2] incomplete frame")
 		socket.frameBuffer[event.Type()] = frameBytes
 		return
 	}
 
-	// fmt.Println("[SocketHttp2] frame received, type: ", frame.Type(), " length:", frame.Length(), " stream:", frame.StreamID())
-	// fmt.Print(hex.Dump(frame.raw))
+	// fmt.Println("[SocketHttp2] complete frame received, type: ", frame.Type(), " length:", frame.Length(), " stream:", frame.StreamID())
+	// fmt.Println(frame.Payload())
 
 	// We have a complete frame so can clear the buffer now
 	socket.clearFrameBuffer(event.Type())

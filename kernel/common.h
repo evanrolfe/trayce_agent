@@ -5,7 +5,7 @@
 // -----------------------------------------------------------------------------
 #define TASK_COMM_LEN 16
 #define PATH_MAX_LEN 256
-#define MAX_DATA_SIZE_OPENSSL 1024 * 4
+#define MAX_DATA_SIZE_OPENSSL 4096
 #define MAX_DATA_SIZE_MYSQL 256
 #define MAX_DATA_SIZE_POSTGRES 256
 #define MAX_DATA_SIZE_BASH 256

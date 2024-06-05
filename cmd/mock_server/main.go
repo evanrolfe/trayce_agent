@@ -7,7 +7,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 )
+
+// Build:
+// go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
 
 // Generate key pair with:
 //
@@ -48,6 +52,7 @@ func makeRequest() {
 func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 	// Handlers
 	http.HandleFunc("/", serverHandler)
+	http.HandleFunc("/large", serverHandlerLarge)
 	http.HandleFunc("/chunked", serverHandlerChunked)
 	http.HandleFunc("/chunked/{n:[0-9]+}", serverHandlerChunked)
 
@@ -80,6 +85,23 @@ func serverHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 
 	w.Write([]byte("Hello world.\n"))
+}
+
+// GET /large
+// returns a large response (with Content-Length header)
+func serverHandlerLarge(w http.ResponseWriter, req *http.Request) {
+	fmt.Println("GET /large")
+	// makeRequest()
+	w.Header().Set("Content-Type", "text/plain")
+
+	responseBody := []byte{}
+
+	for i := 0; i < 1000; i++ {
+		part := strconv.Itoa(i) + ", "
+		responseBody = append(responseBody, []byte(part)...)
+	}
+	responseBody = append(responseBody, []byte("\n")...)
+	w.Write(responseBody)
 }
 
 // GET /chunked

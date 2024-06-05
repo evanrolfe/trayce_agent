@@ -62,14 +62,6 @@ func (f *Http2Frame) Complete() bool {
 	return len(f.Payload()) == int(f.Length())
 }
 
-func (f *Http2Frame) HasCompleteHeaders() bool {
-	return f.Complete() && f.Type() == frameTypeHeaders && f.Flags().EndHeaders
-}
-
-func (f *Http2Frame) HasCompleteBody() bool {
-	return f.Complete() && f.Type() == frameTypeData && f.Flags().EndStream
-}
-
 func (f *Http2Frame) Append(raw []byte) {
 	f.raw = append(f.raw, raw...)
 }

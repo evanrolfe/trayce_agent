@@ -24,10 +24,10 @@ func (stream *Http2Stream) ProcessFrame(frame *Http2Frame) *Flow {
 		return nil
 	}
 
-	if frame.HasCompleteHeaders() {
+	if frame.Complete() && frame.Type() == frameTypeHeaders {
 		return stream.processHeaderFrame(frame)
 
-	} else if frame.HasCompleteBody() {
+	} else if frame.Complete() && frame.Type() == frameTypeData {
 		return stream.processDataFrame(frame)
 	}
 
@@ -65,6 +65,9 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 		)
 	}
 
+	// TODO: For requests with large headers split over multiple frames, this should add the header data to the activeFlow
+	// just as it does in processDataFrame() and check the END_HEADERS flag to know when its complete
+
 	// If there is no body in the request then send the flow back
 	if frame.Flags().EndStream {
 		flow := *stream.activeFlow
@@ -80,8 +83,6 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 }
 
 func (stream *Http2Stream) processDataFrame(frame *Http2Frame) *Flow {
-	// TODO: This should check the END_STREAM flag to know if the headers are actually complete
-
 	if stream.activeFlow == nil {
 		fmt.Println("ERROR: received http2 data frame but no active Flow")
 		return nil
@@ -89,14 +90,18 @@ func (stream *Http2Stream) processDataFrame(frame *Http2Frame) *Flow {
 
 	stream.activeFlow.AddData(frame.Payload())
 
-	// Send the flow back
-	flow := *stream.activeFlow
-	stream.clearActiveFlow()
-	if len(flow.Response) > 0 {
-		stream.clearActiveUuid()
+	if frame.Flags().EndStream {
+		// Send the flow back
+		flow := *stream.activeFlow
+		stream.clearActiveFlow()
+		if len(flow.Response) > 0 {
+			stream.clearActiveUuid()
+		}
+
+		return &flow
 	}
 
-	return &flow
+	return nil
 }
 
 func (stream *Http2Stream) clearActiveFlow() {

@@ -134,7 +134,7 @@ var _ = Describe("SocketHTTP2", func() {
 					Pid:      123,
 					Tid:      123,
 					Fd:       5,
-					DataType: 1,
+					DataType: 6, // go_tls_read
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
 				})
@@ -157,6 +157,106 @@ var _ = Describe("SocketHTTP2", func() {
 			lines := strings.Split(string(flow.Request), "\n")
 			Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			fmt.Print(lines)
+		})
+	})
+
+	Context("Receiving a Connect & Data events (GET request) with a large response payload", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		payloads := [][]byte{
+			{0x50, 0x52, 0x49, 0x20, 0x2A, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2F, 0x32, 0x2E, 0x30, 0x0D, 0x0A, 0x0D, 0x0A, 0x53, 0x4D, 0x0D, 0x0A, 0x0D, 0x0A},
+			{0x00, 0x00, 0x12, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00},
+			{0x00, 0x03, 0x00, 0x00, 0x00, 0x64, 0x00, 0x04, 0x02, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00},
+			{0x00, 0x00, 0x04, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00},
+			{0x01, 0xFF, 0x00, 0x01},
+			{0x00, 0x00, 0x1F, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01},
+			{0x82, 0x84, 0x87, 0x41, 0x8B, 0x0B, 0xA2, 0x5C, 0x2E, 0xAE, 0x05, 0xD9, 0xB8, 0xD0, 0x44, 0xCF, 0x7A, 0x88, 0x25, 0xB6, 0x50, 0xC3, 0xAB, 0xBC, 0x15, 0xC1, 0x53, 0x03, 0x2A, 0x2F, 0x2A},
+		}
+
+		// Response payloads
+		event1Payload, _ := hexDumpToBytes(http2Event1)
+		event2Payload, _ := hexDumpToBytes(http2Event2)
+		event3Payload, _ := hexDumpToBytes(http2Event3)
+		event4Payload, _ := hexDumpToBytes(http2Event4)
+
+		responsePayloads := [][]byte{
+			event1Payload,
+			event2Payload,
+			event3Payload,
+			event4Payload,
+		}
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp2(&bpf_events.ConnectEvent{
+				Pid:  123,
+				Tid:  123,
+				Fd:   5,
+				Ip:   2130706433,
+				Port: 80,
+			})
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			// Process request payloads
+			for _, payload := range payloads {
+				socket.ProcessDataEvent(&bpf_events.DataEvent{
+					Pid:      123,
+					Tid:      123,
+					Fd:       5,
+					DataType: 6, // go_tls_read
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+
+			// Process response payloads
+			for _, payload := range responsePayloads {
+				socket.ProcessDataEvent(&bpf_events.DataEvent{
+					Pid:      123,
+					Tid:      123,
+					Fd:       5,
+					DataType: 7, // go_tls_write
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+		})
+
+		It("returns a request flow", func() {
+			Expect(flows).To(HaveLen(2))
+
+			flow := flows[0]
+			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("http2"))
+			Expect(flow.Pid).To(Equal(123))
+			Expect(flow.Fd).To(Equal(5))
+
+			Expect(flow.Request).ToNot(BeNil())
+			Expect(flow.Response).To(BeNil())
+
+			lines := strings.Split(string(flow.Request), "\n")
+			Expect(lines[0]).To(Equal("GET / HTTP/2"))
+			fmt.Print(lines)
+		})
+
+		It("returns a response flow", func() {
+			flow := flows[1]
+			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("http2"))
+			Expect(flow.Pid).To(Equal(123))
+			Expect(flow.Fd).To(Equal(5))
+
+			Expect(flow.Request).To(BeNil())
+			// Expect(flow.Response).To(BeNil())
+
+			// lines := strings.Split(string(flow.Request), "\n")
+			// Expect(lines[0]).To(Equal("GET / HTTP/2"))
+			// fmt.Print(lines)
+			fmt.Println("====================>BODY:\n" + string(flow.Response))
 		})
 	})
 })
