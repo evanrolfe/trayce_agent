@@ -74,7 +74,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\n")
+			lines := strings.Split(string(flow.Request), "\r\n")
 			Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			Expect(lines[1]).To(Equal("host: 172.17.0.3:4123"))
 			Expect(lines[2]).To(Equal("user-agent: curl/7.81.0"))
@@ -95,12 +95,12 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
 
-			lines := strings.Split(string(flow.Response), "\n")
+			lines := strings.Split(string(flow.Response), "\r\n")
 			Expect(lines[0]).To(Equal("HTTP/2 200"))
 			Expect(lines[1]).To(Equal("content-type: text/plain"))
 			Expect(lines[2]).To(Equal("content-length: 13"))
 			Expect(lines[3]).To(Equal("date: Mon, 06 May 2024 16:32:41 GMT"))
-			Expect(lines[5]).To(Equal("Hello world."))
+			Expect(lines[5]).To(Equal("Hello world.\n"))
 		})
 	})
 
@@ -154,7 +154,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\n")
+			lines := strings.Split(string(flow.Request), "\r\n")
 			Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			fmt.Print(lines)
 		})
@@ -237,7 +237,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\n")
+			lines := strings.Split(string(flow.Request), "\r\n")
 			Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			fmt.Print(lines)
 		})
@@ -253,10 +253,81 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).To(BeNil())
 			// Expect(flow.Response).To(BeNil())
 
-			// lines := strings.Split(string(flow.Request), "\n")
+			// lines := strings.Split(string(flow.Request), "\r\n")
 			// Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			// fmt.Print(lines)
-			fmt.Println("====================>BODY:\n" + string(flow.Response))
+		})
+	})
+
+	Context("Receiving a Connect & Data events (POST request) with a large request payload", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		event5Payload, _ := hexDumpToBytes(http2Event5)
+		event6Payload, _ := hexDumpToBytes(http2Event6)
+		event7Payload, _ := hexDumpToBytes(http2Event7)
+		event8Payload, _ := hexDumpToBytes(http2Event8)
+		event9Payload, _ := hexDumpToBytes(http2Event9)
+		event10Payload, _ := hexDumpToBytes(http2Event10)
+		event11Payload, _ := hexDumpToBytes(http2Event11)
+		event12Payload, _ := hexDumpToBytes(http2Event12)
+		event13Payload, _ := hexDumpToBytes(http2Event13)
+		event14Payload, _ := hexDumpToBytes(http2Event14)
+
+		requestPayloads := [][]byte{
+			event5Payload,
+			event6Payload,
+			event7Payload,
+			event8Payload,
+			event9Payload,
+			event10Payload,
+			event11Payload,
+			event12Payload,
+			event13Payload,
+			event14Payload,
+		}
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp2(&bpf_events.ConnectEvent{
+				Pid:  123,
+				Tid:  123,
+				Fd:   5,
+				Ip:   2130706433,
+				Port: 80,
+			})
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			// Process request payloads
+			for _, payload := range requestPayloads {
+				socket.ProcessDataEvent(&bpf_events.DataEvent{
+					Pid:      123,
+					Tid:      123,
+					Fd:       5,
+					DataType: 6, // go_tls_read
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+		})
+
+		It("returns a request flow", func() {
+			Expect(flows).To(HaveLen(1))
+
+			flow := flows[0]
+			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("http2"))
+			Expect(flow.Pid).To(Equal(123))
+			Expect(flow.Fd).To(Equal(5))
+
+			Expect(flow.Request).ToNot(BeNil())
+			Expect(flow.Response).To(BeNil())
+
+			lines := strings.Split(string(flow.Request), "\r\n")
+			Expect(lines[0]).To(Equal("POST / HTTP/2"))
+			fmt.Print(lines)
 		})
 	})
 })

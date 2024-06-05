@@ -199,7 +199,7 @@ var _ = Describe("SocketMap", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\n")
+			lines := strings.Split(string(flow.Request), "\r\n")
 			Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			Expect(lines[1]).To(Equal("host: 172.17.0.3:4123"))
 			Expect(lines[2]).To(Equal("user-agent: curl/7.81.0"))
@@ -220,12 +220,12 @@ var _ = Describe("SocketMap", func() {
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
 
-			lines := strings.Split(string(flow.Response), "\n")
+			lines := strings.Split(string(flow.Response), "\r\n")
 			Expect(lines[0]).To(Equal("HTTP/2 200"))
 			Expect(lines[1]).To(Equal("content-type: text/plain"))
 			Expect(lines[2]).To(Equal("content-length: 13"))
 			Expect(lines[3]).To(Equal("date: Mon, 06 May 2024 16:32:41 GMT"))
-			Expect(lines[5]).To(Equal("Hello world."))
+			Expect(lines[5]).To(Equal("Hello world.\n"))
 		})
 	})
 })
