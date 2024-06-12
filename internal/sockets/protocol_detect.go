@@ -14,7 +14,28 @@ var (
 
 func detectProtocol(raw []byte) string {
 	// HTTP1.1
-	if string(raw[0:3]) == "GET" { // TODO: Add the rest of the methods
+	if len(raw) >= 3 && string(raw[0:3]) == "GET" {
+		return HTTP
+	}
+	if len(raw) >= 4 && string(raw[0:4]) == "HEAD" {
+		return HTTP
+	}
+	if len(raw) >= 4 && string(raw[0:4]) == "POST" {
+		return HTTP
+	}
+	if len(raw) >= 5 && string(raw[0:5]) == "PATCH" {
+		return HTTP
+	}
+	if len(raw) >= 3 && string(raw[0:3]) == "PUT" {
+		return HTTP
+	}
+	if len(raw) >= 6 && string(raw[0:6]) == "DELETE" {
+		return HTTP
+	}
+	if len(raw) >= 7 && string(raw[0:7]) == "OPTIONS" {
+		return HTTP
+	}
+	if len(raw) >= 5 && string(raw[0:5]) == "TRACE" {
 		return HTTP
 	}
 
