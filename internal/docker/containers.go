@@ -76,6 +76,9 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 		pids, err := c.getPidsForContainer(containerId)
 		if err != nil {
 			fmt.Println("[ERROR] getPidsForContainer()", containerId, ", err:", err)
+			// If this fails then we assume that its because the container has been stopped so we remove it, it would be
+			// nice if docker gave us proper errors so we could differentiate between container stopped and other errors
+			c.removeContainer(containerId)
 			continue
 		}
 
@@ -137,10 +140,6 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 	}
 
 	return containers
-}
-
-func (c *Containers) GetIdFromPid(pid int) string {
-	return ""
 }
 
 func (c *Containers) SetContainers(containerIds []string) {
@@ -243,4 +242,15 @@ func (c *Containers) getLibSSL(containerId string, rootFSPath string) LibSSL {
 func checkFileExists(filePath string) bool {
 	_, error := os.Stat(filePath)
 	return !errors.Is(error, os.ErrNotExist)
+}
+
+func (c *Containers) removeContainer(containerId string) {
+	newcontainerIds := c.containerIds[:0] // Create a new slice with zero length but same capacity as the original
+	for _, value := range c.containerIds {
+		if value != containerId {
+			newcontainerIds = append(newcontainerIds, value)
+		}
+	}
+
+	c.containerIds = newcontainerIds
 }
