@@ -8,10 +8,15 @@ docker run -v ./:/app -t trayce_build
 ```
 2. Build and run the final distributable docker container:
 ```
-docker build . -t trayce_agent
-docker run --pid=host --privileged -it trayce_agent -grpcaddr 192.168.0.1:50051
+docker build . -t traycer/trayce_agent:0.0.1
+docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it traycer/trayce_agent:0.0.1 -grpcaddr 192.168.0.1:50051
 ```
 Replace `192.168.0.1:50051` with the address of your GRPC server for receiving network flows.
+
+### Publish
+```
+docker push traycer/trayce_agent:0.0.1
+```
 
 ### Develop
 Run the bash on the build container with a volume so you can make changes, rebuild and run trayce_agent easily:
