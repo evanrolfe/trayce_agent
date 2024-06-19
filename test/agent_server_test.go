@@ -66,6 +66,11 @@ func Test_agent_server(t *testing.T) {
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlows,
 		},
+		{
+			name:   "[Go] Server an HTTP/1.1 request",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
+			verify: AssertFlows,
+		},
 		// TODO: Support NodeJS
 		// {
 		// 	name:   "[Node] Server an HTTPS/1.1 request",

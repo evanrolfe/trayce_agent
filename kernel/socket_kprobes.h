@@ -492,7 +492,7 @@ int probe_ret_write(struct pt_regs *ctx) {
 
   struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
 
-  if (active_buf_t != NULL && active_buf_t->socket_event) {
+  if (active_buf_t != NULL) {  // Could check socket_event==true here if security_socket_sendmsg krpobe was enabled
     const char *buf;
     u32 fd = active_buf_t->fd;
     s32 version = active_buf_t->version;
@@ -592,7 +592,7 @@ int probe_ret_read(struct pt_regs *ctx) {
 
   struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
 
-  if (active_buf_t != NULL && active_buf_t->socket_event) {
+  if (active_buf_t != NULL) { // Could check socket_event==true here if security_socket_recvmsg krpobe was enabled
     // dog_debug(pid, current_pid_tgid, bytes_read, "read");
     active_buf_t->buf_len = bytes_read;
 
@@ -639,6 +639,9 @@ int probe_ret_read(struct pt_regs *ctx) {
 
   return 0;
 }
+
+// NOTE: security_socket_sendmsg and security_socket_recvmsg are not available on linuxkit (used by docker desktop for mac)
+// so these are not used currently. But they can be used to filter the send/recv calls intercepted.
 
 // This probe is used to identify when a call to write() comes from a network socket
 SEC("kprobe/security_socket_sendmsg")

@@ -97,11 +97,11 @@ func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath strin
 	bpfProg.AttachToKProbe("probe_read", funcName)
 	bpfProg.AttachToKRetProbe("probe_ret_read", funcName)
 
+	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
 	// kprobe security_socket_sendmsg
-	bpfProg.AttachToKProbe("probe_entry_security_socket_sendmsg", "security_socket_sendmsg")
-
+	// bpfProg.AttachToKProbe("probe_entry_security_socket_sendmsg", "security_socket_sendmsg")
 	// kprobe security_socket_recvmsg
-	bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
+	// bpfProg.AttachToKProbe("probe_entry_security_socket_recvmsg", "security_socket_recvmsg")
 
 	return &Stream{
 		bpfProg:          bpfProg,
