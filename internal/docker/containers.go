@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
 
@@ -67,9 +68,9 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 			continue
 		}
 
-		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
-		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
+		ip := ipStringToUint32(extractIP(container))
 
+		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
 		libSSL := c.getLibSSL(containerId, containerFSPath)
 
 		// Get the container's proccess ids
@@ -122,9 +123,9 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 			continue
 		}
 
-		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
-		ip := ipStringToUint32(container.NetworkSettings.IPAddress)
+		ip := ipStringToUint32(extractIP(container))
 
+		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
 		nodePath := path.Join(containerFSPath, "/usr/bin/node")
 		libSSL := c.getLibSSL(containerId, containerFSPath)
 
@@ -253,4 +254,20 @@ func (c *Containers) removeContainer(containerId string) {
 	}
 
 	c.containerIds = newcontainerIds
+}
+
+func extractIP(container types.ContainerJSON) string {
+	if container.NetworkSettings.IPAddress != "" {
+		return container.NetworkSettings.IPAddress
+	}
+
+	if len(container.NetworkSettings.Networks) > 0 {
+		// If there are multiple networks, just pick the first one
+		for _, network := range container.NetworkSettings.Networks {
+			return network.IPAddress
+			break
+		}
+	}
+
+	return "0.0.0.0"
 }
