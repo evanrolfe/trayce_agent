@@ -150,21 +150,18 @@ func (prog *BPFProgram) AttachToURetProbe(funcName string, probeFuncName string,
 	// Get Offset
 	offset, err := helpers.SymbolToOffset(binaryPath, probeFuncName)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
+		return nil, fmt.Errorf("helpers.SymbolToOffset() for: %v, error: %v", binaryPath, err)
 	}
 
 	// Attach Return Probe
 	probeReturn, err := prog.BpfModule.GetProgram(funcName)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
+		return nil, fmt.Errorf("BpfModule.GetProgram() for: %v, error: %v", binaryPath, err)
 	}
 
 	bpfLink, err := probeReturn.AttachURetprobe(-1, binaryPath, offset)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
+		return nil, fmt.Errorf("AttachURetprobe() for: %v, error: %v", binaryPath, err)
 	}
 	return bpfLink, nil
 }
@@ -182,20 +179,20 @@ func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, pr
 	prog.uprobes[uprobeKey] = []*bpf.BPFLink{}
 
 	// Get Offset
-	gOffsets := go_offsets.GetSymbolOffset(binaryPath, probeFuncName)
-	if gOffsets == nil {
-		return fmt.Errorf("error fetching GetSymbolOffset for:", binaryPath)
+	gOffsets, err := go_offsets.GetSymbolOffset(binaryPath, probeFuncName)
+	if err != nil {
+		return fmt.Errorf("GetSymbolOffset() for %v, error: %v", binaryPath, err)
 	}
 
 	// Attach Entry Probe
 	probeEntry, err := prog.BpfModule.GetProgram(funcName)
 	if err != nil {
-		return fmt.Errorf("error getting ebpf entry probe for:", binaryPath)
+		return fmt.Errorf("getting ebpf entry probe for: %v, error: %v", binaryPath, err)
 	}
 
 	linkEntry, err := probeEntry.AttachUprobe(-1, binaryPath, uint32(gOffsets.Enter))
 	if err != nil {
-		return fmt.Errorf("error attaching ebpf entry probe for:", binaryPath)
+		return fmt.Errorf("attaching ebpf entry probe for: %v, error: %v", binaryPath, err)
 	}
 
 	prog.uprobes[uprobeKey] = append(prog.uprobes[uprobeKey], linkEntry)
@@ -210,12 +207,12 @@ func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, pr
 	for _, exitOffset := range gOffsets.Exits {
 		probeExit, err := prog.BpfModule.GetProgram(exitFuncName)
 		if err != nil {
-			return fmt.Errorf("error getting ebpf exit probe for:", binaryPath)
+			return fmt.Errorf("getting ebpf exit probe for: %v error: %v", binaryPath, err)
 		}
 
 		linkExit, err := probeExit.AttachUprobe(-1, binaryPath, uint32(exitOffset))
 		if err != nil {
-			return fmt.Errorf("error attaching ebpf exit probe for:", binaryPath)
+			return fmt.Errorf("attaching ebpf exit probe for: %v error: %v", binaryPath, err)
 		}
 
 		prog.uprobes[uprobeKey] = append(prog.uprobes[uprobeKey], linkExit)

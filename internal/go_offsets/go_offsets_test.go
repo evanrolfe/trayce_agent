@@ -13,7 +13,7 @@ var _ = Describe("GoOffsets", func() {
 		var extOffset *GoExtendedOffset
 
 		BeforeAll(func() {
-			extOffset = GetSymbolOffset(binPath, "crypto/tls.(*Conn).Read")
+			extOffset, _ = GetSymbolOffset(binPath, "crypto/tls.(*Conn).Read")
 		})
 
 		It("returns the enter and exit offsets", func() {

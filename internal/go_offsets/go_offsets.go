@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 
 	"github.com/Masterminds/semver"
@@ -82,34 +81,32 @@ func checkGoVersion(fpath string, versionOffset uint64) (bool, string, error) {
 	return goVersionConstraint.Check(goVersion), goVersionStr, nil
 }
 
-func GetSymbolOffset(filePath string, symbolName string) *GoExtendedOffset {
+func GetSymbolOffset(filePath string, symbolName string) (*GoExtendedOffset, error) {
+	fmt.Println("GetSymbolOffset()", filePath, "/", symbolName)
 	elfFile, err := elf.Open(filePath)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("elf.Open() for %v, err: %v", elfFile, err)
 	}
 
 	textSection := elfFile.Section(".text")
 	if textSection == nil {
-		err = fmt.Errorf("No text section")
-		return nil
+		return nil, fmt.Errorf("No text section")
 	}
 
 	// extract the raw bytes from the .text section
 	var textSectionData []byte
 	textSectionData, err = textSection.Data()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("error textSection.Data(): %v", err)
 	}
 	textSectionLen := uint64(len(textSectionData) - 1)
 
 	symbols, err := elfFile.Symbols()
 	if err != nil {
 		if errors.Is(err, elf.ErrNoSymbols) {
-			fmt.Println("ERROR no symbols section of bin", filePath)
-			return nil
+			return nil, fmt.Errorf("ERROR no symbols section of bin for: %v", filePath)
 		}
-		fmt.Println("ERROR failed to read symbols of bin", filePath)
-		return nil
+		return nil, fmt.Errorf("elfFile.Symbols() for %v, error: %v", filePath, err)
 	}
 
 	extendedOffset := GoExtendedOffset{Enter: uint64(0), Exits: []uint64{}}
@@ -138,8 +135,8 @@ func GetSymbolOffset(filePath string, symbolName string) *GoExtendedOffset {
 			}
 		}
 	}
-
-	return &extendedOffset
+	fmt.Println("GetSymbolOffset() done")
+	return &extendedOffset, nil
 }
 
 func GetStructMemberOffset(filePath string, structName string, memberName string) (uint64, error) {
