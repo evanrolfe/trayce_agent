@@ -104,6 +104,7 @@ func (m *SocketMap) getSocket(key string) (SocketI, bool) {
 func (m *SocketMap) getOrCreateSocket(event bpf_events.DataEvent) SocketI {
 	socket, exists := m.getSocket(event.Key())
 	if exists {
+		fmt.Println("Found socket:", socket.Key())
 		return socket
 	}
 

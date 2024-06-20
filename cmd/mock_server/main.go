@@ -1,11 +1,10 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 )
@@ -24,29 +23,29 @@ const (
 )
 
 func makeRequest() {
-	url := "http://www.pntest.io"
+	url := "http://trayce.dev"
 	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
+		// Transport: &http.Transport{
+		// 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		// },
 		// CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		// 	return http.ErrUseLastResponse
 		// },
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("error http.NewRequest: %s\n", err)
+	}
 	req.Header.Set("Accept-Encoding", "identity")
 	res, err := client.Do(req)
-
 	if err != nil {
 		fmt.Printf("error making http request: %s\n", err)
-		os.Exit(1)
 	}
-	fmt.Printf("response status code: %d\n", res.StatusCode)
+	fmt.Printf("Response status code: %d\n", res.StatusCode)
 
-	// body, _ := io.ReadAll(res.Body)
-	// fmt.Println(string(body))
-
+	body, _ := io.ReadAll(res.Body)
+	fmt.Println("Response body:", string(body))
 }
 
 func StartMockServer(httpPort int, httpsPort int, keyDir string) {
@@ -55,6 +54,7 @@ func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 	http.HandleFunc("/large", serverHandlerLarge)
 	http.HandleFunc("/chunked", serverHandlerChunked)
 	http.HandleFunc("/chunked/{n:[0-9]+}", serverHandlerChunked)
+	http.HandleFunc("/second", serverHandlerSecond)
 
 	// HTTP server
 	go func() {
@@ -121,6 +121,17 @@ func serverHandlerChunked(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "Chunk #%d\n", i)
 		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
 	}
+}
+
+// GET /second
+// makes another request before returning the response
+func serverHandlerSecond(w http.ResponseWriter, req *http.Request) {
+	fmt.Println("GET /second")
+
+	makeRequest()
+	w.Header().Set("Content-Type", "text/plain")
+
+	w.Write([]byte("Hello world (second request made).\n"))
 }
 
 func main() {

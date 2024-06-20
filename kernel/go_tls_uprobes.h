@@ -59,6 +59,13 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     int64_t fd;
     bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
 
+    // Mark the connection as SSL
+    u64 key = gen_pid_fd(current_pid_tgid, fd);
+    struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+    if (conn_info != NULL) {
+        conn_info->ssl = true;
+    }
+
     // Handling buffer split
     s32 remaining_buf_len = buf_len;
     const char *current_str_ptr = str_ptr;
@@ -134,6 +141,13 @@ static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi)
     int64_t fd;
     bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
 
+    // Mark the connection as SSL
+    u64 key = gen_pid_fd(current_pid_tgid, fd);
+    struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+    if (conn_info != NULL) {
+        conn_info->ssl = true;
+    }
+
     // Create the event
     struct active_go_buf active_buf_t;
     __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
@@ -144,7 +158,6 @@ static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi)
 
     active_buf_t.buf = buf;
     bpf_probe_read(&active_buf_t.buf_len, sizeof(u32), &len_ptr);
-    bpf_printk("BUF_LEN: %d", active_buf_t.buf_len);
 
     bpf_map_update_elem(&active_go_read_args_map, &pid_go, &active_buf_t, BPF_ANY);
 
@@ -222,7 +235,6 @@ SEC("uprobe/gotls_write_register")
 int probe_entry_go_tls_write(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    bpf_printk("=====> Enter: gotls/write pid: %d", pid);
 
     gotls_write(ctx, true);
 

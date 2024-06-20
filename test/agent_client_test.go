@@ -113,6 +113,12 @@ func Test_agent_client(t *testing.T) {
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/chunked", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlowsChunked,
 		},
+		{
+			name:   "[Go] an HTTPS/2 request",
+			focus:  true,
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d", megaserverIp, mockHttpsPort), strconv.Itoa(numRequests), "http2"),
+			verify: AssertFlows,
+		},
 	}
 
 	hasFocus := false

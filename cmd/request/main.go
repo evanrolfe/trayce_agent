@@ -8,6 +8,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 // go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
@@ -69,25 +71,36 @@ type myRequester struct {
 	conn  myConn
 }
 
-func (my *myRequester) makeRequest(url string, i int, http2 bool) {
+func (my *myRequester) makeRequest(url string, i int, ishttp2 bool) {
 	// url = fmt.Sprintf("%s/%v", url, i)
 	fmt.Println("Requesting", url)
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-		// CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		// 	return http.ErrUseLastResponse
-		// },
+	var client *http.Client
+	if ishttp2 {
+		// Setup HTTP/2 transport
+		client = &http.Client{
+			Transport: &http2.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+	} else {
+		// Setup HTTP/1.1 transport
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("error constructing http request: %s\n", err)
+		os.Exit(1)
+	}
 	req.Header.Set("Accept-Encoding", "identity")
 	res, err := client.Do(req)
-
 	if err != nil {
-		fmt.Printf("error making http request: %s\n", err)
+		fmt.Printf("error sending http request: %s\n", err)
 		os.Exit(1)
 	}
 	fmt.Printf("response status code: %d\n", res.StatusCode)

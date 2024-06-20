@@ -205,15 +205,14 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
 }
 
 // >> 32 - PID
-// << 32 - TID
+// << 32 - TGID
 static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
     u32 pid = current_pid_tgid >> 32;
-    u32 tid = current_pid_tgid & 0xFFFFFFFF;
     u32 tgid = current_pid_tgid << 32;
 
     // I'm not sure why this works, but it works.
     return pid | tgid;
-    // return pid | (u32)fd;
+    // return tgid | (u32)fd;
 }
 
 static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len, u64 ssl_ptr) {
