@@ -32,7 +32,6 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     if (buf_len == 0) {
         return 0;
     }
-    bpf_printk("gotls/write:%d buf_len: %d", pid, buf_len);
 
     // Get the offset values from user space
     u64 fd_offset = 16;
@@ -105,7 +104,7 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
         remaining_buf_len -= event->data_len;
     }
 
-    bpf_printk("gotls/write: %d total_len: %d end", pid, buf_len);
+    bpf_printk("gotls/write: PID: %d FD: %d", pid, fd);
 }
 
 static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi) {
@@ -160,6 +159,7 @@ static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi)
     bpf_probe_read(&active_buf_t.buf_len, sizeof(u32), &len_ptr);
 
     bpf_map_update_elem(&active_go_read_args_map, &pid_go, &active_buf_t, BPF_ANY);
+    bpf_printk("gotls/read: PID: %d FD: %d", pid, fd);
 
     return 0;
 }
