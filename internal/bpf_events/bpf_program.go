@@ -171,6 +171,9 @@ func (prog *BPFProgram) AttachToURetProbe(funcName string, probeFuncName string,
 // TODO: Should probably just accept a Proc struct instead to avoid primitive obsession
 func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, binaryPath string, pid uint32) error {
 	// If there are already GoUprobes attached to this binary+func, then dont re-attach thm
+	// TODO: This is getting this error:
+	// concurrent map read and map write
+	// Error bpfProg.AttachGoUProbes() read: GetSymbolOffset() for /proc/7947/root/usr/bin/dash, error: ERROR no symbols section of bin for: /proc/7947/root/usr/bin/dash
 	uprobeKey := fmt.Sprintf("%d:%s:%s", pid, binaryPath, probeFuncName)
 	_, exists := prog.uprobes[uprobeKey]
 	if exists {

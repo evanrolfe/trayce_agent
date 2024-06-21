@@ -147,8 +147,9 @@ func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
 }
 
 func (socket *SocketHttp11) sendFlowBack(flow Flow) {
-	fmt.Printf("[Flow] %s - Local: %s, Remote: %s, UUID: %s\n", "", flow.LocalAddr, flow.RemoteAddr, flow.UUID)
-	// fmt.Println(flow.UUID)
+	blackOnYellow := "\033[30;43m"
+	reset := "\033[0m"
+	fmt.Printf("%s[Flow]%s Local: %s, Remote: %s, UUID: %s\n", blackOnYellow, reset, flow.LocalAddr, flow.RemoteAddr, flow.UUID)
 	flow.Debug()
 
 	for _, callback := range socket.flowCallbacks {

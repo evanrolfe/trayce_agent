@@ -169,10 +169,13 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 				event := ConnectEvent{}
 				event.Decode(payload)
 
+				cyan := "\033[36m"
+				reset := "\033[0m"
+
 				// if event.Fd < 10 {
 				// 	fmt.Println("[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
 				// }
-				fmt.Println("\n[ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
+				fmt.Println(string(cyan), "[ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
 				// fmt.Print(hex.Dump(payload))
 
 				socketInfo, err := getSocketInfo2(int(event.Pid), int(event.Fd))
@@ -206,7 +209,10 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 			} else if eventType == 2 {
 				event := CloseEvent{}
 				event.Decode(payload)
-				// fmt.Println("\n[CloseEvent] PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+				red := "\033[31m"
+				reset := "\033[0m"
+
+				fmt.Println(string(red), "[CloseEvent]", string(reset), " PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
 				outputChan <- &event
 
 				// DebugEvent
