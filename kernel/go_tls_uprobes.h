@@ -25,6 +25,7 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     s32 buf_len;
     const char *str_ptr;
     void *len_ptr;
+    bpf_printk("gotls/write: PID: %d START", pid);
 
     str_ptr = (void *)go_get_argument(ctx, is_register_abi, 2);
     len_ptr = (void *)go_get_argument(ctx, is_register_abi, 3);

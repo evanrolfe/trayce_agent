@@ -13,6 +13,7 @@ import (
 type BPFProgram struct {
 	BpfModule     *bpf.Module
 	uprobes       map[string][]*bpf.BPFLink
+	kprobes       map[string]*bpf.BPFLink
 	hooksAndOpts  map[*bpf.TcHook]*bpf.TcOpts
 	interfaceName string
 }
@@ -23,6 +24,7 @@ func NewBPFProgram(bpfModule *bpf.Module, interfaceName string) (*BPFProgram, er
 		BpfModule:     bpfModule,
 		uprobes:       map[string][]*bpf.BPFLink{},
 		hooksAndOpts:  map[*bpf.TcHook]*bpf.TcOpts{},
+		kprobes:       map[string]*bpf.BPFLink{},
 		interfaceName: interfaceName,
 	}
 
@@ -101,11 +103,13 @@ func (prog *BPFProgram) AttachToKProbe(funcName string, probeFuncName string) er
 		os.Exit(-1)
 	}
 
-	_, err = probeEntry.AttachKprobe(probeFuncName)
+	bpfLink, err := probeEntry.AttachKprobe(probeFuncName)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
+	key := fmt.Sprintf("%s-%s", funcName, probeFuncName)
+	prog.kprobes[key] = bpfLink
 	return nil
 }
 
@@ -117,11 +121,13 @@ func (prog *BPFProgram) AttachToKRetProbe(funcName string, probeFuncName string)
 		os.Exit(-1)
 	}
 
-	_, err = probeEntry.AttachKretprobe(probeFuncName)
+	bpfLink, err := probeEntry.AttachKretprobe(probeFuncName)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
+	key := fmt.Sprintf("%s-%s", funcName, probeFuncName)
+	prog.kprobes[key] = bpfLink
 	return nil
 }
 
@@ -179,6 +185,7 @@ func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, pr
 	if exists {
 		return nil
 	}
+	// TODO: Why does this need to be an array?
 	prog.uprobes[uprobeKey] = []*bpf.BPFLink{}
 
 	// Get Offset
@@ -228,6 +235,7 @@ func (prog *BPFProgram) DetachGoUProbes(probeFuncName string, binaryPath string,
 	uprobeKey := fmt.Sprintf("%d:%s:%s", pid, binaryPath, probeFuncName)
 	bpfLinks, exists := prog.uprobes[uprobeKey]
 	if !exists {
+		fmt.Println("No uprobe found for:", probeFuncName, "/", binaryPath)
 		return nil
 	}
 
@@ -241,12 +249,39 @@ func (prog *BPFProgram) DetachGoUProbes(probeFuncName string, binaryPath string,
 	return nil
 }
 
+func (prog *BPFProgram) DetachAllGoUProbes() error {
+	for key, bpfLinks := range prog.uprobes {
+		for _, bpfLink := range bpfLinks {
+			fmt.Println("	Destroying Go Uprobe for", key)
+			err := bpfLink.Destroy()
+			if err != nil {
+				return fmt.Errorf("bpfLink.Destroy() failed for", key, "err:", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (prog *BPFProgram) DetachAllKProbes() error {
+	for key, kprobe := range prog.kprobes {
+		fmt.Println("	Destroying kprobe for", key)
+		err := kprobe.Destroy()
+		if err != nil {
+			return fmt.Errorf("kprobe.Destroy() err:", err)
+		}
+	}
+	return nil
+}
+
 func (prog *BPFProgram) LoadProgram() error {
 	return prog.BpfModule.BPFLoadObject()
 }
 
 func (prog *BPFProgram) Close() {
 	fmt.Println("Dettaching TC program(s)...")
+	prog.DetachAllGoUProbes()
+	prog.DetachAllKProbes()
 	prog.BpfModule.Close()
 	// defer prog.BpfModule.Close()
 

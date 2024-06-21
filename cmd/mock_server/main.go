@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -23,16 +22,13 @@ const (
 )
 
 func makeRequest() {
-	url := "http://trayce.dev"
+	url := "https://www.example.com"
 	client := &http.Client{
-		// Transport: &http.Transport{
-		// 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		// },
-		// CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		// 	return http.ErrUseLastResponse
-		// },
+		Transport: &http.Transport{
+			// This line forces http1.1:
+			// TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
+		},
 	}
-
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Printf("error http.NewRequest: %s\n", err)
@@ -44,8 +40,8 @@ func makeRequest() {
 	}
 	fmt.Printf("Response status code: %d\n", res.StatusCode)
 
-	body, _ := io.ReadAll(res.Body)
-	fmt.Println("Response body:", string(body))
+	// body, _ := io.ReadAll(res.Body)
+	// fmt.Println("Response body:", string(body))
 }
 
 func StartMockServer(httpPort int, httpsPort int, keyDir string) {
