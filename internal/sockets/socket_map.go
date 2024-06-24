@@ -54,8 +54,7 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 	if event.Fd == 0 && event.SslPtr > 0 {
 		event.Fd = uint32(event.SslPtr)
 	}
-	// red := "\033[31m"
-	green := "\033[32m"
+	green := "\033[92m"
 	reset := "\033[0m"
 
 	fmt.Println(string(green), "[DataEvent]", string(reset), " Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr)

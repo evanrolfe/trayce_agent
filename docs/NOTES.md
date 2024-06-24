@@ -98,6 +98,10 @@ Get symbols from nodejs (must use a later version, not the one from apt)
 
 `nm -D ./test/mega_server/node/node | grep _ZN4node6crypto7TLSWrap`
 
+### Go TLS
+
+IMPORTANT: If you dont read the entire response body in Go, i.e. `body, _ := io.ReadAll(resp.Body)`, this this
+Read() function will not be called on the body!!!
 
 ### Links
 https://www.linuxjournal.com/article/7905
@@ -108,6 +112,13 @@ https://github.com/weaveworks/tcptracer-bpf
 https://github.com/yuuki/go-conntracer-bpf
 
 https://www.grant.pizza/blog/tracing-go-functions-with-ebpf-part-2/
+
+https://aquasecurity.github.io/tracee/latest/docs/install/docker/
+docker run --name tracee -it --rm \
+  --pid=host --cgroupns=host --privileged \
+  -v /etc/os-release:/etc/os-release-host:ro \
+  -v /var/run:/var/run:ro \
+  aquasec/tracee:latest
 
 ### Issues with Ruby HTTPS
 

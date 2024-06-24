@@ -209,7 +209,7 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 			} else if eventType == 2 {
 				event := CloseEvent{}
 				event.Decode(payload)
-				red := "\033[31m"
+				red := "\033[35m"
 				reset := "\033[0m"
 
 				fmt.Println(string(red), "[CloseEvent]", string(reset), " PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)

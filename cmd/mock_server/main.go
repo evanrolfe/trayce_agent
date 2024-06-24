@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -12,7 +14,7 @@ import (
 // go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
 
 // Generate key pair with:
-//
+// '
 // openssl genrsa -out server.key 2048
 // openssl ecparam -genkey -name secp384r1 -out server.key
 // openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
@@ -26,7 +28,7 @@ func makeRequest() {
 	client := &http.Client{
 		Transport: &http.Transport{
 			// This line forces http1.1:
-			// TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
+			TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
 		},
 	}
 	req, err := http.NewRequest("GET", url, nil)
@@ -40,8 +42,8 @@ func makeRequest() {
 	}
 	fmt.Printf("Response status code: %d\n", res.StatusCode)
 
-	// body, _ := io.ReadAll(res.Body)
-	// fmt.Println("Response body:", string(body))
+	body, _ := io.ReadAll(res.Body)
+	fmt.Println("Response body:", string(body))
 }
 
 func StartMockServer(httpPort int, httpsPort int, keyDir string) {

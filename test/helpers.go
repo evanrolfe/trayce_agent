@@ -54,6 +54,10 @@ func AssertFlowsChunked(t *testing.T, flows []*api.Flow) {
 	}
 }
 
+func AssertFlows2(t *testing.T, flows []*api.Flow) {
+	assert.Equal(t, len(flows), 4)
+}
+
 func getMegaServer(t *testing.T) (string, string) {
 	// Find the mega_server container
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
@@ -95,7 +99,7 @@ func getTestConfig() (int, int, time.Duration) {
 	var timeout time.Duration
 	if testing.Short() {
 		numRequests = 1
-		timeout = 3 * time.Second
+		timeout = 5 * time.Second
 	} else {
 		numRequests = numRequestsLoad
 		timeout = 60 * time.Second

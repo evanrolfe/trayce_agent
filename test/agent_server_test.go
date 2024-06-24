@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/evanrolfe/trayce_agent/api"
-	"github.com/stretchr/testify/assert"
 )
 
 // Test_agent_client tests requests made from this container to another server, it listens to the server
@@ -23,11 +23,11 @@ func Test_agent_server(t *testing.T) {
 	grpcHandler.SetContainerIds([]string{megaserverId})
 
 	// Start trayce_agent
-	cmd := exec.Command("/app/trayce_agent")
+	trayceAgent := exec.Command("/app/trayce_agent")
 
 	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
+	trayceAgent.Stdout = &stdoutBuf
+	trayceAgent.Stderr = &stderrBuf
 
 	// Wait for trayce_agent to start, timeout of 5secs:
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -35,7 +35,7 @@ func Test_agent_server(t *testing.T) {
 	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
 
 	// Trigger the command and then wait for the context to complete
-	cmd.Start()
+	trayceAgent.Start()
 	<-ctx.Done()
 
 	// Run tests
@@ -61,6 +61,12 @@ func Test_agent_server(t *testing.T) {
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
 			verify: AssertFlows,
 		},
+		// TODO: Need to update the verification code to handle this endpoint
+		// {
+		// 	name:   "[Go] Server an HTTPS/2 request to /second",
+		// 	cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/second", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
+		// 	verify: AssertFlows2,
+		// },
 		{
 			name:   "[Go] Server an HTTPS/1.1 request",
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http1"),
@@ -126,6 +132,8 @@ func Test_agent_server(t *testing.T) {
 				// This is necessary in a loadtest incase more than the expected num requests are sent
 				time.Sleep(2 * time.Second)
 			}
+			trayceAgent.Process.Signal(syscall.SIGTERM)
+			time.Sleep(1 * time.Second)
 
 			if testing.Verbose() {
 				fmt.Println("*-------------------------------------------------------------------------* Output Start:")
@@ -134,7 +142,7 @@ func Test_agent_server(t *testing.T) {
 			}
 
 			// Verify the result
-			assert.Equal(t, expectedNumFlows, len(requests))
+			tt.verify(t, requests)
 		})
 	}
 }

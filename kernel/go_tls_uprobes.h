@@ -25,7 +25,6 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     s32 buf_len;
     const char *str_ptr;
     void *len_ptr;
-    bpf_printk("gotls/write: PID: %d START", pid);
 
     str_ptr = (void *)go_get_argument(ctx, is_register_abi, 2);
     len_ptr = (void *)go_get_argument(ctx, is_register_abi, 3);
@@ -98,23 +97,22 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
         }
 
         bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
-        bpf_printk("gotls/write: %d len: %d", pid, event->data_len);
+        // bpf_printk("gotls/write: %d len: %d", pid, event->data_len);
 
         // Move the pointer and reduce the remaining length
         current_str_ptr += event->data_len;
         remaining_buf_len -= event->data_len;
     }
-
-    bpf_printk("gotls/write: PID: %d FD: %d", pid, fd);
 }
 
+// IMPORTANT: If you dont read the entire response body in Go, i.e. `body, _ := io.ReadAll(resp.Body)`, this this
+// Read() function will not be called on the body!!!
 static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = current_pid_tgid >> 32;
 
     __u64 goroutine_id = GOROUTINE(ctx);
     __u64 pid_go = pid << 32 | goroutine_id | 0x8000000000000000;
-    // bpf_printk("read: go routine id: %d", goroutine_id);
 
     // Get the offset values from user space
     u64 fd_offset = 16;
@@ -141,6 +139,8 @@ static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi)
     int64_t fd;
     bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
 
+    bpf_printk("gotls/read: PID: %d, fd: %d, go id: %d", pid, fd, pid_go);
+
     // Mark the connection as SSL
     u64 key = gen_pid_fd(current_pid_tgid, fd);
     struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
@@ -156,11 +156,11 @@ static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi)
     const char *buf = (void *)go_get_argument(ctx, is_register_abi, 2);
     void *len_ptr = (void *)go_get_argument(ctx, is_register_abi, 3);
 
+    // TODO: No point trying to read the buf_len here
     active_buf_t.buf = buf;
     bpf_probe_read(&active_buf_t.buf_len, sizeof(u32), &len_ptr);
 
     bpf_map_update_elem(&active_go_read_args_map, &pid_go, &active_buf_t, BPF_ANY);
-    bpf_printk("gotls/read: PID: %d FD: %d", pid, fd);
 
     return 0;
 }
@@ -187,6 +187,7 @@ static __always_inline int gotls_read_ex(struct pt_regs *ctx, bool is_register_a
         __u32 buf_len;
         void *len_ptr = (void *)go_get_argument(ctx, is_register_abi, 1);
         bpf_probe_read(&buf_len, sizeof(u32), &len_ptr);
+        bpf_printk("gotls/read exit: PID: %d buf_len: %d, fd: %d, go id: %d", pid, buf_len, fd, pid_go);
 
         // Handling buffer split
         const char *str_ptr = active_buf_t->buf;
