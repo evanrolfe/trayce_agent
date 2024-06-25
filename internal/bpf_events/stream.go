@@ -28,6 +28,7 @@ const (
 	libSslPath1       = "/usr/lib/x86_64-linux-gnu/libssl.so.1.1"
 )
 
+// TODO: Stream is probably not an appropriate name for this anymore
 type Stream struct {
 	bpfProg    *BPFProgram
 	containers *docker.Containers
@@ -334,6 +335,9 @@ func (stream *Stream) containerClosed(container docker.Container) {
 		fmt.Println("	Destroying BPFLink:", link)
 		link.Destroy()
 	}
+
+	// TODO: This needs to dettach only the uprobes for this container
+	stream.bpfProg.DetachAllGoUProbes()
 }
 
 func (stream *Stream) procOpened(proc docker.Proc) {
@@ -370,15 +374,19 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	stream.libSSLVersionsMap.Update(pidUnsafe, versionUnsafe)
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
-	fmt.Println("Proc attaching Go Uprobes", proc.Pid, proc.ExecPath)
 	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath, proc.Pid)
 	if err != nil {
 		fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
+		return
 	}
+	fmt.Println("Attached Go Uprobes for crypto/tls.(*Conn).Write", proc.Pid, proc.ExecPath)
+
 	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath, proc.Pid)
 	if err != nil {
 		fmt.Println("Error bpfProg.AttachGoUProbes() read:", err)
+		return
 	}
+	fmt.Println("Attached Go Uprobes for crypto/tls.(*Conn).Read", proc.Pid, proc.ExecPath)
 }
 
 func (stream *Stream) procClosed(proc docker.Proc) {

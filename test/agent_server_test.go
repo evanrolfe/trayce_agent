@@ -59,7 +59,7 @@ func Test_agent_server(t *testing.T) {
 		{
 			name:   "[Go] Server an HTTPS/2 request",
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
-			verify: AssertFlows,
+			verify: AssertFlowsHttp2,
 		},
 		// TODO: Need to update the verification code to handle this endpoint
 		// {
