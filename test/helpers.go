@@ -103,7 +103,7 @@ func getMegaServer(t *testing.T) (string, string) {
 
 	// Check we have a mega server
 	if megaserverId == "" {
-		t.Errorf("No mega server found! See README.md to start it.")
+		t.Errorf("\n\nFAIL: No mega server found! See README.md to start it.")
 		assert.NotEmpty(t, megaserverId)
 		return "", ""
 	}
@@ -120,7 +120,7 @@ func getTestConfig() (int, int, time.Duration) {
 		timeout = 5 * time.Second
 	} else {
 		numRequests = numRequestsLoad
-		timeout = 60 * time.Second
+		timeout = 30 * time.Second
 	}
 
 	return numRequests, numRequests * 2, timeout

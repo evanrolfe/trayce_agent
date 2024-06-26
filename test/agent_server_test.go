@@ -132,17 +132,17 @@ func Test_agent_server(t *testing.T) {
 				// This is necessary in a loadtest incase more than the expected num requests are sent
 				time.Sleep(2 * time.Second)
 			}
-			trayceAgent.Process.Signal(syscall.SIGTERM)
-			time.Sleep(1 * time.Second)
-
-			if testing.Verbose() {
-				fmt.Println("*-------------------------------------------------------------------------* Output Start:")
-				fmt.Println(stdoutBuf.String())
-				fmt.Println("*-------------------------------------------------------------------------* Output End")
-			}
 
 			// Verify the result
 			tt.verify(t, requests)
 		})
 	}
+
+	if testing.Verbose() {
+		fmt.Println("*-------------------------------------------------------------------------* Output Start:")
+		fmt.Println(stdoutBuf.String())
+		fmt.Println("*-------------------------------------------------------------------------* Output End")
+	}
+
+	trayceAgent.Process.Signal(syscall.SIGTERM)
 }
