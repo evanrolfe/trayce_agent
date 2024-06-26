@@ -3,7 +3,7 @@ package bpf_events
 import (
 	"fmt"
 	"os"
-	"syscall"
+	"sync"
 
 	bpf "github.com/aquasecurity/libbpfgo"
 	"github.com/aquasecurity/libbpfgo/helpers"
@@ -16,6 +16,7 @@ type BPFProgram struct {
 	kprobes       map[string]*bpf.BPFLink
 	hooksAndOpts  map[*bpf.TcHook]*bpf.TcOpts
 	interfaceName string
+	uprobeMutex   sync.Mutex
 }
 
 // TODO: interfaceName should only be required for TC programs
@@ -58,41 +59,6 @@ func NewBPFProgramFromBytes(bpfBuf []byte, btfPath string, interfaceName string)
 	}
 
 	return NewBPFProgram(bpfModule, interfaceName)
-}
-
-func (prog *BPFProgram) AttachToTC(tcFuncName string, attachPoint bpf.TcAttachPoint) (*bpf.TcHook, *bpf.TcOpts, error) {
-	hook := prog.BpfModule.TcHookInit()
-	err := hook.SetInterfaceByName(prog.interfaceName)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "failed to set tc hook on interface eth0: %v", err)
-		os.Exit(-1)
-	}
-
-	hook.SetAttachPoint(attachPoint)
-	err = hook.Create()
-	if err != nil {
-		if errno, ok := err.(syscall.Errno); ok && errno != syscall.EEXIST {
-			fmt.Fprintln(os.Stderr, "tc hook create: %v", err)
-		}
-	}
-
-	tcProg, err := prog.BpfModule.GetProgram(tcFuncName)
-	if tcProg == nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	var tcOpts bpf.TcOpts
-	tcOpts.ProgFd = int(tcProg.GetFd())
-	err = hook.Attach(&tcOpts)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
-	prog.hooksAndOpts[hook] = &tcOpts
-
-	return hook, &tcOpts, nil
 }
 
 func (prog *BPFProgram) AttachToKProbe(funcName string, probeFuncName string) error {
@@ -176,6 +142,9 @@ func (prog *BPFProgram) AttachToURetProbe(funcName string, probeFuncName string,
 // Each return statement in the function is an exit which is probed. This will also only work for cryptos/tls.Conn.Read and Write.
 // TODO: Should probably just accept a Proc struct instead to avoid primitive obsession
 func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, binaryPath string, pid uint32) error {
+	prog.uprobeMutex.Lock()
+	defer prog.uprobeMutex.Unlock()
+
 	// If there are already GoUprobes attached to this binary+func, then dont re-attach thm
 	// TODO: This is getting this error:
 	// concurrent map read and map write
@@ -232,6 +201,9 @@ func (prog *BPFProgram) AttachGoUProbes(funcName string, exitFuncName string, pr
 }
 
 func (prog *BPFProgram) DetachGoUProbes(probeFuncName string, binaryPath string, pid uint32) error {
+	prog.uprobeMutex.Lock()
+	defer prog.uprobeMutex.Unlock()
+
 	uprobeKey := fmt.Sprintf("%d:%s:%s", pid, binaryPath, probeFuncName)
 	bpfLinks, exists := prog.uprobes[uprobeKey]
 	if !exists {
@@ -246,18 +218,24 @@ func (prog *BPFProgram) DetachGoUProbes(probeFuncName string, binaryPath string,
 			return fmt.Errorf("bpfLink.Destroy() failed for", uprobeKey, "err:", err)
 		}
 	}
+	delete(prog.uprobes, uprobeKey)
+
 	return nil
 }
 
 func (prog *BPFProgram) DetachAllGoUProbes() error {
-	for key, bpfLinks := range prog.uprobes {
+	prog.uprobeMutex.Lock()
+	defer prog.uprobeMutex.Unlock()
+
+	for uprobeKey, bpfLinks := range prog.uprobes {
 		for _, bpfLink := range bpfLinks {
-			fmt.Println("	Destroying Go Uprobe for", key)
+			fmt.Println("	Destroying Go Uprobe for", uprobeKey)
 			err := bpfLink.Destroy()
 			if err != nil {
-				return fmt.Errorf("bpfLink.Destroy() failed for", key, "err:", err)
+				return fmt.Errorf("bpfLink.Destroy() failed for", uprobeKey, "err:", err)
 			}
 		}
+		delete(prog.uprobes, uprobeKey)
 	}
 
 	return nil
@@ -270,6 +248,7 @@ func (prog *BPFProgram) DetachAllKProbes() error {
 		if err != nil {
 			return fmt.Errorf("kprobe.Destroy() err:", err)
 		}
+		// delete(prog.kprobes, key)
 	}
 	return nil
 }

@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
 
@@ -105,7 +106,15 @@ func main() {
 		for {
 			// Connect to the GRPC server
 			fmt.Println("[GRPC] connecting to server...")
-			conn, err := grpc.Dial(grpcServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := grpc.Dial(
+				grpcServerAddr,
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+				grpc.WithKeepaliveParams(keepalive.ClientParameters{
+					Time:                3 * time.Second, // send pings every 10 seconds if there is no activity
+					Timeout:             time.Second,     // wait a second for ping ack before considering the connection dead
+					PermitWithoutStream: true,            // send pings even without active streams
+				}),
+			)
 			if err != nil {
 				return
 			}
