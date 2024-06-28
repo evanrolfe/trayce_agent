@@ -21,17 +21,17 @@ import (
 )
 
 const (
-	bufPollRateMs              = 50
 	containerPIDsRefreshRateMs = 10
 	// TODO: Make it search for this in multpile places:
 	defaultLibSslPath = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 	libSslPath1       = "/usr/lib/x86_64-linux-gnu/libssl.so.1.1"
 )
 
-// TODO: Stream is probably not an appropriate name for this anymore
+// Stream handles the connection between the docker container client and our ebpf program. It provides an event stream
+// channel which gives us the Connect,Data and Close events that are sent from ebpf.
 type Stream struct {
-	bpfProg    *BPFProgram
-	containers *docker.Containers
+	bpfProg    BPFProgramI
+	containers ContainersI
 
 	containerUProbes map[string][]*bpf.BPFLink
 
@@ -47,17 +47,29 @@ type Stream struct {
 	closeCallbacks   []func(CloseEvent)
 }
 
+type ContainersI interface {
+	GetProcsToIntercept() map[uint32]docker.Proc
+	GetContainersToIntercept() map[string]docker.Container
+}
+
+type BPFProgramI interface {
+	AttachToKProbe(funcName string, probeFuncName string) error
+	AttachToKRetProbe(funcName string, probeFuncName string) error
+	ReceiveEvents(mapName string, eventsChan chan []byte) error
+	GetMap(mapName string) (*bpf.BPFMap, error)
+	AttachToUProbe(funcName string, probeFuncName string, binaryPath string) (*bpf.BPFLink, error)
+	AttachToURetProbe(funcName string, probeFuncName string, binaryPath string) (*bpf.BPFLink, error)
+	DetachAllGoUProbes() error
+	AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, proc docker.Proc) error
+	DetachGoUProbes(probeFuncName string, binaryPath string, pid uint32) error
+	Close()
+}
+
 type offsets struct {
 	goFdOffset uint64
 }
 
-func NewStream(containers *docker.Containers, bpfBytes []byte, btfFilePath string, libSslPath string) *Stream {
-	bpfProg, err := NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
-
+func NewStream(containers ContainersI, bpfProg BPFProgramI) *Stream {
 	// kprobe/accept
 	funcName := fmt.Sprintf("__%s_sys_accept", ksymArch())
 	bpfProg.AttachToKProbe("probe_accept4", funcName)
@@ -127,15 +139,13 @@ func (stream *Stream) AddCloseCallback(callback func(CloseEvent)) {
 
 func (stream *Stream) Start(outputChan chan IEvent) {
 	// DataEvents ring buffer
-	var err error
-	stream.dataEventsBuf, err = stream.bpfProg.BpfModule.InitRingBuf("data_events", stream.dataEventsChan)
+	err := stream.bpfProg.ReceiveEvents("data_events", stream.dataEventsChan)
 	if err != nil {
 		panic(err)
 	}
-	stream.dataEventsBuf.Poll(bufPollRateMs)
 
 	// Intercepted PIDs map
-	pidsMap, err := stream.bpfProg.BpfModule.GetMap("intercepted_pids")
+	pidsMap, err := stream.bpfProg.GetMap("intercepted_pids")
 	if err != nil {
 		panic(err)
 	}
@@ -143,14 +153,14 @@ func (stream *Stream) Start(outputChan chan IEvent) {
 	go stream.refreshPids()
 
 	// Offsets map
-	goOffsetsMap, err := stream.bpfProg.BpfModule.GetMap("offsets_map")
+	goOffsetsMap, err := stream.bpfProg.GetMap("offsets_map")
 	if err != nil {
 		panic(err)
 	}
 	stream.goOffsetsMap = goOffsetsMap
 
 	// libssl versions map
-	libSSLVersionsMap, err := stream.bpfProg.BpfModule.GetMap("libssl_versions_map")
+	libSSLVersionsMap, err := stream.bpfProg.GetMap("libssl_versions_map")
 	if err != nil {
 		panic(err)
 	}
@@ -312,15 +322,7 @@ func (stream *Stream) containerOpened(container docker.Container) {
 	link, _ = stream.bpfProg.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
 	links = append(links, link)
 
-	// uprobe/node/
-	// TODO: Handle nodejs
-	// fmt.Println("Attaching node uprobes to:", container.NodePath)
-	// link, err := stream.bpfProg.AttachToUProbe("probe_entry_TLSWrap_memfn", "_ZN4node7TLSWrap8ClearOutE", container.NodePath)
-	// if err != nil {
-	// 	fmt.Println("[ERROR] AttachToUProbe(probe_entry_TLSWrap_memfn):", err)
-	// }
-	// links = append(links, link)
-
+	// TODO: Move this logic to bpf_program.go
 	stream.containerUProbes[container.Id] = links
 }
 
@@ -374,14 +376,14 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	stream.libSSLVersionsMap.Update(pidUnsafe, versionUnsafe)
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
-	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc.ExecPath, proc.Pid)
+	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc)
 	if err != nil {
 		fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
 		return
 	}
 	fmt.Println("Attached Go Uprobes for crypto/tls.(*Conn).Write", proc.Pid, proc.ExecPath)
 
-	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc.ExecPath, proc.Pid)
+	err = stream.bpfProg.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc)
 	if err != nil {
 		fmt.Println("Error bpfProg.AttachGoUProbes() read:", err)
 		return

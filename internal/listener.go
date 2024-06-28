@@ -1,6 +1,9 @@
 package internal
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
 	"github.com/evanrolfe/trayce_agent/internal/docker"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
@@ -15,9 +18,16 @@ type Listener struct {
 func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string, filterCmd string) *Listener {
 	containers := docker.NewContainers(filterCmd)
 
+	// TODO: libSslPath is unused
+	bpfProg, err := bpf_events.NewBPFProgramFromBytes(bpfBytes, btfFilePath, "")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
 	return &Listener{
 		containers:  containers,
-		eventStream: bpf_events.NewStream(containers, bpfBytes, btfFilePath, libSslPath),
+		eventStream: bpf_events.NewStream(containers, bpfProg),
 		sockets:     sockets.NewSocketMap(),
 	}
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/docker/docker/client"
 )
 
+// Containers is a wrapper around the docker client and provides helper methods for fetching containers & procs running
+// in docker.
 type Containers struct {
 	containerIds     []string
 	dockerClient     *client.Client
@@ -24,6 +26,7 @@ type Containers struct {
 type Proc struct {
 	Pid           uint32
 	Ip            uint32
+	ContainerId   string
 	ExecPath      string
 	LibSSLVersion int
 	LibSSLPath    string
@@ -106,6 +109,7 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 				ExecPath:      execPathHost,
 				LibSSLVersion: libSSL.Version,
 				LibSSLPath:    libSSL.Path,
+				ContainerId:   containerId,
 			}
 		}
 	}
@@ -265,7 +269,6 @@ func extractIP(container types.ContainerJSON) string {
 		// If there are multiple networks, just pick the first one
 		for _, network := range container.NetworkSettings.Networks {
 			return network.IPAddress
-			break
 		}
 	}
 
