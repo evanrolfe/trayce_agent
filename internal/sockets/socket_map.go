@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/events"
 )
 
 // SocketMap tracks sockets which have been observed in ebpf
@@ -26,7 +26,7 @@ func (m *SocketMap) AddFlowCallback(callback func(Flow)) {
 	m.flowCallbacks = append(m.flowCallbacks, callback)
 }
 
-func (m *SocketMap) ProcessConnectEvent(event bpf_events.ConnectEvent) {
+func (m *SocketMap) ProcessConnectEvent(event events.ConnectEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -43,7 +43,7 @@ func (m *SocketMap) ProcessConnectEvent(event bpf_events.ConnectEvent) {
 	}
 }
 
-func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
+func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -85,7 +85,7 @@ func (m *SocketMap) ProcessDataEvent(event bpf_events.DataEvent) {
 	socket.ProcessDataEvent(&event)
 }
 
-func (m *SocketMap) ProcessCloseEvent(event bpf_events.CloseEvent) {
+func (m *SocketMap) ProcessCloseEvent(event events.CloseEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	_, exists := m.getSocket(event.Key())
@@ -108,7 +108,7 @@ func (m *SocketMap) getSocket(key string) (SocketI, bool) {
 	return socket, exists
 }
 
-func (m *SocketMap) getOrCreateSocket(event bpf_events.DataEvent) SocketI {
+func (m *SocketMap) getOrCreateSocket(event events.DataEvent) SocketI {
 	socket, exists := m.getSocket(event.Key())
 	if exists {
 		fmt.Println("Found socket:", socket.Key())
@@ -116,7 +116,7 @@ func (m *SocketMap) getOrCreateSocket(event bpf_events.DataEvent) SocketI {
 	}
 
 	// If we can't find a socket then lets just create one with dst IP set to 0.0.0.0 becuause thats better than nothing
-	newSocket := NewSocketUnknown(&bpf_events.ConnectEvent{
+	newSocket := NewSocketUnknown(&events.ConnectEvent{
 		Pid:  event.Pid,
 		Tid:  event.Tid,
 		Fd:   event.Fd,

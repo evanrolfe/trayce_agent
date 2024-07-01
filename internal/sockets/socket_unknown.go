@@ -3,7 +3,7 @@ package sockets
 import (
 	"fmt"
 
-	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/events"
 )
 
 type SocketUnknown struct {
@@ -23,7 +23,7 @@ type SocketUnknown struct {
 	requestUuid string
 }
 
-func NewSocketUnknown(event *bpf_events.ConnectEvent) SocketUnknown {
+func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 	socket := SocketUnknown{
 		LocalAddr:   "unknown",
 		Pid:         event.Pid,
@@ -51,14 +51,14 @@ func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
 }
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
-func (socket *SocketUnknown) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
+func (socket *SocketUnknown) ProcessConnectEvent(event *events.ConnectEvent) {
 	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 }
 
 // TODO: Make this work with streams
 // TODO: Have a structure for handling the frame header + payload
-func (socket *SocketUnknown) ProcessDataEvent(event *bpf_events.DataEvent) {
+func (socket *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
 	// fmt.Println("[SocketUnknown] ProcessDataEvent, dataBuf len:", len(event.Payload()))
 
 }

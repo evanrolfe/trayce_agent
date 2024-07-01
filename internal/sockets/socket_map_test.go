@@ -3,7 +3,7 @@ package sockets_test
 import (
 	"strings"
 
-	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -22,14 +22,14 @@ var _ = Describe("SocketMap", func() {
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
-			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+			socketsMap.ProcessConnectEvent(events.ConnectEvent{
 				Pid:  123,
 				Tid:  123,
 				Fd:   5,
 				Ip:   2130706433,
 				Port: 80,
 			})
-			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+			socketsMap.ProcessDataEvent(events.DataEvent{
 				Pid:      123,
 				Tid:      123,
 				Fd:       5,
@@ -37,7 +37,7 @@ var _ = Describe("SocketMap", func() {
 				Data:     convertSliceToArray(event1Payload),
 				DataLen:  int32(len(event1Payload)),
 			})
-			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+			socketsMap.ProcessDataEvent(events.DataEvent{
 				Pid:      123,
 				Tid:      123,
 				Fd:       5,
@@ -80,21 +80,21 @@ var _ = Describe("SocketMap", func() {
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
-			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+			socketsMap.ProcessConnectEvent(events.ConnectEvent{
 				Pid:  123,
 				Tid:  455,
 				Fd:   6,
 				Ip:   2130706433,
 				Port: 80,
 			})
-			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+			socketsMap.ProcessConnectEvent(events.ConnectEvent{
 				Pid:  123,
 				Tid:  456,
 				Fd:   5,
 				Ip:   2130706433,
 				Port: 80,
 			})
-			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+			socketsMap.ProcessDataEvent(events.DataEvent{
 				Pid:      123,
 				Tid:      457,
 				Fd:       0,
@@ -103,7 +103,7 @@ var _ = Describe("SocketMap", func() {
 				Data:     convertSliceToArray(event1Payload),
 				DataLen:  int32(len(event1Payload)),
 			})
-			socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+			socketsMap.ProcessDataEvent(events.DataEvent{
 				Pid:      123,
 				Tid:      458,
 				Fd:       0,
@@ -166,7 +166,7 @@ var _ = Describe("SocketMap", func() {
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
-			socketsMap.ProcessConnectEvent(bpf_events.ConnectEvent{
+			socketsMap.ProcessConnectEvent(events.ConnectEvent{
 				Pid:  123,
 				Tid:  123,
 				Fd:   5,
@@ -175,7 +175,7 @@ var _ = Describe("SocketMap", func() {
 			})
 
 			for _, payload := range payloads {
-				socketsMap.ProcessDataEvent(bpf_events.DataEvent{
+				socketsMap.ProcessDataEvent(events.DataEvent{
 					Pid:      123,
 					Tid:      123,
 					Fd:       5,

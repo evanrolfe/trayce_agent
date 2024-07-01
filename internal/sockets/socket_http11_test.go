@@ -1,7 +1,7 @@
 package sockets_test
 
 import (
-	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -29,7 +29,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&bpf_events.ConnectEvent{
+			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
 				Pid:  123,
 				Tid:  123,
 				Fd:   5,
@@ -41,7 +41,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 			})
 
 			for _, payload := range payloads {
-				socket.ProcessDataEvent(&bpf_events.DataEvent{
+				socket.ProcessDataEvent(&events.DataEvent{
 					Pid:      123,
 					Tid:      123,
 					Fd:       5,
@@ -78,7 +78,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&bpf_events.ConnectEvent{
+			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
 				Pid:  123,
 				Tid:  123,
 				Fd:   5,
@@ -90,7 +90,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 			})
 
 			for _, payload := range payloads {
-				socket.ProcessDataEvent(&bpf_events.DataEvent{
+				socket.ProcessDataEvent(&events.DataEvent{
 					Pid:      123,
 					Tid:      123,
 					Fd:       5,
@@ -133,7 +133,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&bpf_events.ConnectEvent{
+			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
 				Pid:  123,
 				Tid:  123,
 				Fd:   5,
@@ -145,7 +145,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 			})
 
 			for _, payload := range payloads {
-				socket.ProcessDataEvent(&bpf_events.DataEvent{
+				socket.ProcessDataEvent(&events.DataEvent{
 					Pid:      123,
 					Tid:      123,
 					Fd:       5,
@@ -191,7 +191,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&bpf_events.ConnectEvent{
+			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
 				Pid:  123,
 				Tid:  123,
 				Fd:   5,
@@ -203,7 +203,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 			})
 
 			// Request event
-			socket.ProcessDataEvent(&bpf_events.DataEvent{
+			socket.ProcessDataEvent(&events.DataEvent{
 				Pid:      123,
 				Tid:      123,
 				Fd:       5,
@@ -214,7 +214,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 			// Response events
 			for _, payload := range payloads {
-				socket.ProcessDataEvent(&bpf_events.DataEvent{
+				socket.ProcessDataEvent(&events.DataEvent{
 					Pid:      123,
 					Tid:      123,
 					Fd:       5,

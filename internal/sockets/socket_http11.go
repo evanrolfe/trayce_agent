@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/google/uuid"
 )
 
@@ -32,7 +32,7 @@ type SocketHttp11 struct {
 	requestUuid string
 }
 
-func NewSocketHttp11(event *bpf_events.ConnectEvent) SocketHttp11 {
+func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 	socket := SocketHttp11{
 		LocalAddr:   "unknown",
 		Pid:         event.Pid,
@@ -77,12 +77,12 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 }
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
-func (socket *SocketHttp11) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
+func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
 	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 }
 
-func (socket *SocketHttp11) ProcessDataEvent(event *bpf_events.DataEvent) {
+func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf), " ssl?", event.SSL())
 	// if event.SSL() && !socket.SSL {
 	// 	fmt.Println("[SocketHttp1.1] clearing dataBuffer")

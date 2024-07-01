@@ -47,6 +47,8 @@ Run unit tests:
 make testunit
 ```
 
+Generate mocks with `mockery` (`go install github.com/vektra/mockery/v2@v2.43.2`).
+
 ### MegaServer
 
 Build and start:

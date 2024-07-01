@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/evanrolfe/trayce_agent/internal/bpf_events"
+	"github.com/evanrolfe/trayce_agent/internal/events"
 )
 
 type SocketHttp2 struct {
@@ -23,7 +23,7 @@ type SocketHttp2 struct {
 	flowCallbacks []func(Flow)
 }
 
-func NewSocketHttp2(event *bpf_events.ConnectEvent) SocketHttp2 {
+func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 	socket := SocketHttp2{
 		LocalAddr:   "unknown",
 		Pid:         event.Pid,
@@ -34,8 +34,8 @@ func NewSocketHttp2(event *bpf_events.ConnectEvent) SocketHttp2 {
 		frameBuffer: map[string][]byte{},
 	}
 
-	socket.frameBuffer[bpf_events.TypeIngress] = []byte{}
-	socket.frameBuffer[bpf_events.TypeEgress] = []byte{}
+	socket.frameBuffer[events.TypeIngress] = []byte{}
+	socket.frameBuffer[events.TypeEgress] = []byte{}
 
 	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
@@ -55,8 +55,8 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 		frameBuffer: map[string][]byte{},
 	}
 
-	socket.frameBuffer[bpf_events.TypeIngress] = []byte{}
-	socket.frameBuffer[bpf_events.TypeEgress] = []byte{}
+	socket.frameBuffer[events.TypeIngress] = []byte{}
+	socket.frameBuffer[events.TypeEgress] = []byte{}
 
 	return socket
 }
@@ -66,8 +66,8 @@ func (socket *SocketHttp2) Key() string {
 }
 
 func (socket *SocketHttp2) Clear() {
-	socket.clearFrameBuffer(bpf_events.TypeIngress)
-	socket.clearFrameBuffer(bpf_events.TypeEgress)
+	socket.clearFrameBuffer(events.TypeIngress)
+	socket.clearFrameBuffer(events.TypeEgress)
 }
 
 func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
@@ -75,13 +75,13 @@ func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
 }
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
-func (socket *SocketHttp2) ProcessConnectEvent(event *bpf_events.ConnectEvent) {
+func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
 	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 }
 
 // TODO: Have a structure for handling the frame header + payload?
-func (socket *SocketHttp2) ProcessDataEvent(event *bpf_events.DataEvent) {
+func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 	// fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr, "\n", hex.Dump(event.Payload()))
 	// utils.PrintBytesHex(event.Payload())
 

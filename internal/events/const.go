@@ -1,4 +1,4 @@
-package bpf_events
+package events
 
 type AttachType int64
 
@@ -8,7 +8,3 @@ const (
 )
 
 const MaxDataSize = 1024 * 4
-
-type TlsVersion struct {
-	Version int32
-}

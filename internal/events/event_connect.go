@@ -1,4 +1,4 @@
-package bpf_events
+package events
 
 import (
 	"bytes"
