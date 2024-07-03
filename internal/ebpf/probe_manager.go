@@ -14,28 +14,43 @@ const (
 
 // ProbeManager lets you add & remove ebpf probes. It keeps track of them so they can be deleted too when necessary.
 type ProbeManager struct {
-	bpf                *BPF
-	uprobesByContainer map[string][]*libbpfgo.BPFLink
-	uprobes            map[string][]*libbpfgo.BPFLink
-	kprobes            map[string]*libbpfgo.BPFLink
-	uprobeMutex        sync.Mutex
+	bpf         BPFI
+	kprobes     []*libbpfgo.BPFLink
+	probeRefs   []*ProbeRef
+	uprobeMutex sync.Mutex
 }
 
-func NewProbeManager(bpf2 *BPF) (*ProbeManager, error) {
-	pm := &ProbeManager{
-		bpf:                bpf2,
-		uprobes:            map[string][]*libbpfgo.BPFLink{},
-		uprobesByContainer: map[string][]*libbpfgo.BPFLink{},
-		kprobes:            map[string]*libbpfgo.BPFLink{},
-	}
+type ProbeRef struct {
+	probe       *libbpfgo.BPFLink
+	containerID string
+	binaryPath  string
+	pid         uint32
+}
 
-	err := pm.loadProgram()
+type BPFI interface {
+	GetMap(mapName string) (*libbpfgo.BPFMap, error)
+	InitRingBuf(mapName string, eventsChan chan []byte) (*libbpfgo.RingBuffer, error)
+	LoadProgram() error
+	Close()
+	AttachKProbe(funcName string, probeFuncName string) (*libbpfgo.BPFLink, error)
+	AttachKRetProbe(funcName string, probeFuncName string) (*libbpfgo.BPFLink, error)
+	AttachUProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
+	AttachURetProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
+	AttachGoUProbe(funcName string, exitFuncName string, probeFuncName string, binaryPath string) ([]*libbpfgo.BPFLink, error)
+	DestroyProbe(probe *libbpfgo.BPFLink) error
+}
+
+func NewProbeManager(bpf BPFI) (*ProbeManager, error) {
+	err := bpf.LoadProgram()
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO:
-	// bpf2.LoadProgram()
+	pm := &ProbeManager{
+		bpf:       bpf,
+		kprobes:   []*libbpfgo.BPFLink{},
+		probeRefs: []*ProbeRef{},
+	}
 
 	return pm, nil
 }
@@ -87,20 +102,12 @@ func (pm *ProbeManager) GetMap(mapName string) (*libbpfgo.BPFMap, error) {
 	return bpfMap, nil
 }
 
-// func (pm *ProbeManager) AttachToKProbes(funcName string, probeFuncName string) error {
-// 	sysFuncName := fmt.Sprintf("__%s_sys_accept", ksymArch())
-// 	pm.AttachToKProbe("probe_accept4", sysFuncName)
-// 	errpm.AttachToKRetProbe("probe_ret_accept4", sysFuncName)
-
-// }
-
 func (pm *ProbeManager) AttachToKProbe(funcName string, probeFuncName string) error {
 	bpfLink, err := pm.bpf.AttachKProbe(funcName, probeFuncName)
 	if err != nil {
 		return err
 	}
-	key := fmt.Sprintf("%s-%s", funcName, probeFuncName)
-	pm.kprobes[key] = bpfLink
+	pm.kprobes = append(pm.kprobes, bpfLink)
 	return nil
 }
 
@@ -109,31 +116,43 @@ func (pm *ProbeManager) AttachToKRetProbe(funcName string, probeFuncName string)
 	if err != nil {
 		return err
 	}
-	key := fmt.Sprintf("%s-%s", funcName, probeFuncName)
-	pm.kprobes[key] = bpfLink
+	pm.kprobes = append(pm.kprobes, bpfLink)
 	return nil
 }
 
-func (pm *ProbeManager) AttachToUProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error) {
+func (pm *ProbeManager) AttachToUProbe(container docker.Container, funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error) {
+	pm.uprobeMutex.Lock()
+	defer pm.uprobeMutex.Unlock()
+
 	bpfLink, err := pm.bpf.AttachUProbe(funcName, probeFuncName, binaryPath)
 	if err != nil {
 		return nil, err
 	}
+
+	ref := &ProbeRef{containerID: container.Id, binaryPath: binaryPath, probe: bpfLink, pid: 0} // PID=0 means this is for any proc using this binary
+	pm.probeRefs = append(pm.probeRefs, ref)
+
 	return bpfLink, nil
 }
 
-func (pm *ProbeManager) AttachToURetProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error) {
+func (pm *ProbeManager) AttachToURetProbe(container docker.Container, funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error) {
+	pm.uprobeMutex.Lock()
+	defer pm.uprobeMutex.Unlock()
+
 	bpfLink, err := pm.bpf.AttachURetProbe(funcName, probeFuncName, binaryPath)
 	if err != nil {
 		return nil, err
 	}
+
+	ref := &ProbeRef{containerID: container.Id, binaryPath: binaryPath, probe: bpfLink, pid: 0}
+	pm.probeRefs = append(pm.probeRefs, ref)
+
 	return bpfLink, nil
 }
 
 // AttachGoUProbe attach uprobes to the entry and exits of a Go function. URetProbes will not work with Go.
 // Each return statement in the function is an exit which is probed. This will also only work for cryptos/tls.Conn.Read and Write.
-// TODO: Should probably just accept a Proc struct instead to avoid primitive obsession
-func (pm *ProbeManager) AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, proc docker.Proc) error {
+func (pm *ProbeManager) AttachGoUProbes(proc docker.Proc, funcName string, exitFuncName string, probeFuncName string) error {
 	pm.uprobeMutex.Lock()
 	defer pm.uprobeMutex.Unlock()
 
@@ -143,112 +162,90 @@ func (pm *ProbeManager) AttachGoUProbes(funcName string, exitFuncName string, pr
 		containerId = proc.ContainerId
 	)
 
-	// If there are already GoUprobes attached to this binary+func, then dont re-attach thm
-	uprobeKey := fmt.Sprintf("%d:%s:%s", pid, binaryPath, probeFuncName)
-	_, exists := pm.uprobes[uprobeKey]
-	if exists {
-		return nil
-	}
-	pm.uprobes[uprobeKey] = []*libbpfgo.BPFLink{}
-
-	// Also keep track of the uprobes per container
-	_, exists = pm.uprobesByContainer[containerId]
-	if !exists {
-		pm.uprobesByContainer[containerId] = []*libbpfgo.BPFLink{}
-	}
-
 	uprobes, err := pm.bpf.AttachGoUProbe(funcName, exitFuncName, probeFuncName, binaryPath)
 	if err != nil {
 		return fmt.Errorf("error AttachGoUProbes(): %v, error: %v", binaryPath, err)
 	}
-	pm.uprobes[uprobeKey] = append(pm.uprobes[uprobeKey], uprobes...)
+
+	for _, uprobe := range uprobes {
+		ref := &ProbeRef{containerID: containerId, binaryPath: binaryPath, probe: uprobe, pid: pid}
+		pm.probeRefs = append(pm.probeRefs, ref)
+	}
 
 	return nil
 }
 
-func (pm *ProbeManager) DetachGoUProbes(probeFuncName string, binaryPath string, pid uint32) error {
+func (pm *ProbeManager) DetachUprobesForContainer(container docker.Container) error {
 	pm.uprobeMutex.Lock()
 	defer pm.uprobeMutex.Unlock()
 
-	uprobeKey := fmt.Sprintf("%d:%s:%s", pid, binaryPath, probeFuncName)
-	bpfLinks, exists := pm.uprobes[uprobeKey]
-	if !exists {
-		fmt.Println("No uprobe found for:", probeFuncName, "/", binaryPath)
-		return nil
-	}
-
-	for _, bpfLink := range bpfLinks {
-		fmt.Println("	Destroying Go Uprobe for", binaryPath, "/", probeFuncName)
-		err := bpfLink.Destroy()
-		if err != nil {
-			return fmt.Errorf("bpfLink.Destroy() failed for %s err: %s", uprobeKey, err)
-		}
-	}
-	delete(pm.uprobes, uprobeKey)
-
-	return nil
-}
-
-func (pm *ProbeManager) DetachGoUProbesForContainer(containerId string) error {
-	pm.uprobeMutex.Lock()
-	defer pm.uprobeMutex.Unlock()
-
-	bpfLinks, exists := pm.uprobesByContainer[containerId]
-	if !exists {
-		fmt.Println("No uprobe found for container:", containerId)
-		return nil
-	}
-
-	fmt.Println("	Destroying Go Uprobes for container", containerId)
-	for _, bpfLink := range bpfLinks {
-		err := bpfLink.Destroy()
-		if err != nil {
-			return fmt.Errorf("bpfLink.Destroy() failed for %s err: %s", containerId, err)
-		}
-	}
-	// TODO:
-	// delete(pm.uprobes, uprobeKey)
-
-	return nil
-}
-
-func (pm *ProbeManager) DetachAllGoUProbes() error {
-	pm.uprobeMutex.Lock()
-	defer pm.uprobeMutex.Unlock()
-
-	for uprobeKey, bpfLinks := range pm.uprobes {
-		for _, bpfLink := range bpfLinks {
-			fmt.Println("	Destroying Go Uprobe for", uprobeKey)
-			err := bpfLink.Destroy()
+	newProbeRefs := []*ProbeRef{}
+	for _, probeRef := range pm.probeRefs {
+		if probeRef.containerID == container.Id {
+			err := pm.bpf.DestroyProbe(probeRef.probe)
 			if err != nil {
-				return fmt.Errorf("bpfLink.Destroy() failed for %s err: %s", uprobeKey, err)
+				return err
 			}
+		} else {
+			newProbeRefs = append(newProbeRefs, probeRef)
 		}
-		delete(pm.uprobes, uprobeKey)
 	}
 
+	pm.probeRefs = newProbeRefs
 	return nil
 }
 
-func (pm *ProbeManager) DetachAllKProbes() error {
-	for key, kprobe := range pm.kprobes {
-		fmt.Println("	Destroying kprobe for", key)
-		err := kprobe.Destroy()
+func (pm *ProbeManager) DetachUprobesForProc(proc docker.Proc) error {
+	pm.uprobeMutex.Lock()
+	defer pm.uprobeMutex.Unlock()
+
+	newProbeRefs := []*ProbeRef{}
+	for _, probeRef := range pm.probeRefs {
+		if probeRef.containerID == proc.ContainerId && probeRef.binaryPath == proc.ExecPath && probeRef.pid == proc.Pid {
+			err := pm.bpf.DestroyProbe(probeRef.probe)
+			if err != nil {
+				return err
+			}
+		} else {
+			newProbeRefs = append(newProbeRefs, probeRef)
+		}
+	}
+
+	pm.probeRefs = newProbeRefs
+	return nil
+}
+
+func (pm *ProbeManager) detachAllUProbes() error {
+	pm.uprobeMutex.Lock()
+	defer pm.uprobeMutex.Unlock()
+
+	for _, probeRef := range pm.probeRefs {
+		err := pm.bpf.DestroyProbe(probeRef.probe)
+		if err != nil {
+			return err
+		}
+	}
+
+	pm.probeRefs = []*ProbeRef{}
+	return nil
+}
+
+func (pm *ProbeManager) detachAllKProbes() error {
+	for _, kprobe := range pm.kprobes {
+		fmt.Println("	Destroying kprobe for", kprobe)
+		err := pm.bpf.DestroyProbe(kprobe)
 		if err != nil {
 			return fmt.Errorf("kprobe.Destroy() err: %s", err)
 		}
-		// delete(pm.kprobes, key)
 	}
-	return nil
-}
 
-func (pm *ProbeManager) loadProgram() error {
-	return pm.bpf.LoadProgram()
+	pm.kprobes = []*libbpfgo.BPFLink{}
+	return nil
 }
 
 func (pm *ProbeManager) Close() {
 	fmt.Println("Dettaching BPF program(s)...")
-	pm.DetachAllGoUProbes()
-	pm.DetachAllKProbes()
+	pm.detachAllUProbes()
+	pm.detachAllKProbes()
 	pm.bpf.Close()
 }

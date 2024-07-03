@@ -156,3 +156,7 @@ func (bpf *BPF) AttachGoUProbe(funcName string, exitFuncName string, probeFuncNa
 
 	return uprobes, nil
 }
+
+func (bpf *BPF) DestroyProbe(probe *libbpfgo.BPFLink) error {
+	return probe.Destroy()
+}

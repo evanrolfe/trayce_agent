@@ -2,9 +2,10 @@ with-expecter: true
 dir: test/mocks
 outpkg: mocks
 packages:
-  github.com/evanrolfe/trayce_agent/internal/bpf_events:
+  github.com/evanrolfe/trayce_agent/internal/ebpf:
     # place your package-specific config here
     config:
     interfaces:
       ContainersI:
       BPFModuleI:
+      BPFI:

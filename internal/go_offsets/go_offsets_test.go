@@ -1,11 +1,18 @@
 package go_offsets
 
 import (
+	"testing"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 const binPath = "/app/test/scripts/go_request"
+
+func TestGoOffsets(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "GoOffsets Suite")
+}
 
 // The offset values will change in newer Go versions, if it does just update the expected values here..
 var _ = Describe("GoOffsets", func() {

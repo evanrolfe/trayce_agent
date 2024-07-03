@@ -5,12 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"runtime"
-	"strconv"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -34,9 +29,6 @@ type Stream struct {
 	probeManager ProbeManagerI
 	containers   ContainersI
 
-	containerUProbes map[string][]*libbpfgo.BPFLink
-
-	dataEventsBuf     *libbpfgo.RingBuffer
 	pidsMap           *libbpfgo.BPFMap
 	goOffsetsMap      *libbpfgo.BPFMap
 	libSSLVersionsMap *libbpfgo.BPFMap
@@ -58,11 +50,11 @@ type ProbeManagerI interface {
 	AttachToKRetProbe(funcName string, probeFuncName string) error
 	ReceiveEvents(mapName string, eventsChan chan []byte) error
 	GetMap(mapName string) (*libbpfgo.BPFMap, error)
-	AttachToUProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
-	AttachToURetProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
-	DetachAllGoUProbes() error
-	AttachGoUProbes(funcName string, exitFuncName string, probeFuncName string, proc docker.Proc) error
-	DetachGoUProbes(probeFuncName string, binaryPath string, pid uint32) error
+	AttachToUProbe(container docker.Container, funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
+	AttachToURetProbe(container docker.Container, funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
+	AttachGoUProbes(proc docker.Proc, funcName string, exitFuncName string, probeFuncName string) error
+	DetachUprobesForContainer(container docker.Container) error
+	DetachUprobesForProc(proc docker.Proc) error
 	Close()
 }
 
@@ -72,11 +64,14 @@ type offsets struct {
 
 func NewStream(containers ContainersI, probeManager ProbeManagerI) *Stream {
 	return &Stream{
-		probeManager:     probeManager,
-		containers:       containers,
-		containerUProbes: map[string][]*libbpfgo.BPFLink{},
-		interruptChan:    make(chan int),
-		dataEventsChan:   make(chan []byte, 10000),
+		probeManager:   probeManager,
+		containers:     containers,
+		interruptChan:  make(chan int),
+		dataEventsChan: make(chan []byte, 10000),
+		// Init to empy structs
+		pidsMap:           &libbpfgo.BPFMap{},
+		goOffsetsMap:      &libbpfgo.BPFMap{},
+		libSSLVersionsMap: &libbpfgo.BPFMap{},
 	}
 }
 
@@ -93,35 +88,7 @@ func (stream *Stream) AddCloseCallback(callback func(events.CloseEvent)) {
 }
 
 func (stream *Stream) Start(outputChan chan events.IEvent) {
-	// Attach Kprobes
-	kprobes := map[string][]string{
-		"sys_accept":   []string{"probe_accept4, probe_ret_accept4"},
-		"sys_accept4":  []string{"probe_accept4, probe_ret_accept4"},
-		"sys_connect":  []string{"probe_connect, probe_ret_connect"},
-		"sys_close":    []string{"probe_close, probe_ret_close"},
-		"sys_sendto":   []string{"probe_sendto, probe_ret_sendto"},
-		"sys_recvfrom": []string{"probe_recvfrom, probe_ret_recvfrom"},
-		"sys_write":    []string{"probe_write, probe_ret_write"},
-		"sys_read":     []string{"probe_read, probe_ret_read"},
-	}
-	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
-	// security_socket_sendmsg:
-	// security_socket_recvmsg
-
-	for sysFunc, probeFuncs := range kprobes {
-		if len(probeFuncs) != 2 {
-			panic("must set entry+return kprobes")
-		}
-		funcName := fmt.Sprintf("__%s_%s", ksymArch(), sysFunc)
-		err := stream.probeManager.AttachToKProbe("probe_read", funcName)
-		if err != nil {
-			panic(err)
-		}
-		err = stream.probeManager.AttachToKRetProbe("probe_ret_read", funcName)
-		if err != nil {
-			panic(err)
-		}
-	}
+	stream.attachKProbes()
 
 	// events.DataEvents ring buffer
 	err := stream.probeManager.ReceiveEvents("data_events", stream.dataEventsChan)
@@ -167,22 +134,8 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 				cyan := "\033[36m"
 				reset := "\033[0m"
-
-				// if event.Fd < 10 {
-				// 	fmt.Println("[events.ConnectEvent] Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", ", event.IPAddr(), ":", event.Port, " local? ", event.Local)
-				// }
 				fmt.Println(string(cyan), "[events.ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
 				// fmt.Print(hex.Dump(payload))
-
-				socketInfo, err := getSocketInfo2(int(event.Pid), int(event.Fd))
-				if err != nil {
-					fmt.Printf("Error getting socket information: %v\n", err)
-				}
-
-				if err == nil {
-					fmt.Println("----------> socketInfo:", socketInfo)
-				}
-
 				outputChan <- &event
 
 				// events.DataEvent
@@ -274,58 +227,16 @@ func (stream *Stream) refreshPids() {
 	}
 }
 
-// This is causing the first test case to fail for some reason
 func (stream *Stream) containerOpened(container docker.Container) {
 	fmt.Println("Container opened:", container.RootFSPath)
-	links := []*libbpfgo.BPFLink{}
 
-	// TODO: Find where libssl is and also send the version to ebpf
-	libSslPath := container.LibSSLPath
-	fmt.Println("Attaching openssl uprobes to:", libSslPath)
-
-	// uprobe/SSL_read
-	// TODO: Handle errors
-	link, _ := stream.probeManager.AttachToUProbe("probe_entry_SSL_read", "SSL_read", libSslPath)
-	links = append(links, link)
-	stream.probeManager.AttachToURetProbe("probe_ret_SSL_read", "SSL_read", libSslPath)
-	links = append(links, link)
-
-	// uprobe/SSL_read_ex
-	link, _ = stream.probeManager.AttachToUProbe("probe_entry_SSL_read_ex", "SSL_read_ex", libSslPath)
-	links = append(links, link)
-	link, _ = stream.probeManager.AttachToURetProbe("probe_ret_SSL_read_ex", "SSL_read_ex", libSslPath)
-	links = append(links, link)
-
-	// uprobe/SSL_write
-	link, _ = stream.probeManager.AttachToUProbe("probe_entry_SSL_write", "SSL_write", libSslPath)
-	links = append(links, link)
-	link, _ = stream.probeManager.AttachToURetProbe("probe_ret_SSL_write", "SSL_write", libSslPath)
-	links = append(links, link)
-
-	// uprobe/SSL_write_ex
-	link, _ = stream.probeManager.AttachToUProbe("probe_entry_SSL_write_ex", "SSL_write_ex", libSslPath)
-	links = append(links, link)
-	link, _ = stream.probeManager.AttachToURetProbe("probe_ret_SSL_write_ex", "SSL_write_ex", libSslPath)
-	links = append(links, link)
-
-	// TODO: Move this logic to bpf_program.go
-	stream.containerUProbes[container.Id] = links
+	stream.attachUprobesLibSSL(container)
 }
 
 func (stream *Stream) containerClosed(container docker.Container) {
 	fmt.Println("Container closed:", container.RootFSPath)
-	_, exists := stream.containerUProbes[container.Id]
-	if !exists {
-		fmt.Println("	No links found for", container.Id)
-		return
-	}
-	for _, link := range stream.containerUProbes[container.Id] {
-		fmt.Println("	Destroying BPFLink:", link)
-		link.Destroy()
-	}
 
-	// TODO: This needs to dettach only the uprobes for this container
-	stream.probeManager.DetachAllGoUProbes()
+	stream.probeManager.DetachUprobesForContainer(container)
 }
 
 func (stream *Stream) procOpened(proc docker.Proc) {
@@ -362,19 +273,7 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	stream.libSSLVersionsMap.Update(pidUnsafe, versionUnsafe)
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
-	err = stream.probeManager.AttachGoUProbes("probe_entry_go_tls_write", "", "crypto/tls.(*Conn).Write", proc)
-	if err != nil {
-		fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
-		return
-	}
-	fmt.Println("Attached Go Uprobes for crypto/tls.(*Conn).Write", proc.Pid, proc.ExecPath)
-
-	err = stream.probeManager.AttachGoUProbes("probe_entry_go_tls_read", "probe_exit_go_tls_read", "crypto/tls.(*Conn).Read", proc)
-	if err != nil {
-		fmt.Println("Error bpfProg.AttachGoUProbes() read:", err)
-		return
-	}
-	fmt.Println("Attached Go Uprobes for crypto/tls.(*Conn).Read", proc.Pid, proc.ExecPath)
+	stream.attachUprobesGo(proc)
 }
 
 func (stream *Stream) procClosed(proc docker.Proc) {
@@ -388,13 +287,100 @@ func (stream *Stream) procClosed(proc docker.Proc) {
 		stream.pidsMap.DeleteKey(pidUnsafe)
 	}
 
-	stream.probeManager.DetachGoUProbes("crypto/tls.(*Conn).Write", proc.ExecPath, proc.Pid)
-	stream.probeManager.DetachGoUProbes("crypto/tls.(*Conn).Read", proc.ExecPath, proc.Pid)
+	stream.probeManager.DetachUprobesForProc(proc)
 }
 
 func (stream *Stream) Close() {
 	stream.interruptChan <- 1
 	stream.probeManager.Close()
+}
+
+func (stream *Stream) attachKProbes() {
+	kprobes := map[string][]string{
+		"sys_accept":   []string{"probe_accept4", "probe_ret_accept4"},
+		"sys_accept4":  []string{"probe_accept4", "probe_ret_accept4"},
+		"sys_connect":  []string{"probe_connect", "probe_ret_connect"},
+		"sys_close":    []string{"probe_close", "probe_ret_close"},
+		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
+		"sys_recvfrom": []string{"probe_recvfrom", "probe_ret_recvfrom"},
+		"sys_write":    []string{"probe_write", "probe_ret_write"},
+		"sys_read":     []string{"probe_read", "probe_ret_read"},
+	}
+	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
+	// security_socket_sendmsg & security_socket_recvmsg
+
+	for sysFunc, probeFuncs := range kprobes {
+		if len(probeFuncs) != 2 {
+			fmt.Println(probeFuncs, len(probeFuncs))
+			panic("must set entry & return kprobes")
+		}
+
+		funcName := fmt.Sprintf("__%s_%s", ksymArch(), sysFunc)
+		err := stream.probeManager.AttachToKProbe(probeFuncs[0], funcName)
+		if err != nil {
+			panic(err)
+		}
+		err = stream.probeManager.AttachToKRetProbe(probeFuncs[1], funcName)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (stream *Stream) attachUprobesLibSSL(container docker.Container) {
+	// TODO: Find where libssl is and also send the version to ebpf
+	libSslPath := container.LibSSLPath
+	fmt.Println("Attaching openssl uprobes to:", libSslPath)
+
+	// Attach libssl uprobes
+	uprobes := map[string][]string{
+		"SSL_read":     []string{"probe_entry_SSL_read", "probe_ret_SSL_read"},
+		"SSL_read_ex":  []string{"probe_entry_SSL_read_ex", "probe_ret_SSL_read_ex"},
+		"SSL_write":    []string{"probe_entry_SSL_write", "probe_ret_SSL_write"},
+		"SSL_write_ex": []string{"probe_entry_SSL_write_ex", "probe_ret_SSL_write_ex"},
+	}
+	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
+	// security_socket_sendmsg:
+	// security_socket_recvmsg
+
+	for funcName, probeFuncs := range uprobes {
+		if len(probeFuncs) != 2 {
+			fmt.Println(probeFuncs, len(probeFuncs))
+			panic("must set entry+return kprobes")
+		}
+
+		_, err := stream.probeManager.AttachToUProbe(container, probeFuncs[0], funcName, libSslPath)
+		if err != nil {
+			fmt.Println("ERROR AttachToUProbe() for", probeFuncs[0], err)
+		}
+		_, err = stream.probeManager.AttachToURetProbe(container, probeFuncs[1], funcName, libSslPath)
+		if err != nil {
+			fmt.Println("ERROR AttachToUProbe() for", probeFuncs[1], err)
+		}
+	}
+}
+
+func (stream *Stream) attachUprobesGo(proc docker.Proc) error {
+	uprobes := map[string][]string{
+		"crypto/tls.(*Conn).Write": []string{"probe_entry_go_tls_write", ""},
+		"crypto/tls.(*Conn).Read":  []string{"probe_entry_go_tls_read", "probe_exit_go_tls_read"},
+	}
+
+	for funcName, probeFuncs := range uprobes {
+		if len(probeFuncs) != 2 {
+			fmt.Println(probeFuncs, len(probeFuncs))
+			panic("must set entry+return kprobes")
+		}
+
+		err := stream.probeManager.AttachGoUProbes(proc, probeFuncs[0], probeFuncs[1], funcName)
+		if err != nil {
+			fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
+			return err
+		}
+		fmt.Println("Attached Go Uprobes for", funcName, proc.Pid, proc.ExecPath)
+
+	}
+	return nil
 }
 
 func ksymArch() string {
@@ -416,45 +402,4 @@ func getEventType(payload []byte) int {
 	}
 
 	return int(eventType)
-}
-
-func getSocketInfo(pid, fd int) (string, error) {
-	// Build the path to the symbolic link for the file descriptor
-	fdPath := filepath.Join("/proc", strconv.Itoa(pid), "fd", strconv.Itoa(fd))
-	fmt.Println(fdPath)
-	// Use syscall.Exec to execute readlink command
-	cmd := exec.Command("readlink", fdPath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("error running readlink: %v", err)
-	}
-
-	return string(output), nil
-}
-
-func getSocketInfo2(pid, fd int) (string, error) {
-	// Build the path to the symbolic link for the file descriptor
-	fdPath := filepath.Join("/proc", strconv.Itoa(pid), "fd", strconv.Itoa(fd))
-
-	// Read the symbolic link
-	link, err := os.Readlink(fdPath)
-	if err != nil {
-		return "", fmt.Errorf("error reading symbolic link: %v", err)
-	}
-
-	return link, nil
-}
-
-func parseSocketInfo(link string) (string, string, error) {
-	// Extract local and remote addresses and ports from the symbolic link
-	// The symbolic link format is usually like "socket:[inode]"
-	parts := strings.Split(link, ":")
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("unexpected symbolic link format: %s", link)
-	}
-
-	inode := parts[1]
-
-	// You may need to parse the inode to get further details if necessary
-	return inode, "", nil
 }

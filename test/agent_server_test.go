@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/evanrolfe/trayce_agent/api"
+	"github.com/stretchr/testify/assert"
 )
 
 // Test_agent_client tests requests made from this container to another server, it listens to the server
@@ -110,13 +111,13 @@ func Test_agent_server(t *testing.T) {
 			defer cancel()
 
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
-			var requests []*api.Flow
+			flows := []*api.Flow{}
 			grpcHandler.SetCallback(func(input *api.Flows) {
-				requests = append(requests, input.Flows...)
-				if len(requests)%100 == 0 {
-					fmt.Println("Received", len(requests))
+				flows = append(flows, input.Flows...)
+				if len(flows)%100 == 0 {
+					fmt.Println("Received", len(flows))
 				}
-				if len(requests) >= expectedNumFlows {
+				if len(flows) >= expectedNumFlows {
 					cancel()
 				}
 			})
@@ -129,12 +130,13 @@ func Test_agent_server(t *testing.T) {
 			<-ctx.Done()
 
 			if !testing.Short() {
-				// This is necessary in a loadtest incase more than the expected num requests are sent
+				// This is necessary in a loadtest incase more than the expected num flows are sent
 				time.Sleep(2 * time.Second)
 			}
 
 			// Verify the result
-			tt.verify(t, requests)
+			assert.Equal(t, expectedNumFlows, len(flows))
+			tt.verify(t, flows)
 		})
 	}
 

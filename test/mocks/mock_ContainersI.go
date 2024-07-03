@@ -4,6 +4,7 @@ package mocks
 
 import (
 	docker "github.com/evanrolfe/trayce_agent/internal/docker"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
