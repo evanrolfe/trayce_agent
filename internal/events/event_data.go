@@ -26,12 +26,12 @@ type DataEvent struct {
 	EventType uint64            `json:"eventType"`
 	DataType  uint64            `json:"dataType"`
 	Timestamp uint64            `json:"timestamp"`
-	Pid       uint32            `json:"pid"`
-	Tid       uint32            `json:"tid"`
+	PID       uint32            `json:"pid"`
+	TID       uint32            `json:"tid"`
 	Comm      [16]byte          `json:"Comm"`
-	Fd        uint32            `json:"fd"`
+	FD        uint32            `json:"fd"`
 	Version   int32             `json:"version"`
-	SslPtr    int64             `json:"sslPtr"`
+	SSLPtr    int64             `json:"sslPtr"`
 	DataLen   int32             `json:"dataLen"`
 	Data      [MaxDataSize]byte `json:"data"`
 }
@@ -47,22 +47,22 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &se.Timestamp); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.Pid); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &se.PID); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.Tid); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &se.TID); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.Comm); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.Fd); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &se.FD); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.Version); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.SslPtr); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &se.SSLPtr); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.DataLen); err != nil {
@@ -76,7 +76,7 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 }
 
 func (se *DataEvent) GetUUID() string {
-	return fmt.Sprintf("%d_%d_%s_%d_%d", se.Pid, se.Tid, utils.CToGoString(se.Comm[:]), se.Fd, se.DataType)
+	return fmt.Sprintf("%d_%d_%s_%d_%d", se.PID, se.TID, utils.CToGoString(se.Comm[:]), se.FD, se.DataType)
 }
 
 func (se *DataEvent) Payload() []byte {
@@ -145,7 +145,7 @@ func (se *DataEvent) Source() string {
 }
 
 func (se *DataEvent) Key() string {
-	return fmt.Sprintf("%d-%d", se.Pid, se.Fd)
+	return fmt.Sprintf("%d-%d", se.PID, se.FD)
 }
 
 func (se *DataEvent) SSL() bool {

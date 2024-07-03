@@ -129,7 +129,7 @@ func (pm *ProbeManager) AttachToUProbe(container docker.Container, funcName stri
 		return nil, err
 	}
 
-	ref := &ProbeRef{containerID: container.Id, binaryPath: binaryPath, probe: bpfLink, pid: 0} // PID=0 means this is for any proc using this binary
+	ref := &ProbeRef{containerID: container.ID, binaryPath: binaryPath, probe: bpfLink, pid: 0} // PID=0 means this is for any proc using this binary
 	pm.probeRefs = append(pm.probeRefs, ref)
 
 	return bpfLink, nil
@@ -144,7 +144,7 @@ func (pm *ProbeManager) AttachToURetProbe(container docker.Container, funcName s
 		return nil, err
 	}
 
-	ref := &ProbeRef{containerID: container.Id, binaryPath: binaryPath, probe: bpfLink, pid: 0}
+	ref := &ProbeRef{containerID: container.ID, binaryPath: binaryPath, probe: bpfLink, pid: 0}
 	pm.probeRefs = append(pm.probeRefs, ref)
 
 	return bpfLink, nil
@@ -157,7 +157,7 @@ func (pm *ProbeManager) AttachGoUProbes(proc docker.Proc, funcName string, exitF
 	defer pm.uprobeMutex.Unlock()
 
 	var (
-		pid         = proc.Pid
+		pid         = proc.PID
 		binaryPath  = proc.ExecPath
 		containerId = proc.ContainerId
 	)
@@ -181,7 +181,7 @@ func (pm *ProbeManager) DetachUprobesForContainer(container docker.Container) er
 
 	newProbeRefs := []*ProbeRef{}
 	for _, probeRef := range pm.probeRefs {
-		if probeRef.containerID == container.Id {
+		if probeRef.containerID == container.ID {
 			err := pm.bpf.DestroyProbe(probeRef.probe)
 			if err != nil {
 				return err
@@ -201,7 +201,7 @@ func (pm *ProbeManager) DetachUprobesForProc(proc docker.Proc) error {
 
 	newProbeRefs := []*ProbeRef{}
 	for _, probeRef := range pm.probeRefs {
-		if probeRef.containerID == proc.ContainerId && probeRef.binaryPath == proc.ExecPath && probeRef.pid == proc.Pid {
+		if probeRef.containerID == proc.ContainerId && probeRef.binaryPath == proc.ExecPath && probeRef.pid == proc.PID {
 			err := pm.bpf.DestroyProbe(probeRef.probe)
 			if err != nil {
 				return err

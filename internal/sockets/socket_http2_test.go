@@ -39,10 +39,10 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
@@ -51,9 +51,9 @@ var _ = Describe("SocketHTTP2", func() {
 
 			for _, payload := range payloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 1,
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -68,8 +68,8 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
@@ -89,8 +89,8 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
@@ -119,10 +119,10 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
@@ -131,9 +131,9 @@ var _ = Describe("SocketHTTP2", func() {
 
 			for _, payload := range payloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 6, // go_tls_read
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -148,8 +148,8 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
@@ -189,10 +189,10 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
@@ -202,9 +202,9 @@ var _ = Describe("SocketHTTP2", func() {
 			// Process request payloads
 			for _, payload := range payloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 6, // go_tls_read
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -214,9 +214,9 @@ var _ = Describe("SocketHTTP2", func() {
 			// Process response payloads
 			for _, payload := range responsePayloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 7, // go_tls_write
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -231,8 +231,8 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
@@ -247,8 +247,8 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).To(BeNil())
 			// Expect(flow.Response).To(BeNil())
@@ -289,10 +289,10 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
@@ -302,9 +302,9 @@ var _ = Describe("SocketHTTP2", func() {
 			// Process request payloads
 			for _, payload := range requestPayloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 6, // go_tls_read
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -319,8 +319,8 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())

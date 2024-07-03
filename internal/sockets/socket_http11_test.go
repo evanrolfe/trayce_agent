@@ -30,10 +30,10 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
@@ -42,9 +42,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 			for _, payload := range payloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 1, // TODO: Use the constant from bpf_events kSSLWrite
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -59,8 +59,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 		})
 
 		It("the flow contains the HTTP request", func() {
@@ -79,10 +79,10 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
@@ -91,9 +91,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 			for _, payload := range payloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 1, // TODO: Use the constant from bpf_events kSSLWrite
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -108,8 +108,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 				Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
-				Expect(flow.Pid).To(Equal(123))
-				Expect(flow.Fd).To(Equal(5))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
 			}
 		})
 
@@ -134,10 +134,10 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
@@ -146,9 +146,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 			for _, payload := range payloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 1, // TODO: Use the constant from bpf_events kSSLWrite
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -162,8 +162,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 				Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
-				Expect(flow.Pid).To(Equal(123))
-				Expect(flow.Fd).To(Equal(5))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
 			}
 		})
 
@@ -192,10 +192,10 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
@@ -204,9 +204,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 			// Request event
 			socket.ProcessDataEvent(&events.DataEvent{
-				Pid:      123,
-				Tid:      123,
-				Fd:       5,
+				PID:      123,
+				TID:      123,
+				FD:       5,
 				DataType: 7, // goTlsWrite
 				Data:     convertSliceToArray(event7Payload),
 				DataLen:  int32(len(event7Payload)),
@@ -215,9 +215,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 			// Response events
 			for _, payload := range payloads {
 				socket.ProcessDataEvent(&events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 6, // goTlsRead
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -232,8 +232,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 				Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
-				Expect(flow.Pid).To(Equal(123))
-				Expect(flow.Fd).To(Equal(5))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
 			}
 		})
 

@@ -20,9 +20,9 @@ type SocketHttp11 struct {
 	LocalAddr  string
 	RemoteAddr string
 	Protocol   string
-	Pid        uint32
-	Tid        uint32
-	Fd         uint32
+	PID        uint32
+	TID        uint32
+	FD         uint32
 	SSL        bool
 	// Stores the bytes being received from DataEvent until they form a full HTTP request or response
 	dataBuf []byte
@@ -35,9 +35,9 @@ type SocketHttp11 struct {
 func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 	socket := SocketHttp11{
 		LocalAddr:   "unknown",
-		Pid:         event.Pid,
-		Tid:         event.Tid,
-		Fd:          event.Fd,
+		PID:         event.PID,
+		TID:         event.TID,
+		FD:          event.FD,
 		SSL:         false,
 		dataBuf:     []byte{},
 		requestUuid: "",
@@ -53,9 +53,9 @@ func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 	socket := SocketHttp11{
 		LocalAddr:   unkownSocket.LocalAddr,
 		RemoteAddr:  unkownSocket.RemoteAddr,
-		Pid:         unkownSocket.Pid,
-		Tid:         unkownSocket.Tid,
-		Fd:          unkownSocket.Fd,
+		PID:         unkownSocket.PID,
+		TID:         unkownSocket.TID,
+		FD:          unkownSocket.FD,
 		SSL:         false,
 		dataBuf:     []byte{},
 		requestUuid: "",
@@ -65,7 +65,7 @@ func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 }
 
 func (socket *SocketHttp11) Key() string {
-	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
+	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
 }
 
 func (socket *SocketHttp11) Clear() {
@@ -110,8 +110,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 			socket.RemoteAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
-			int(socket.Pid),
-			int(socket.Fd),
+			int(socket.PID),
+			int(socket.FD),
 			socket.dataBuf,
 		)
 		socket.clearDataBuffer()
@@ -134,8 +134,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 			socket.RemoteAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
-			int(socket.Pid),
-			int(socket.Fd),
+			int(socket.PID),
+			int(socket.FD),
 			socket.dataBuf,
 		)
 

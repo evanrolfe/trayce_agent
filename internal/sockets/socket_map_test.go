@@ -23,24 +23,24 @@ var _ = Describe("SocketMap", func() {
 				flows = append(flows, &flowFromCb)
 			})
 			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				Pid:      123,
-				Tid:      123,
-				Fd:       5,
+				PID:      123,
+				TID:      123,
+				FD:       5,
 				DataType: 1,
 				Data:     convertSliceToArray(event1Payload),
 				DataLen:  int32(len(event1Payload)),
 			})
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				Pid:      123,
-				Tid:      123,
-				Fd:       5,
+				PID:      123,
+				TID:      123,
+				FD:       5,
 				DataType: 0,
 				Data:     convertSliceToArray(event2Payload),
 				DataLen:  int32(len(event2Payload)),
@@ -54,8 +54,8 @@ var _ = Describe("SocketMap", func() {
 				Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
-				Expect(flow.Pid).To(Equal(123))
-				Expect(flow.Fd).To(Equal(5))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
 			}
 		})
 
@@ -81,33 +81,33 @@ var _ = Describe("SocketMap", func() {
 				flows = append(flows, &flowFromCb)
 			})
 			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				Pid:  123,
-				Tid:  455,
-				Fd:   6,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  455,
+				FD:   6,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				Pid:  123,
-				Tid:  456,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  456,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				Pid:      123,
-				Tid:      457,
-				Fd:       0,
-				SslPtr:   111,
+				PID:      123,
+				TID:      457,
+				FD:       0,
+				SSLPtr:   111,
 				DataType: 1,
 				Data:     convertSliceToArray(event1Payload),
 				DataLen:  int32(len(event1Payload)),
 			})
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				Pid:      123,
-				Tid:      458,
-				Fd:       0,
-				SslPtr:   111,
+				PID:      123,
+				TID:      458,
+				FD:       0,
+				SSLPtr:   111,
 				DataType: 0,
 				Data:     convertSliceToArray(event2Payload),
 				DataLen:  int32(len(event2Payload)),
@@ -121,8 +121,8 @@ var _ = Describe("SocketMap", func() {
 				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
-				Expect(flow.Pid).To(Equal(123))
-				Expect(flow.Fd).To(Equal(111))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(111))
 			}
 		})
 
@@ -167,18 +167,18 @@ var _ = Describe("SocketMap", func() {
 				flows = append(flows, &flowFromCb)
 			})
 			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				Pid:  123,
-				Tid:  123,
-				Fd:   5,
-				Ip:   2130706433,
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
 				Port: 80,
 			})
 
 			for _, payload := range payloads {
 				socketsMap.ProcessDataEvent(events.DataEvent{
-					Pid:      123,
-					Tid:      123,
-					Fd:       5,
+					PID:      123,
+					TID:      123,
+					FD:       5,
 					DataType: 1,
 					Data:     convertSliceToArray(payload),
 					DataLen:  int32(len(payload)),
@@ -193,8 +193,8 @@ var _ = Describe("SocketMap", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
@@ -214,8 +214,8 @@ var _ = Describe("SocketMap", func() {
 			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
-			Expect(flow.Pid).To(Equal(123))
-			Expect(flow.Fd).To(Equal(5))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())

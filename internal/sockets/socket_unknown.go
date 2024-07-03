@@ -10,9 +10,9 @@ type SocketUnknown struct {
 	LocalAddr  string
 	RemoteAddr string
 	Protocol   string
-	Pid        uint32
-	Tid        uint32
-	Fd         uint32
+	PID        uint32
+	TID        uint32
+	FD         uint32
 	SSL        bool
 	// Stores
 	activeFrame *Http2Frame
@@ -26,9 +26,9 @@ type SocketUnknown struct {
 func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 	socket := SocketUnknown{
 		LocalAddr:   "unknown",
-		Pid:         event.Pid,
-		Tid:         event.Tid,
-		Fd:          event.Fd,
+		PID:         event.PID,
+		TID:         event.TID,
+		FD:          event.FD,
 		SSL:         false,
 		requestUuid: "",
 	}
@@ -40,7 +40,7 @@ func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 }
 
 func (socket *SocketUnknown) Key() string {
-	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
+	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
 }
 
 func (socket *SocketUnknown) Clear() {

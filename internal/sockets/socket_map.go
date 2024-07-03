@@ -51,13 +51,13 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 
 	// For some reason HTTPS requests to ruby never have the FD value set, so instead we use the ssl_ptr value as the fd
 	// so that we can at least correleate requests with responses, but we wont have a connect event so the src & dst will be 0.0.0.0
-	if event.Fd == 0 && event.SslPtr > 0 {
-		event.Fd = uint32(event.SslPtr)
+	if event.FD == 0 && event.SSLPtr > 0 {
+		event.FD = uint32(event.SSLPtr)
 	}
 	green := "\033[92m"
 	reset := "\033[0m"
 
-	fmt.Println(string(green), "[DataEvent]", string(reset), " Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr)
+	fmt.Println(string(green), "[DataEvent]", string(reset), " Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, " ssl_ptr:", event.SSLPtr)
 	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
 	socket = m.getOrCreateSocket(event)
@@ -117,10 +117,10 @@ func (m *SocketMap) getOrCreateSocket(event events.DataEvent) SocketI {
 
 	// If we can't find a socket then lets just create one with dst IP set to 0.0.0.0 becuause thats better than nothing
 	newSocket := NewSocketUnknown(&events.ConnectEvent{
-		Pid:  event.Pid,
-		Tid:  event.Tid,
-		Fd:   event.Fd,
-		Ip:   0,
+		PID:  event.PID,
+		TID:  event.TID,
+		FD:   event.FD,
+		IP:   0,
 		Port: 80,
 	})
 	return &newSocket

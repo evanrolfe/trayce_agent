@@ -11,9 +11,9 @@ type SocketHttp2 struct {
 	LocalAddr  string
 	RemoteAddr string
 	Protocol   string
-	Pid        uint32
-	Tid        uint32
-	Fd         uint32
+	PID        uint32
+	TID        uint32
+	FD         uint32
 	SSL        bool
 
 	streams     map[uint32]*Http2Stream
@@ -26,9 +26,9 @@ type SocketHttp2 struct {
 func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 	socket := SocketHttp2{
 		LocalAddr:   "unknown",
-		Pid:         event.Pid,
-		Tid:         event.Tid,
-		Fd:          event.Fd,
+		PID:         event.PID,
+		TID:         event.TID,
+		FD:          event.FD,
 		SSL:         false,
 		streams:     map[uint32]*Http2Stream{},
 		frameBuffer: map[string][]byte{},
@@ -47,9 +47,9 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 	socket := SocketHttp2{
 		LocalAddr:   unkownSocket.LocalAddr,
 		RemoteAddr:  unkownSocket.RemoteAddr,
-		Pid:         unkownSocket.Pid,
-		Tid:         unkownSocket.Tid,
-		Fd:          unkownSocket.Fd,
+		PID:         unkownSocket.PID,
+		TID:         unkownSocket.TID,
+		FD:          unkownSocket.FD,
 		SSL:         false,
 		streams:     map[uint32]*Http2Stream{},
 		frameBuffer: map[string][]byte{},
@@ -62,7 +62,7 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 }
 
 func (socket *SocketHttp2) Key() string {
-	return fmt.Sprintf("%d-%d", socket.Pid, socket.Fd)
+	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
 }
 
 func (socket *SocketHttp2) Clear() {

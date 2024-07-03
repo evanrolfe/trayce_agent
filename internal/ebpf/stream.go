@@ -134,7 +134,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 				cyan := "\033[36m"
 				reset := "\033[0m"
-				fmt.Println(string(cyan), "[events.ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
+				fmt.Println(string(cyan), "[events.ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
 				// fmt.Print(hex.Dump(payload))
 				outputChan <- &event
 
@@ -161,14 +161,14 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 				red := "\033[35m"
 				reset := "\033[0m"
 
-				fmt.Println(string(red), "[events.CloseEvent]", string(reset), " PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd)
+				fmt.Println(string(red), "[events.CloseEvent]", string(reset), " PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
 				outputChan <- &event
 
 				// DebugEvent
 			} else if eventType == 3 {
 				event := events.DebugEvent{}
 				event.Decode(payload)
-				fmt.Println("\n[DebugEvent] Received, PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " - ", string(event.Payload()))
+				fmt.Println("\n[DebugEvent] Received, PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, " - ", string(event.Payload()))
 				fmt.Print(hex.Dump(payload))
 			}
 		}
@@ -240,12 +240,12 @@ func (stream *Stream) containerClosed(container docker.Container) {
 }
 
 func (stream *Stream) procOpened(proc docker.Proc) {
-	fmt.Println("Proc opened:", proc.Pid, proc.ExecPath, "libSSL:", proc.LibSSLVersion)
+	fmt.Println("Proc opened:", proc.PID, proc.ExecPath, "libSSL:", proc.LibSSLVersion)
 	// Send the intercepted PIDs to ebpf
 	if stream.pidsMap != nil {
 		// Imporant that we copy these two vars by value here:
-		pid := proc.Pid
-		ip := proc.Ip
+		pid := proc.PID
+		ip := proc.IP
 		pidUnsafe := unsafe.Pointer(&pid)
 		ipUnsafe := unsafe.Pointer(&ip)
 		stream.pidsMap.Update(pidUnsafe, ipUnsafe)
@@ -266,7 +266,7 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	stream.goOffsetsMap.Update(key1Unsafe, value1Unsafe)
 
 	// Send the libssl version for this PID's container to ebpf
-	pid := proc.Pid
+	pid := proc.PID
 	version := proc.LibSSLVersion
 	pidUnsafe := unsafe.Pointer(&pid)
 	versionUnsafe := unsafe.Pointer(&version)
@@ -277,12 +277,12 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 }
 
 func (stream *Stream) procClosed(proc docker.Proc) {
-	fmt.Println("Proc closed:", proc.Pid, proc.ExecPath)
+	fmt.Println("Proc closed:", proc.PID, proc.ExecPath)
 
 	// Delete the intercepted PIDs from ebpf map
 	if stream.pidsMap != nil {
 		// Imporant that we copy these two vars by value here:
-		pid := proc.Pid
+		pid := proc.PID
 		pidUnsafe := unsafe.Pointer(&pid)
 		stream.pidsMap.DeleteKey(pidUnsafe)
 	}
@@ -377,7 +377,7 @@ func (stream *Stream) attachUprobesGo(proc docker.Proc) error {
 			fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
 			return err
 		}
-		fmt.Println("Attached Go Uprobes for", funcName, proc.Pid, proc.ExecPath)
+		fmt.Println("Attached Go Uprobes for", funcName, proc.PID, proc.ExecPath)
 
 	}
 	return nil

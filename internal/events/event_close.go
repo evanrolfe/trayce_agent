@@ -10,9 +10,9 @@ import (
 type CloseEvent struct {
 	EventType   uint64 `json:"eventType"`
 	TimestampNs uint64 `json:"timestampNs"`
-	Pid         uint32 `json:"pid"`
-	Tid         uint32 `json:"tid"`
-	Fd          uint32 `json:"fd"`
+	PID         uint32 `json:"pid"`
+	TID         uint32 `json:"tid"`
+	FD          uint32 `json:"fd"`
 }
 
 func (ce *CloseEvent) Decode(payload []byte) (err error) {
@@ -23,13 +23,13 @@ func (ce *CloseEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &ce.TimestampNs); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &ce.Pid); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &ce.PID); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &ce.Tid); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &ce.TID); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &ce.Fd); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &ce.FD); err != nil {
 		return
 	}
 
@@ -37,5 +37,5 @@ func (ce *CloseEvent) Decode(payload []byte) (err error) {
 }
 
 func (ce *CloseEvent) Key() string {
-	return fmt.Sprintf("%d-%d", ce.Pid, ce.Fd)
+	return fmt.Sprintf("%d-%d", ce.PID, ce.FD)
 }

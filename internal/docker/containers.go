@@ -17,15 +17,15 @@ import (
 // Containers is a wrapper around the docker client and provides helper methods for fetching containers & procs running
 // in docker.
 type Containers struct {
-	containerIds     []string
+	containerIDs     []string
 	dockerClient     *client.Client
 	filterCmd        string
 	libSSLVersionMap map[string]LibSSL
 }
 
 type Proc struct {
-	Pid           uint32
-	Ip            uint32
+	PID           uint32
+	IP            uint32
 	ContainerId   string
 	ExecPath      string
 	LibSSLVersion int
@@ -33,9 +33,9 @@ type Proc struct {
 }
 
 type Container struct {
-	Id            string
-	Pid           uint32
-	Ip            uint32
+	ID            string
+	PID           uint32
+	IP            uint32
 	RootFSPath    string
 	LibSSLVersion int
 	LibSSLPath    string
@@ -54,7 +54,7 @@ func NewContainers(filterCmd string) *Containers {
 	}
 
 	return &Containers{
-		containerIds:     []string{},
+		containerIDs:     []string{},
 		dockerClient:     dockerC,
 		filterCmd:        filterCmd,
 		libSSLVersionMap: map[string]LibSSL{},
@@ -64,7 +64,7 @@ func NewContainers(filterCmd string) *Containers {
 func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 	procs := map[uint32]Proc{}
 
-	for _, containerId := range c.containerIds {
+	for _, containerId := range c.containerIDs {
 		// Get the container's IP address
 		container, _ := c.dockerClient.ContainerInspect(context.Background(), containerId)
 		if container.NetworkSettings == nil {
@@ -104,8 +104,8 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 			}
 
 			procs[uint32(pid)] = Proc{
-				Pid:           uint32(pid),
-				Ip:            ip,
+				PID:           uint32(pid),
+				IP:            ip,
 				ExecPath:      execPathHost,
 				LibSSLVersion: libSSL.Version,
 				LibSSLPath:    libSSL.Path,
@@ -120,7 +120,7 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 func (c *Containers) GetContainersToIntercept() map[string]Container {
 	containers := map[string]Container{}
 
-	for _, containerId := range c.containerIds {
+	for _, containerId := range c.containerIDs {
 		// Get the container's IP address
 		container, _ := c.dockerClient.ContainerInspect(context.Background(), containerId)
 		if container.NetworkSettings == nil {
@@ -134,9 +134,9 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 		libSSL := c.getLibSSL(containerId, containerFSPath)
 
 		containers[containerId] = Container{
-			Id:            containerId,
-			Pid:           uint32(container.State.Pid),
-			Ip:            ip,
+			ID:            containerId,
+			PID:           uint32(container.State.Pid),
+			IP:            ip,
 			RootFSPath:    containerFSPath,
 			LibSSLVersion: libSSL.Version,
 			LibSSLPath:    libSSL.Path,
@@ -147,8 +147,8 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 	return containers
 }
 
-func (c *Containers) SetContainers(containerIds []string) {
-	c.containerIds = containerIds
+func (c *Containers) SetContainers(containerIDs []string) {
+	c.containerIDs = containerIDs
 }
 
 func (c *Containers) getPidsForContainer(containerId string) ([]int, error) {
@@ -250,14 +250,14 @@ func checkFileExists(filePath string) bool {
 }
 
 func (c *Containers) removeContainer(containerId string) {
-	newcontainerIds := c.containerIds[:0] // Create a new slice with zero length but same capacity as the original
-	for _, value := range c.containerIds {
+	newcontainerIDs := c.containerIDs[:0] // Create a new slice with zero length but same capacity as the original
+	for _, value := range c.containerIDs {
 		if value != containerId {
-			newcontainerIds = append(newcontainerIds, value)
+			newcontainerIDs = append(newcontainerIDs, value)
 		}
 	}
 
-	c.containerIds = newcontainerIds
+	c.containerIDs = newcontainerIDs
 }
 
 func extractIP(container types.ContainerJSON) string {

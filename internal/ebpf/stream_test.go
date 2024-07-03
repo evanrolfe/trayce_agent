@@ -19,43 +19,43 @@ func TestEbpf(t *testing.T) {
 var _ = Describe("Stream", func() {
 	var (
 		container1 = docker.Container{
-			Id:            "ebaa7329ffd9",
-			Pid:           123,
-			Ip:            2886795266, // 172.17.0.2
+			ID:            "ebaa7329ffd9",
+			PID:           123,
+			IP:            2886795266, // 172.17.0.2
 			RootFSPath:    "/proc/60806/root",
 			LibSSLVersion: 3,
 			LibSSLPath:    "/proc/60806/root/usr/lib/x86_64-linux-gnu/libssl.so.3",
 			NodePath:      "",
 		}
 		container2 = docker.Container{
-			Id:            "576fe4e7985d",
-			Pid:           123,
-			Ip:            2886795267, // 172.17.0.3
+			ID:            "576fe4e7985d",
+			PID:           123,
+			IP:            2886795267, // 172.17.0.3
 			RootFSPath:    "/proc/50001/root",
 			LibSSLVersion: 3,
 			LibSSLPath:    "/proc/50001/root/usr/lib/x86_64-linux-gnu/libssl.so.3",
 			NodePath:      "",
 		}
 		proc1 = docker.Proc{
-			Pid:           uint32(123),
-			Ip:            uint32(2886795266),
-			ContainerId:   container1.Id,
+			PID:           uint32(123),
+			IP:            uint32(2886795266),
+			ContainerId:   container1.ID,
 			ExecPath:      "/home/myserver",
 			LibSSLVersion: 3,
 			LibSSLPath:    container1.LibSSLPath,
 		}
 		proc2 = docker.Proc{
-			Pid:           uint32(124),
-			Ip:            uint32(2886795267),
-			ContainerId:   container2.Id,
+			PID:           uint32(124),
+			IP:            uint32(2886795267),
+			ContainerId:   container2.ID,
 			ExecPath:      "/home/apache",
 			LibSSLVersion: 3,
 			LibSSLPath:    container2.LibSSLPath,
 		}
 		proc3 = docker.Proc{
-			Pid:           uint32(125),
-			Ip:            uint32(2886795266),
-			ContainerId:   container1.Id,
+			PID:           uint32(125),
+			IP:            uint32(2886795266),
+			ContainerId:   container1.ID,
 			ExecPath:      "/home/myserver", // Important that this has the same path as proc1, but different PID
 			LibSSLVersion: 3,
 			LibSSLPath:    container1.LibSSLPath,

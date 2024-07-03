@@ -13,8 +13,8 @@ type Flow struct {
 	L7Protocol string
 	Request    []byte
 	Response   []byte
-	Pid        int
-	Fd         int
+	PID        int
+	FD         int
 }
 
 func NewFlow(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request []byte) *Flow {
@@ -24,8 +24,8 @@ func NewFlow(uuid string, localAddr string, remoteAddr string, l4protocol string
 		RemoteAddr: remoteAddr,
 		L4Protocol: l4protocol,
 		L7Protocol: l7protocol,
-		Pid:        pid,
-		Fd:         fd,
+		PID:        pid,
+		FD:         fd,
 		Request:    request,
 		Response:   nil,
 	}
@@ -39,8 +39,8 @@ func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protoco
 		RemoteAddr: remoteAddr,
 		L4Protocol: l4protocol,
 		L7Protocol: l7protocol,
-		Pid:        pid,
-		Fd:         fd,
+		PID:        pid,
+		FD:         fd,
 		Response:   response,
 	}
 	return m
@@ -53,8 +53,8 @@ func (flow *Flow) Clone() Flow {
 		RemoteAddr: flow.RemoteAddr,
 		L4Protocol: flow.L4Protocol,
 		L7Protocol: flow.L7Protocol,
-		Pid:        flow.Pid,
-		Fd:         flow.Fd,
+		PID:        flow.PID,
+		FD:         flow.FD,
 		Request:    flow.Request,
 		Response:   flow.Response,
 	}
