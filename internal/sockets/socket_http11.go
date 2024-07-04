@@ -43,7 +43,7 @@ func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 		requestUuid: "",
 	}
 
-	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
+	socket.LocalAddr = event.LocalIPAddr()
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 
 	return socket
@@ -78,7 +78,7 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
+	socket.LocalAddr = event.LocalIPAddr()
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 }
 
@@ -241,6 +241,12 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 		}
 
 		bufReturn = &buf2
+	} else if isChunked {
+		parsedBuf, err := parseChunkedResponse(buf)
+		if err != nil {
+			fmt.Println("ERROR", err)
+		}
+		bufReturn = &parsedBuf
 	} else {
 		bufReturn = &buf
 	}
@@ -325,4 +331,51 @@ func isStartOfHTTPMessage(payload []byte) bool {
 		return true
 	}
 	return false
+}
+
+// parseChunkedResponse removes all the extra chunk metadata like the chunk size and the end chunk
+func parseChunkedResponse(response []byte) ([]byte, error) {
+	// Split headers and body
+	headerEnd := bytes.Index(response, []byte("\r\n\r\n"))
+	if headerEnd == -1 {
+		return nil, fmt.Errorf("invalid HTTP response: no header-body separator found")
+	}
+
+	headers := response[:headerEnd+4]
+	body := response[headerEnd+4:]
+
+	// Read and process chunked body
+	reader := bytes.NewReader(body)
+	var result bytes.Buffer
+
+	for {
+		// Read the chunk size
+		var chunkSizeHex string
+		if _, err := fmt.Fscanf(reader, "%s\r\n", &chunkSizeHex); err != nil {
+			return nil, err
+		}
+
+		chunkSize := 0
+		if _, err := fmt.Sscanf(chunkSizeHex, "%x", &chunkSize); err != nil {
+			return nil, err
+		}
+
+		if chunkSize == 0 {
+			break
+		}
+
+		// Read the chunk data
+		chunk := make([]byte, chunkSize)
+		if _, err := io.ReadFull(reader, chunk); err != nil {
+			return nil, err
+		}
+		result.Write(chunk)
+
+		// Read the trailing \r\n
+		if _, err := fmt.Fscanf(reader, "\r\n"); err != nil {
+			return nil, err
+		}
+	}
+
+	return append(headers, result.Bytes()...), nil
 }
