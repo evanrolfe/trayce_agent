@@ -1,5 +1,7 @@
 # TrayceAgent
 
+TrayceAgent is a binary executable, packaged in a Docker container, which uses EBPF to monitor network requests between Docker containers and to external hosts.
+
 ### Build & Run
 1. Build executable binary:
 ```
