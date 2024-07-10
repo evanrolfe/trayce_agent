@@ -57,6 +57,7 @@ func Test_agent_server(t *testing.T) {
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3001), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlows,
 		},
+		// TODO: This test fails intermittently
 		{
 			name:   "[Go] Server an HTTPS/2 request",
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
