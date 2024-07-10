@@ -59,6 +59,11 @@ func (listener *Listener) SetContainers(containerIds []string) {
 	listener.containers.SetContainers(containerIds)
 }
 
+// GetAllContainers returns all containers running on the machine
+func (listener *Listener) GetAllContainers() ([]docker.ContainerGUI, error) {
+	return listener.containers.GetAllContainers()
+}
+
 func (listener *Listener) Close() {
 	listener.eventStream.Close()
 }

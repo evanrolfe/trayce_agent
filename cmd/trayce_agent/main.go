@@ -15,6 +15,7 @@ import (
 
 	"github.com/evanrolfe/trayce_agent/api"
 	"github.com/evanrolfe/trayce_agent/internal"
+	"github.com/evanrolfe/trayce_agent/internal/docker"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	"github.com/evanrolfe/trayce_agent/internal/utils"
 	"github.com/zcalusic/sysinfo"
@@ -167,6 +168,31 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 	// if err != nil {
 	// 	return err
 	// }
+	// Check the containers every 500ms and send them back to the GUI for display in the containers dialog
+
+	// Send-Containers go routine
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	go func() {
+		for {
+			<-ticker.C
+
+			containers, err := listener.GetAllContainers()
+			if err != nil {
+				fmt.Println("[ERROR] GetAllContainers()", err)
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+
+			apiContainers := convertContainersGUIToAPI(containers)
+			ctx2, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			fmt.Println("[GRPC] sending", len(apiContainers.Containers), "containers")
+			grpcClient.SendContainersObserved(ctx2, &apiContainers)
+		}
+	}()
 
 	// Send a NooP to the stream so the server send back the settings
 	stream.Send(&api.NooP{})
@@ -209,4 +235,21 @@ func getKernelVersionMajor() int {
 	}
 
 	return majorVersion
+}
+
+func convertContainersGUIToAPI(containers []docker.ContainerGUI) api.Containers {
+	apiContainers := []*api.Container{}
+
+	for _, container := range containers {
+		apiContainer := api.Container{
+			Id:     container.ID,
+			Image:  container.Image,
+			Ip:     container.IP,
+			Name:   container.Name,
+			Status: container.Status,
+		}
+		apiContainers = append(apiContainers, &apiContainer)
+	}
+
+	return api.Containers{Containers: apiContainers}
 }

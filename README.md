@@ -30,6 +30,7 @@ Then from within the container run:
 make
 ./trayce_agent -grpcaddr 192.168.0.20:50051
 ```
+(You must have a GRPC server running at 192.168.0.20:50051, you can do that by starting the GUI).
 
 ### Test
 First ensure the mega server is server is running (see next section).

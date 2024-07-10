@@ -42,6 +42,16 @@ type Container struct {
 	NodePath      string
 }
 
+// ContainerGUI contains the container information which is needed to display in the GUI containers dialog, it gets
+// sent to the GUI over GRPC.
+type ContainerGUI struct {
+	ID     string
+	Image  string
+	IP     string
+	Name   string
+	Status string
+}
+
 type LibSSL struct {
 	Version int
 	Path    string
@@ -149,6 +159,43 @@ func (c *Containers) GetContainersToIntercept() map[string]Container {
 
 func (c *Containers) SetContainers(containerIDs []string) {
 	c.containerIDs = containerIDs
+}
+
+// GetAllContainers returns all containers running on the machine
+func (c *Containers) GetAllContainers() ([]ContainerGUI, error) {
+	containersOutput := []ContainerGUI{}
+
+	containers, err := c.dockerClient.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil {
+		return containersOutput, err
+	}
+
+	for _, container := range containers {
+		containerJSON, err := c.dockerClient.ContainerInspect(context.Background(), container.ID)
+		if err != nil {
+			fmt.Println("[ERROR] ContainerInspect():", err)
+			continue
+		}
+		if containerJSON.NetworkSettings == nil || containerJSON.State == nil {
+			fmt.Println("[ERROR] GetAllContainers() no NetworkSettings present on", containerJSON.ID)
+			continue
+		}
+		if containerJSON.Config == nil {
+			fmt.Println("[ERROR] GetAllContainers() no config present on", containerJSON.ID)
+			continue
+		}
+
+		containerGUI := ContainerGUI{
+			ID:     containerJSON.ID[0:12],
+			Image:  containerJSON.Config.Image,
+			IP:     extractIP(containerJSON),
+			Name:   containerJSON.Name,
+			Status: containerJSON.State.Status,
+		}
+		containersOutput = append(containersOutput, containerGUI)
+	}
+
+	return containersOutput, nil
 }
 
 func (c *Containers) getPidsForContainer(containerId string) ([]int, error) {

@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	containerPIDsRefreshRate = 100 * time.Millisecond
+	containerPIDsRefreshRate = 50 * time.Millisecond
 	// TODO: Make it search for this in multpile places:
 	defaultLibSslPath = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 	libSslPath1       = "/usr/lib/x86_64-linux-gnu/libssl.so.1.1"
