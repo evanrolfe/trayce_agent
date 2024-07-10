@@ -189,7 +189,7 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 			ctx2, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 
-			fmt.Println("[GRPC] sending", len(apiContainers.Containers), "containers")
+			// fmt.Println("[GRPC] sending", len(apiContainers.Containers), "containers")
 			grpcClient.SendContainersObserved(ctx2, &apiContainers)
 		}
 	}()
