@@ -204,15 +204,36 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     return event;
 }
 
+static __inline struct connect_event_t copy_connect_event(struct connect_event_t *conn_event, int new_fd) {
+    struct connect_event_t conn_event2;
+    __builtin_memset(&conn_event2, 0, sizeof(conn_event2));
+    conn_event2.eventtype = eConnect;
+    conn_event2.timestamp_ns = bpf_ktime_get_ns();
+    conn_event2.pid = conn_event->pid;
+    conn_event2.tid = conn_event->tid;
+    conn_event2.fd = new_fd;
+    conn_event2.local = false;
+    conn_event2.ssl = false;
+    conn_event2.protocol = pUnknown;
+    conn_event2.local_ip = 0;
+    conn_event2.ip = 0;
+    conn_event2.port = 0;
+    // bpf_printk("kprobe/accept4: RETURN IP: %d", conn_event->ip);
+    // bpf_probe_read_user(&conn_event2.ip, sizeof(u32), &conn_event->ip);
+    // bpf_probe_read_user(&conn_event2.port, sizeof(u16), &conn_event->port);
+
+    return conn_event2;
+}
+
+
 // >> 32 - PID
 // << 32 - TGID
 static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
     u32 pid = current_pid_tgid >> 32;
     u32 tgid = current_pid_tgid << 32;
 
-    // I'm not sure why this works, but it works.
-    return pid | tgid;
-    // return tgid | (u32)fd;
+    // Don't ask me why this works, but it does..
+    return (u64) tgid | (u32) fd;
 }
 
 static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len, u64 ssl_ptr) {

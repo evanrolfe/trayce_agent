@@ -60,7 +60,7 @@ int probe_accept4(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
-    bpf_printk("kprobe/accept4: PID: %d FD: %d", pid, fd);
+
     struct sockaddr *saddr;
     bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
 
@@ -68,25 +68,6 @@ int probe_accept4(struct pt_regs *ctx) {
     sa_family_t address_family = 0;
     bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
 
-    // ---------------------------------------------------------------------------------------------
-    // struct socket *sock;
-    // struct sockaddr_in *addr_in;
-
-    // bpf_probe_read(&sock, sizeof(sock), &((struct file *)saddr)->private_data);
-
-    // if (address_family == AF_INET) {
-    //     struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
-    //     // int dport;
-    //     // bpf_probe_read(&dport, sizeof(u16), &sin->sin_port);
-    //     // dog_debug(pid, current_pid_tgid, dport, "port");
-    //     u16 dport;
-    //     bpf_probe_read_user(&dport, sizeof(u16), &sin->sin_port);
-    //     dog_debug(pid, current_pid_tgid, dport, "port");
-
-    // }
-    // ---------------------------------------------------------------------------------------------
-
-    // if (address_family == AF_INET6)
     // TODO: Go appears to convert IPv4 hosts to v6, i.e. ::ffff:172.17.0.2, so we need to handle this
     // See:
     // strace -f -e trace=open,close,connect,sendto,recvfrom,send,recv,accept,accept4 -p 1046989
@@ -105,15 +86,12 @@ int probe_accept4(struct pt_regs *ctx) {
     conn_event.ssl = false;
     conn_event.protocol = pUnknown;
     conn_event.local_ip = *local_ip;
+
+    // NOTE: FOr accept4 the IP and port appear to be 0
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
     bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
 
     bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
-
-
-    // Build the conn_info and save it to the map
-    u64 key = gen_pid_fd(current_pid_tgid, fd);
-    bpf_map_update_elem(&conn_infos, &key, &conn_event, BPF_ANY);
 
     return 0;
 }
@@ -125,14 +103,21 @@ int probe_ret_accept4(struct pt_regs *ctx) {
 
     // Check the call to connect() was successful
     int fd = (int)PT_REGS_RC(ctx);
-        if (fd < 0) {
-            return 0;
-        }
+    if (fd < 0) {
+        return 0;
+    }
+
     // Send entry data from map
     struct connect_event_t *conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
     if (conn_event != NULL) {
-        conn_event->fd = fd;
-        bpf_ringbuf_output(&data_events, conn_event, sizeof(struct connect_event_t), 0);
+        // Deep copy the connect_event
+        struct connect_event_t conn_event2 = copy_connect_event(conn_event, fd);
+
+        // Build the conn_info and save it to the map
+        u64 key = gen_pid_fd(current_pid_tgid, fd);
+        bpf_map_update_elem(&conn_infos, &key, &conn_event2, BPF_ANY);
+        bpf_ringbuf_output(&data_events, &conn_event2, sizeof(struct connect_event_t), 0);
+        bpf_printk("kprobe/accept4: Set conn_info PID: %d FD: %d, Key: %d", pid, fd, key);
     }
 
     bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
@@ -160,7 +145,7 @@ int probe_connect(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
-        bpf_printk("kprobe/connect: PID: %d FD: %d", pid, fd);
+
     struct sockaddr *saddr;
     bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
 
@@ -191,10 +176,6 @@ int probe_connect(struct pt_regs *ctx) {
 
     bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
 
-    // Build the conn_info and save it to the map
-    u64 key = gen_pid_fd(current_pid_tgid, fd);
-    bpf_map_update_elem(&conn_infos, &key, &conn_event, BPF_ANY);
-
     return 0;
 }
 
@@ -210,8 +191,16 @@ int probe_ret_connect(struct pt_regs *ctx) {
 
     // Send entry data from map
     struct connect_event_t *conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
+
     if (conn_event != NULL) {
-        bpf_ringbuf_output(&data_events, conn_event, sizeof(struct connect_event_t), 0);
+        // Deep copy the connect_event
+        struct connect_event_t conn_event2 = copy_connect_event(conn_event, conn_event->fd);
+
+        // Build the conn_info and save it to the map
+        u64 key = gen_pid_fd(current_pid_tgid, conn_event2.fd);
+        bpf_map_update_elem(&conn_infos, &key, &conn_event2, BPF_ANY);
+        bpf_ringbuf_output(&data_events, &conn_event2, sizeof(struct connect_event_t), 0);
+        bpf_printk("kprobe/connect: Set conn_info PID: %d FD: %d, Key: %d", pid, conn_event2.fd, key);
     }
 
     bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
@@ -237,7 +226,6 @@ int probe_close(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
-        bpf_printk("kprobe/close: PID: %d FD: %d", pid, fd);
 
     // Build the connect_event and save it to the map
     struct close_event_t close_event;
@@ -271,6 +259,7 @@ int probe_ret_close(struct pt_regs *ctx) {
 
         u64 key = gen_pid_fd(current_pid_tgid, close_event->fd);
         bpf_map_delete_elem(&conn_infos, &key);
+        bpf_printk("kprobe/close: Delete conn_info PID: %d FD: %d, Key: %d", pid, close_event->fd, key);
     }
 
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
@@ -294,6 +283,7 @@ int probe_sendto(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
+    bpf_printk("kprobe/sendto: PID: %d FD: %d", pid, fd);
 
     // Get the buffer
     const char *buf;
@@ -357,6 +347,7 @@ int probe_recvfrom(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
+    bpf_printk("kprobe/recvfrom: PID: %d FD: %d", pid, fd);
 
     // Get the buffer
     const char *buf;
@@ -465,6 +456,8 @@ int probe_write(struct pt_regs *ctx) {
     u64 key = gen_pid_fd(current_pid_tgid, fd);
     struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
     if (conn_info == NULL || conn_info->ssl == true) {
+        bpf_printk("kprobe/write: NO CONN INFO entry PID: %d FD: %d, Key: %d", pid, fd, key);
+
         return 0;
     }
 
@@ -476,7 +469,7 @@ int probe_write(struct pt_regs *ctx) {
     active_buf_t.buf_len = buf_len;
     bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
-    // bpf_printk("----------------> kprobe/write fd: %d, pid: %d", fd, pid);
+    bpf_printk("kprobe/write: entry PID: %d FD: %d, ID: %d", pid, fd, current_pid_tgid);
 
     return 0;
 }
@@ -499,7 +492,7 @@ int probe_ret_write(struct pt_regs *ctx) {
         s32 version = active_buf_t->version;
         int buf_len = active_buf_t->buf_len;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
-
+        bpf_printk("kprobe/write: return PID: %d FD: %d", pid, fd);
         // TODO: Use procces_data
         struct data_event_t *event = create_data_event(current_pid_tgid);
         if (event == NULL) {
@@ -554,6 +547,7 @@ int probe_read(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
+    bpf_printk("kprobe/read: PID: %d FD: %d", pid, fd);
 
     // Get the buffer
     const char *buf;
@@ -623,7 +617,7 @@ int probe_ret_read(struct pt_regs *ctx) {
         u64 key = gen_pid_fd(current_pid_tgid, fd);
         struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
         if (conn_info == NULL) {
-        return 0;
+            return 0;
         }
 
         // Infer the protocol
@@ -631,7 +625,7 @@ int probe_ret_read(struct pt_regs *ctx) {
 
         // If the protocol is still unknown, then drop it
         if (conn_info->protocol == pUnknown) {
-        return 0;
+            return 0;
         }
 
         // bpf_get_current_comm(&event->comm, sizeof(event->comm));

@@ -97,7 +97,7 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
         }
 
         bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
-        // bpf_printk("gotls/write: %d len: %d", pid, event->data_len);
+        bpf_printk("gotls/write: PID: %d FD: %d", pid, fd);
 
         // Move the pointer and reduce the remaining length
         current_str_ptr += event->data_len;
