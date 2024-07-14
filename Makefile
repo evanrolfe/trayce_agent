@@ -70,3 +70,9 @@ clean:
 	rm -rf third_party/libbpf-bootstrap
 	rm -rf third_party/libbpfgo
 	rm -f internal/bundle.go
+
+dev:
+	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it trayce_build bash
+
+megaserver:
+	docker run -v ./test/mega_server:/app -it mega_server

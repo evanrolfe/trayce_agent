@@ -23,7 +23,7 @@ docker push traycer/trayce_agent:0.0.1
 ### Develop
 Run the bash on the build container with a volume so you can make changes, rebuild and run trayce_agent easily:
 ```
-docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it trayce_build bash
+make dev
 ```
 Then from within the container run:
 ```

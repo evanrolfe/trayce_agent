@@ -23,8 +23,7 @@ const (
 	keyFile = "server.key"
 )
 
-func makeRequest() {
-	url := "https://www.example.com"
+func makeRequest(url string) {
 	client := &http.Client{
 		Transport: &http.Transport{
 			// This line forces http1.1:
@@ -52,7 +51,8 @@ func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 	http.HandleFunc("/large", serverHandlerLarge)
 	http.HandleFunc("/chunked", serverHandlerChunked)
 	http.HandleFunc("/chunked/{n:[0-9]+}", serverHandlerChunked)
-	http.HandleFunc("/second", serverHandlerSecond)
+	http.HandleFunc("/second_http", serverHandlerSecondHTTP)
+	http.HandleFunc("/second_https", serverHandlerSecondHTTPS)
 
 	// HTTP server
 	go func() {
@@ -121,13 +121,30 @@ func serverHandlerChunked(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// GET /second
+// GET /second_http
 // makes another request before returning the response
-func serverHandlerSecond(w http.ResponseWriter, req *http.Request) {
+func serverHandlerSecondHTTP(w http.ResponseWriter, req *http.Request) {
 	fmt.Println("GET /second")
 
-	makeRequest()
+	reqID := req.Header.Get("X-Request-ID")
+
+	makeRequest("http://www.example.com")
 	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("X-Request-ID", reqID)
+
+	w.Write([]byte("Hello world (second request made).\n"))
+}
+
+// GET /second_https
+// makes another request before returning the response
+func serverHandlerSecondHTTPS(w http.ResponseWriter, req *http.Request) {
+	fmt.Println("GET /second")
+
+	reqID := req.Header.Get("X-Request-ID")
+
+	makeRequest("http://www.example.com")
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("X-Request-ID", reqID)
 
 	w.Write([]byte("Hello world (second request made).\n"))
 }

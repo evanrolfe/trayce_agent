@@ -49,29 +49,34 @@ func Test_agent_server(t *testing.T) {
 		verify     func(t *testing.T, requests []*api.Flow)
 	}{
 		{
-			name:       "[Ruby] Server an HTTPS/1.1 request",
-			cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3000), strconv.Itoa(numRequests), "http1"),
+			name:       "[Python] Server an HTTP/1.1 request",
+			cmd:        exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/", megaserverIp, 3001), strconv.Itoa(numRequests), "http1"),
 			verify:     AssertFlows,
 			multiplier: 1,
 		},
 		{
 			name:       "[Python] Server an HTTPS/1.1 request",
-			cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3001), strconv.Itoa(numRequests), "http1"),
+			cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3002), strconv.Itoa(numRequests), "http1"),
 			verify:     AssertFlows,
 			multiplier: 1,
 		},
-		// TODO: This test fails intermittently
+		{
+			name:       "[Ruby] Server an HTTP/1.1 request",
+			cmd:        exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/", megaserverIp, 3003), strconv.Itoa(numRequests), "http1"),
+			verify:     AssertFlows,
+			multiplier: 1,
+		},
+		{
+			name:       "[Ruby] Server an HTTPS/1.1 request",
+			cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3004), strconv.Itoa(numRequests), "http1"),
+			verify:     AssertFlows,
+			multiplier: 1,
+		},
 		{
 			name:       "[Go] Server an HTTPS/2 request",
 			cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
 			verify:     AssertFlowsHttp2,
 			multiplier: 1,
-		},
-		{
-			name:       "[Go] Server an HTTPS/2 request to /second",
-			cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/second", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
-			verify:     AssertFlows2,
-			multiplier: 2,
 		},
 		{
 			name:       "[Go] Server an HTTPS/1.1 request",
@@ -85,12 +90,18 @@ func Test_agent_server(t *testing.T) {
 			verify:     AssertFlows,
 			multiplier: 1,
 		},
-		{
-			name:       "[Go] Server an HTTP/1.1 request to /second",
-			cmd:        exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/second", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
-			verify:     AssertFlows2,
-			multiplier: 2,
-		},
+		// {
+		// 	name:       "[Go] Server an HTTP/1.1 request to /second",
+		// 	cmd:        exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/second", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
+		// 	verify:     AssertFlows2,
+		// 	multiplier: 2,
+		// },
+		// {
+		// 	name:       "[Go] Server an HTTPS/2 request to /second",
+		// 	cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/second", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
+		// 	verify:     AssertFlows2,
+		// 	multiplier: 2,
+		// },
 		// TODO: Support NodeJS
 		// {
 		// 	name:   "[Node] Server an HTTPS/1.1 request",

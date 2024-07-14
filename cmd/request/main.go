@@ -3,12 +3,13 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/net/http2"
 )
 
@@ -71,7 +72,8 @@ type myRequester struct {
 	conn  myConn
 }
 
-func (my *myRequester) makeRequest(url string, i int, ishttp2 bool) {
+func (my *myRequester) makeRequest(url string, i int, ishttp2 bool, wg *sync.WaitGroup) {
+	defer wg.Done()
 	// url = fmt.Sprintf("%s/%v", url, i)
 	fmt.Println("Requesting", url)
 
@@ -100,15 +102,16 @@ func (my *myRequester) makeRequest(url string, i int, ishttp2 bool) {
 		os.Exit(1)
 	}
 	req.Header.Set("Accept-Encoding", "identity")
+	req.Header.Set("X-Request-ID", uuid.NewString())
 	res, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("error sending http request: %s\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("response status code: %d\n", res.StatusCode)
+	fmt.Printf("response status code: %d, ID: %s\n", res.StatusCode, res.Header.Get("X-Request-ID"))
 
-	body, _ := io.ReadAll(res.Body)
-	fmt.Println(string(body))
+	// body, _ := io.ReadAll(res.Body)
+	// fmt.Println(string(body))
 }
 
 func main() {
@@ -135,16 +138,20 @@ func main() {
 	time.Sleep(200 * time.Millisecond)
 	requester := myRequester{hello: "world", fd: 123, conn: myConn{fd: 333333}}
 
+	var wg sync.WaitGroup
 	if n == 1 {
-		requester.makeRequest(url, 0, http2)
+		wg.Add(1)
+		requester.makeRequest(url, 0, http2, &wg)
 		return
 	}
 
 	for i := 0; i < n; i++ {
-		go requester.makeRequest(url, i, http2)
+		wg.Add(1)
+		go requester.makeRequest(url, i, http2, &wg)
 		time.Sleep(100 * time.Millisecond)
 	}
 	time.Sleep(200 * time.Millisecond)
+	wg.Wait()
 }
 
 // func makeRequest(url string, i int, wg *sync.WaitGroup) {
