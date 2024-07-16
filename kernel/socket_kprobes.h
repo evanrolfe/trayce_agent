@@ -285,6 +285,10 @@ int probe_sendto(struct pt_regs *ctx) {
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
     bpf_printk("kprobe/sendto: PID: %d FD: %d", pid, fd);
 
+    // Save the FD incase SSL_Read or SSL_Write need it
+    bpf_map_update_elem(&fd_map, &current_pid_tgid, &fd, BPF_ANY);
+    bpf_printk("SSL_Read krobe/sendto set fd map %d => %d", current_pid_tgid, fd);
+
     // Get the buffer
     const char *buf;
     bpf_probe_read(&buf, sizeof(buf), &PT_REGS_PARM2(ctx2));
@@ -348,6 +352,10 @@ int probe_recvfrom(struct pt_regs *ctx) {
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
     bpf_printk("kprobe/recvfrom: PID: %d FD: %d", pid, fd);
+
+    // Save the FD incase SSL_Read or SSL_Write need it
+    bpf_map_update_elem(&fd_map, &current_pid_tgid, &fd, BPF_ANY);
+    bpf_printk("SSL_Read krobe/recvfrom set fd map %d => %d", current_pid_tgid, fd);
 
     // Get the buffer
     const char *buf;
@@ -444,6 +452,10 @@ int probe_write(struct pt_regs *ctx) {
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
 
+    // Save the FD incase SSL_Read or SSL_Write need it
+    bpf_map_update_elem(&fd_map, &current_pid_tgid, &fd, BPF_ANY);
+    bpf_printk("SSL_Read krobe/write set fd map %d => %d", current_pid_tgid, fd);
+
     // Get the buffer
     const char *buf;
     bpf_probe_read(&buf, sizeof(buf), &PT_REGS_PARM2(ctx2));
@@ -469,7 +481,7 @@ int probe_write(struct pt_regs *ctx) {
     active_buf_t.buf_len = buf_len;
     bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
-    bpf_printk("kprobe/write: entry PID: %d FD: %d, ID: %d", pid, fd, current_pid_tgid);
+    bpf_printk("SSL kprobe/write: entry PID: %d FD: %d, ID: %d", pid, fd, current_pid_tgid);
 
     return 0;
 }

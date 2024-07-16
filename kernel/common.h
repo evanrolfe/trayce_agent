@@ -169,6 +169,20 @@ struct {
 } conn_infos SEC(".maps");
 
 struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, u32);
+    __uint(max_entries, 1024);
+} fd_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, u32);
+    __uint(max_entries, 1024);
+} ssl_fd_map SEC(".maps");
+
+struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 256 * 1024); // 256 KB
 } data_events SEC(".maps");
@@ -265,7 +279,7 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     return 0;
 }
 
-static u32 get_fd_from_libssl(struct ssl_st ssl_info, u32 pid) {
+static u32 get_fd_from_libssl_read(struct ssl_st ssl_info, u32 pid, u64 current_pid_tgid) {
     int res;
     u32 fd;
     int *libssl_version = bpf_map_lookup_elem(&libssl_versions_map, &pid);
@@ -286,7 +300,54 @@ static u32 get_fd_from_libssl(struct ssl_st ssl_info, u32 pid) {
             bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
         fd = bio_r.num;
-        bpf_printk("fd: %d", fd);
+        bpf_printk("SSL_read fd: %d", fd);
+    }
+
+    if (fd == -1) {
+        bpf_printk("SSL_read looking for fd in map at: %d", current_pid_tgid);
+        int* fd2 = bpf_map_lookup_elem(&fd_map, &current_pid_tgid);
+
+        if (fd2 != NULL) {
+            fd = *fd2;
+            bpf_printk("SSL_read backup FD: %d", fd);
+        }
+    }
+
+    return fd;
+}
+
+static u32 get_fd_from_libssl_write(struct ssl_st ssl_info, u32 pid, u64 ssl_ptr) {
+    int res;
+    u32 fd;
+    int *libssl_version = bpf_map_lookup_elem(&libssl_versions_map, &pid);
+    if (libssl_version == NULL) {
+        return 0;
+    }
+    if (*libssl_version == 1) {
+        struct bio_st_v1_1_1 bio_w;
+        res = bpf_probe_read_user(&bio_w, sizeof(bio_w), ssl_info.wbio);
+        if (res < 0) {
+            bpf_printk("SSL_write enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
+        }
+        fd = bio_w.num;
+    } else if(*libssl_version == 3) {
+        struct bio_st_v3_0 bio_w;
+        res = bpf_probe_read_user(&bio_w, sizeof(bio_w), ssl_info.wbio);
+        if (res < 0) {
+            bpf_printk("SSL_write enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
+        }
+        fd = bio_w.num;
+        bpf_printk("SSL_write fd: %d", fd);
+    }
+
+    if (fd == -1) {
+        bpf_printk("!!!!!!!!!!!!! SSL_write looking for ssl_fd in map at: %d", ssl_ptr);
+        int* fd2 = bpf_map_lookup_elem(&ssl_fd_map, &ssl_ptr);
+
+        if (fd2 != NULL) {
+            fd = *fd2;
+            bpf_printk("SSL_write ======> found fd2: %d", fd);
+        }
     }
 
     return fd;

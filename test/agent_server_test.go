@@ -73,6 +73,12 @@ func Test_agent_server(t *testing.T) {
 			multiplier: 1,
 		},
 		{
+			name:       "[Ruby] Server an HTTPS/1.1 request to /second_https",
+			cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/second_https", megaserverIp, 3004), strconv.Itoa(numRequests), "http1"),
+			verify:     AssertFlows,
+			multiplier: 1,
+		},
+		{
 			name:       "[Go] Server an HTTPS/2 request",
 			cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
 			verify:     AssertFlowsHttp2,

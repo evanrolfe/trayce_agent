@@ -61,7 +61,10 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
 	socket = m.getOrCreateSocket(event)
-
+	if socket == nil {
+		fmt.Println("[SocketMap] no socket found, dropping.")
+		return
+	}
 	// If the socket is unknown, try to detect the protocol, if not detection then drop
 	// but if detected then convert it to the protocol socket
 	unkownSocket, isUnknown := socket.(*SocketUnknown)
@@ -114,7 +117,7 @@ func (m *SocketMap) getOrCreateSocket(event events.DataEvent) SocketI {
 		fmt.Println("Found socket:", socket.Key())
 		return socket
 	}
-
+	return nil
 	// If we can't find a socket then lets just create one with dst IP set to 0.0.0.0 becuause thats better than nothing
 	newSocket := NewSocketUnknown(&events.ConnectEvent{
 		PID:  event.PID,

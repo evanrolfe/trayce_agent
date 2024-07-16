@@ -19,7 +19,7 @@ struct {
 int process_ssl_read_entry(struct pt_regs *ctx, bool is_ex_call) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-
+    bpf_printk("SSL_read ENTRY current_pid_tgid: %d", current_pid_tgid);
     // Check if PID is intercepted
     u32 *local_ip = bpf_map_lookup_elem(&intercepted_pids, &pid);
     if (local_ip == NULL) {
@@ -34,7 +34,11 @@ int process_ssl_read_entry(struct pt_regs *ctx, bool is_ex_call) {
         bpf_printk("SSL_read enty bpf_probe_read_user ssl_info failed: %d", res);
     }
 
-    u32 fd = get_fd_from_libssl(ssl_info, pid);
+    u32 fd = get_fd_from_libssl_read(ssl_info, pid, current_pid_tgid);
+
+    // Save the FD incase SSL_Read or SSL_Write need it
+    u64 ssl_ptr = (u64) ssl;
+    bpf_map_update_elem(&ssl_fd_map, &ssl_ptr, &fd, BPF_ANY);
 
     // ---------------------------------------------------------------------------------------------
     // Workaround: for incoming SSL requests to Ruby servers, for some reason bio_r.num is always = -1
@@ -72,6 +76,14 @@ int process_ssl_read_return(struct pt_regs *ctx, bool is_ex_call) {
     const char *buf;
     u32 fd = active_buf_t->fd;
 
+    struct ssl_st ssl_info;
+    int res2 = bpf_probe_read_user(&ssl_info, sizeof(ssl_info), active_buf_t->ssl_info);
+    if (res2 < 0) {
+        bpf_printk("SSL_read RETURN bpf_probe_read_user ssl_info failed: %d", res2);
+    }
+
+    u32 fd2 = get_fd_from_libssl_read(ssl_info, pid, current_pid_tgid);
+
     int res = (int)PT_REGS_RC(ctx);
 
     size_t ssl_ex_len;
@@ -107,7 +119,7 @@ int process_ssl_read_return(struct pt_regs *ctx, bool is_ex_call) {
 int process_ssl_write_entry(struct pt_regs *ctx, bool is_ex_call) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-
+    bpf_printk("SSL_write ENTRY current_pid_tgid: %d", current_pid_tgid);
     // Check if PID is intercepted
     u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
     if (pid_intercepted == NULL) {
@@ -120,7 +132,7 @@ int process_ssl_write_entry(struct pt_regs *ctx, bool is_ex_call) {
     struct ssl_st ssl_info;
     bpf_probe_read_user(&ssl_info, sizeof(ssl_info), ssl);
 
-    u32 fd = get_fd_from_libssl(ssl_info, pid);
+    u32 fd = get_fd_from_libssl_write(ssl_info, pid, (u64) ssl);
 
     // Workaround: see comment in process_ssl_read_entry()
     if (fd == -1) {
@@ -135,13 +147,13 @@ int process_ssl_write_entry(struct pt_regs *ctx, bool is_ex_call) {
     active_buf_t.buf = buf;
     active_buf_t.ssl_ptr = (u64)ssl;
 
-  if (is_ex_call) {
-    size_t *ssl_ex_len_ptr = (size_t *)PT_REGS_PARM4(ctx);
-    size_t ssl_ex_len;
-    bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), ssl_ex_len_ptr);
-    bpf_printk("SSL_write_ex FD:%d, ex_len: %d\n", fd, ssl_ex_len);
-    active_buf_t.ssl_ex_len_ptr = ssl_ex_len_ptr;
-  }
+    if (is_ex_call) {
+        size_t *ssl_ex_len_ptr = (size_t *)PT_REGS_PARM4(ctx);
+        size_t ssl_ex_len;
+        bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), ssl_ex_len_ptr);
+        bpf_printk("SSL_write_ex FD:%d, ex_len: %d\n", fd, ssl_ex_len);
+        active_buf_t.ssl_ex_len_ptr = ssl_ex_len_ptr;
+    }
 
   bpf_map_update_elem(&active_ssl_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
