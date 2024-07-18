@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -352,12 +353,15 @@ func parseChunkedResponse(response []byte) ([]byte, error) {
 		// Read the chunk size
 		var chunkSizeHex string
 		if _, err := fmt.Fscanf(reader, "%s\r\n", &chunkSizeHex); err != nil {
-			return nil, err
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("fmt.Fscanf(): %v", err)
 		}
 
 		chunkSize := 0
 		if _, err := fmt.Sscanf(chunkSizeHex, "%x", &chunkSize); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("fmt.Sscanf(): %v", err)
 		}
 
 		if chunkSize == 0 {
@@ -367,13 +371,13 @@ func parseChunkedResponse(response []byte) ([]byte, error) {
 		// Read the chunk data
 		chunk := make([]byte, chunkSize)
 		if _, err := io.ReadFull(reader, chunk); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("io.ReadFull(): %v", err)
 		}
 		result.Write(chunk)
 
 		// Read the trailing \r\n
 		if _, err := fmt.Fscanf(reader, "\r\n"); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("fmt.Fscanf() 2: %v", err)
 		}
 	}
 
