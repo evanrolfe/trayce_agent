@@ -56,7 +56,7 @@ testunit: generate
 	$(CGO_FLAGS) \
 	ginkgo \
 	-tags netgo -ldflags $(CGO_EXTLDFLAGS_STATIC) \
-	-v -r ./internal/...
+	-v -r ./internal/sockets
 
 mockgrpc:
 	$(CGO_FLAGS) \

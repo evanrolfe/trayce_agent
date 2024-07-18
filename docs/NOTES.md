@@ -40,7 +40,7 @@ Trace library calls:
 `ltrace -x "@libssl.so.3" -o strace.txt curl https://www.pntest.io --http1.1`
 
 Trace libssl with rails (cd ror):
-`ltrace -f -x "@libssl.so.3" ruby run.rb s  -b 'ssl://0.0.0.0:3000?key=./config/ssl/localhost.key&cert=./config/ssl/localhost.crt'`
+`ltrace -f -x "@libssl.so.3" ruby run.rb s  -b 'ssl://0.0.0.0:3004?key=./config/ssl/localhost.key&cert=./config/ssl/localhost.crt'`
 
 Kernel args wrapped twice (https://stackoverflow.com/questions/69842674/cannot-read-arguements-properly-from-ebpf-kprobe)? Check:
 `$ sudo cat /boot/config-$(uname -r) | grep CONFIG_ARCH_HAS_SYSCALL_WRAPPER`

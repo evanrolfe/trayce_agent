@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -85,6 +86,7 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
 
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf), " ssl?", event.SSL())
+	fmt.Println(hex.Dump(event.Payload()))
 	// if event.SSL() && !socket.SSL {
 	// 	fmt.Println("[SocketHttp1.1] clearing dataBuffer")
 	// 	socket.clearDataBuffer()
@@ -225,27 +227,27 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 		// Decompress if the body is gzip compressed
 		gzipReader, err := gzip.NewReader(bytes.NewReader(body))
 		if err != nil {
-			fmt.Println("ERROR", err)
+			fmt.Println("ERROR gzip.NewReader():", err)
 		}
 		defer gzipReader.Close()
 
 		decompressedBody, err := io.ReadAll(gzipReader)
 		if err != nil {
-			fmt.Println("ERROR", err)
+			fmt.Println("ERROR io.ReadAll():", err)
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(decompressedBody))
 		defer resp.Body.Close()
 
 		buf2, err := httputil.DumpResponse(resp, true)
 		if err != nil {
-			fmt.Println("ERROR", err)
+			fmt.Println("ERROR httputil.DumpResponse():", err)
 		}
 
 		bufReturn = &buf2
 	} else if isChunked {
 		parsedBuf, err := parseChunkedResponse(buf)
 		if err != nil {
-			fmt.Println("ERROR", err)
+			fmt.Println("ERROR parseChunkedResponse():", err)
 		}
 		bufReturn = &parsedBuf
 	} else {

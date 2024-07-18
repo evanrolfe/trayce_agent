@@ -167,16 +167,16 @@ func Test_agent_server(t *testing.T) {
 				time.Sleep(2 * time.Second)
 			}
 
+			if testing.Verbose() {
+				fmt.Println("*-------------------------------------------------------------------------* Output Start:")
+				fmt.Println(stdoutBuf.String())
+				fmt.Println("*-------------------------------------------------------------------------* Output End")
+			}
+
 			// Verify the result
 			assert.Equal(t, expectedNum, len(flows))
 			tt.verify(t, flows)
 		})
-	}
-
-	if testing.Verbose() {
-		fmt.Println("*-------------------------------------------------------------------------* Output Start:")
-		fmt.Println(stdoutBuf.String())
-		fmt.Println("*-------------------------------------------------------------------------* Output End")
 	}
 
 	trayceAgent.Process.Signal(syscall.SIGTERM)

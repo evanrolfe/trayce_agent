@@ -330,4 +330,113 @@ var _ = Describe("SocketHTTP2", func() {
 			fmt.Print(lines)
 		})
 	})
+
+	// Weird egdge case here, http2Event23 is actually two HTTP2 frames combined into one event, for some reason Go occasionally
+	// sends bytes over like that (like < 5% of the time), so annoyingly we have to handle this
+	//
+	// http2Event23 payload below combines a Settings frame (type 0x04) and a Window Update frame (type 0x08)
+	// 00 00 00 04 01 00 00 00  00 00 00 04 08 00 00 00
+	// 00 00 00 0f 00 01
+	//
+	// First Frame:
+	// 00 00 00 04 01 00 00 00 00
+	//
+	// Length: 				00 00 00 (0 bytes)
+	// Type: 				04 (Settings frame)
+	// Flags: 				01 (ACK flag set)
+	// Reserved: 			0 (part of the Stream Identifier)
+	// Stream Identifier: 	00 00 00 00 (Stream 0)
+	//
+	// This is an ACK Settings frame with no payload.
+	// Total length: 9 bytes (frame header only)
+	//
+	// Second Frame:
+	// 00 00 04 08 00 00 00 00 00 00 00 0f 00 01
+	//
+	// Length: 				00 00 04 (4 bytes)
+	// Type: 				08 (Window Update frame)
+	// Flags: 				00 (no flags set)
+	// Reserved: 			0 (part of the Stream Identifier)
+	// Stream Identifier: 	00 00 00 00 (Stream 0)
+	// Payload: 			00 00 00 0f (Window size increment of 15)
+	//
+	// This is a Window Update frame with a payload length of 4 bytes.
+	// Total length: 13 bytes (9 bytes header + 4 bytes payload)
+	//
+	Context("Receiving a Connect & Data events (GET request), then Data events with a multiple response frames in one event", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		http2Event15, _ := hexDumpToBytes(http2Event15)
+		http2Event16, _ := hexDumpToBytes(http2Event16)
+		http2Event17, _ := hexDumpToBytes(http2Event17)
+		http2Event18, _ := hexDumpToBytes(http2Event18)
+		http2Event19, _ := hexDumpToBytes(http2Event19)
+		http2Event20, _ := hexDumpToBytes(http2Event20)
+		http2Event21, _ := hexDumpToBytes(http2Event21)
+		http2Event22, _ := hexDumpToBytes(http2Event22)
+		http2Event23, _ := hexDumpToBytes(http2Event23)
+		http2Event24, _ := hexDumpToBytes(http2Event24)
+
+		requestPayloads := [][]byte{
+			http2Event15,
+			http2Event16,
+			http2Event17,
+			http2Event18,
+			http2Event19,
+			http2Event20,
+			http2Event21,
+		}
+		responsePayloads := [][]byte{http2Event22, http2Event23, http2Event24}
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
+				Port: 80,
+			})
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			// Process request payloads
+			for _, payload := range requestPayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 6, // go_tls_read
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+			// Process response payloads
+			for _, payload := range responsePayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 7, // go_tls_write
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+		})
+
+		It("returns a request flow", func() {
+			Expect(flows).To(HaveLen(2))
+
+			Expect(flows[0].Request).ToNot(BeNil())
+			Expect(flows[0].Response).To(BeNil())
+
+			Expect(flows[1].Request).To(BeNil())
+			Expect(flows[1].Response).ToNot(BeNil())
+
+			// lines := strings.Split(string(flow.Request), "\r\n")
+			// Expect(lines[0]).To(Equal("POST / HTTP/2"))
+			// fmt.Print(lines)
+		})
+	})
 })

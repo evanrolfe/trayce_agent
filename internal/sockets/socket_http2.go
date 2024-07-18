@@ -2,7 +2,9 @@ package sockets
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"sync"
 
 	"github.com/evanrolfe/trayce_agent/internal/events"
 )
@@ -18,7 +20,7 @@ type SocketHttp2 struct {
 
 	streams     map[uint32]*Http2Stream
 	frameBuffer map[string][]byte
-
+	mu          sync.Mutex
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
 }
@@ -37,7 +39,7 @@ func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
 
-	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
+	socket.LocalAddr = event.LocalIPAddr()
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 
 	return socket
@@ -76,13 +78,13 @@ func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
+	socket.LocalAddr = event.LocalIPAddr()
 	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
 }
 
 // TODO: Have a structure for handling the frame header + payload?
 func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
-	// fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr, "\n", hex.Dump(event.Payload()))
+	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, "\n", hex.Dump(event.Payload()))
 	// utils.PrintBytesHex(event.Payload())
 
 	// Ignore the http2 magic string (PRI * SM...)
@@ -94,21 +96,17 @@ func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 	// Its possible we receive partial ingress frame, then an egress frame, then the rest of the ingress frame,
 	// so because of that we need to buffer the frame bytes based on ingress/egress direction.
 	frameBytes := append(socket.frameBuffer[event.Type()], event.Payload()...)
-	frame := NewHttp2Frame(frameBytes)
+	frames, remainder := ParseBytesToFrames(frameBytes)
 
-	if !frame.Complete() {
-		socket.frameBuffer[event.Type()] = frameBytes
-		return
+	socket.frameBuffer[event.Type()] = remainder
+
+	for _, frame := range frames {
+		socket.processFrame(frame)
 	}
+}
 
-	// fmt.Println("[SocketHttp2] complete frame received, type: ", frame.Type(), " length:", frame.Length(), " stream:", frame.StreamID())
-	// fmt.Println(frame.Payload())
-
-	// We have a complete frame so can clear the buffer now
-	socket.clearFrameBuffer(event.Type())
-
+func (socket *SocketHttp2) processFrame(frame *Http2Frame) {
 	stream := socket.findOrCreateStream(frame.StreamID())
-
 	flow := stream.ProcessFrame(frame)
 	if flow != nil {
 		socket.sendFlowBack(*flow)
@@ -116,16 +114,17 @@ func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 }
 
 func (socket *SocketHttp2) findOrCreateStream(streamID uint32) *Http2Stream {
-	stream, _ := socket.streams[streamID]
-	if stream == nil {
-		stream = NewHttp2Stream()
-		socket.setStream(streamID, stream)
-	}
-	return stream
-}
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
 
-func (socket *SocketHttp2) setStream(streamID uint32, stream *Http2Stream) {
-	socket.streams[streamID] = stream
+	stream, exists := socket.streams[streamID]
+	if !exists {
+		fmt.Println("[SocketHTTP2] creating stream", streamID, " socket:", socket.Key())
+		stream = NewHttp2Stream()
+		socket.streams[streamID] = stream
+	}
+	fmt.Println("[SocketHTTP2] Found stream", streamID, " socket:", socket.Key())
+	return stream
 }
 
 func (socket *SocketHttp2) clearFrameBuffer(key string) {

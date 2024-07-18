@@ -23,6 +23,36 @@ type Http2Flags struct {
 	Priority   bool
 }
 
+// ParseBytesToFrames parses a byte array into zero or more complete Http2Frames. If there is an incomplete frame
+// then the for it are return as the second return value.
+// Its implemented like this because Go can send multiple frames in the same call, or send the same frame over multiple calls.
+func ParseBytesToFrames(raw []byte) ([]*Http2Frame, []byte) {
+	byteBuf := []byte{}
+	frames := []*Http2Frame{}
+
+	// points to the end of the last complete frame
+	indexPointer := 0
+	for i, b := range raw {
+		byteBuf = append(byteBuf, b)
+		frame := NewHttp2Frame(byteBuf)
+
+		if frame.Complete() {
+			indexPointer = i + 1 // Set the pointer to the start of the next frame
+			byteBuf = []byte{}   // clear the buffer
+			frames = append(frames, frame)
+		}
+	}
+
+	// work out the remainder bytes
+	remainder := []byte{}
+	fmt.Println("indexPointer:", indexPointer)
+	for i := indexPointer; i < len(raw); i++ {
+		remainder = append(remainder, raw[i])
+	}
+
+	return frames, remainder
+}
+
 func NewHttp2Frame(raw []byte) *Http2Frame {
 	return &Http2Frame{raw: raw}
 }
@@ -52,14 +82,31 @@ func (f *Http2Frame) StreamID() uint32 {
 }
 
 func (f *Http2Frame) Payload() []byte {
+	if len(f.raw) < 9 {
+		return []byte{}
+	}
+
 	return f.raw[9:]
 }
 
+// Cases (first 3 bytes are the length):
+//
+// [00 00 10] => incomplete
+// [00 00 00] => incomplete
+// [00 00 00 04 01] => incomplete
+// [00 00 00 04 01 00 00 00 00] => complete
+// [00 00 03 04 01 00 00 00 00 01 02 03] => complete
 func (f *Http2Frame) Complete() bool {
-	if f.Length() == 0 {
-		return true
+	// The first 3 bytes are the length so we need this to know if its complete or not
+	if len(f.raw) < 3 {
+		return false
 	}
-	return len(f.Payload()) == int(f.Length())
+
+	if f.Length() > 0 {
+		return len(f.Payload()) == int(f.Length())
+	} else {
+		return len(f.raw) == 9
+	}
 }
 
 func (f *Http2Frame) Append(raw []byte) {
