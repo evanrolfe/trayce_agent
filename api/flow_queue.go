@@ -78,7 +78,7 @@ func (fq *FlowQueue) processQueue() {
 	apiFlows := &Flows{Flows: flows}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	fmt.Println("[FlowQueue]  SENDING FLOWS\n", apiFlows.Flows)
+	fmt.Println("[FlowQueue] sending flows", len(apiFlows.Flows))
 	_, err := fq.grpcClient.SendFlowsObserved(ctx, apiFlows)
 	if err != nil {
 		fmt.Println("[ERROR] could not request:", err)

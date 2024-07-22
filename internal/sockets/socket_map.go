@@ -48,16 +48,10 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	defer m.mu.Unlock()
 
 	var socket SocketI
-
-	// For some reason HTTPS requests to ruby never have the FD value set, so instead we use the ssl_ptr value as the fd
-	// so that we can at least correleate requests with responses, but we wont have a connect event so the src & dst will be 0.0.0.0
-	if event.FD == 0 && event.SSLPtr > 0 {
-		event.FD = uint32(event.SSLPtr)
-	}
 	green := "\033[92m"
 	reset := "\033[0m"
 
-	fmt.Println(string(green), "[DataEvent]", string(reset), " Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, " ssl_ptr:", event.SSLPtr)
+	fmt.Println(string(green), "[DataEvent]", string(reset), " Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD:", event.FD, " ssl_ptr:", event.SSLPtr)
 	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
 	socket = m.getOrCreateSocket(event)

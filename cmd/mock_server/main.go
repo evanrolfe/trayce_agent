@@ -79,8 +79,11 @@ func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 // returns a normal response (with Content-Length header)
 func serverHandler(w http.ResponseWriter, req *http.Request) {
 	fmt.Println("GET /")
+
+	reqID := req.Header.Get("X-Request-ID")
 	// makeRequest()
 	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("X-Request-ID", reqID)
 
 	w.Write([]byte("Hello world.\n"))
 }

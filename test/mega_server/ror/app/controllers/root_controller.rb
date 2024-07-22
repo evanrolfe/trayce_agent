@@ -12,6 +12,17 @@ class RootController < ApplicationController
     render plain: output, layout: false, content_type: 'text/plain'
   end
 
+  def second_http
+    uri = URI.parse("http://www.example.com")
+    http = Net::HTTP.new(uri.host, uri.port)
+    request = Net::HTTP::Get.new(uri.request_uri)
+    response = http.request(request)
+    puts "=======================> Response Code: #{response.code}"
+
+    output = "hello world"
+    render plain: output, layout: false, content_type: 'text/plain'
+  end
+
   def second_https
     uri = URI.parse("https://www.example.com")
     http = Net::HTTP.new(uri.host, uri.port)

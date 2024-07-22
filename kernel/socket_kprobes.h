@@ -493,44 +493,14 @@ int probe_ret_write(struct pt_regs *ctx) {
 
     struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
 
-    if (active_buf_t != NULL) {  // Could check socket_event==true here if security_socket_sendmsg krpobe was enabled
+    if (active_buf_t != NULL) {
         const char *buf;
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
-        int buf_len = active_buf_t->buf_len;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
-        bpf_printk("kprobe/write: return PID: %d FD: %d", pid, fd);
-        // TODO: Use procces_data
-        struct data_event_t *event = create_data_event(current_pid_tgid);
-        if (event == NULL) {
-        return 0;
-        }
 
-        event->type = kWrite;
-        event->fd = fd;
-        event->version = version;
-
-        // This is a max function, but it is written in such a way to keep older BPF verifiers happy.
-        event->data_len = (buf_len < MAX_DATA_SIZE_OPENSSL ? (buf_len & (MAX_DATA_SIZE_OPENSSL - 1)) : MAX_DATA_SIZE_OPENSSL);
-        bpf_probe_read_user(event->data, event->data_len, buf);
-
-        // Find the matching connect event so we can filter out non-socket write() calls
-        u64 key = gen_pid_fd(current_pid_tgid, fd);
-        struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-        if (conn_info == NULL) {
-        return 0;
-        }
-
-        // Infer the protocol
-        infer_http_message(conn_info, event->data);
-
-        // If the protocol is still unknown, then drop it
-        if (conn_info->protocol == pUnknown) {
-        return 0;
-        }
-
-        bpf_get_current_comm(&event->comm, sizeof(event->comm));
-        bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
+        u64 ssl_ptr = 0;
+        process_data(ctx, current_pid_tgid, kSendto, buf, fd, version, 0, ssl_ptr);
     }
     bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
 
@@ -554,7 +524,6 @@ int probe_read(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
-    bpf_printk("kprobe/read: PID: %d FD: %d", pid, fd);
 
     // Get the buffer
     const char *buf;
@@ -564,12 +533,13 @@ int probe_read(struct pt_regs *ctx) {
     int buf_len;
     bpf_probe_read(&buf_len, sizeof(buf_len), &PT_REGS_PARM3(ctx2));
 
+    // WHy the fuck does this break it??
     // Find the matching connect event so we can filter out non-socket write() calls
-    u64 key = gen_pid_fd(current_pid_tgid, fd);
-    struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-    if (conn_info == NULL || conn_info->ssl == true) {
-        return 0;
-    }
+    // u64 key = gen_pid_fd(current_pid_tgid, fd);
+    // struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
+    // if (conn_info == NULL || conn_info->ssl == true) {
+    //     return 0;
+    // }
 
     struct active_buf active_buf_t;
     __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
@@ -578,6 +548,7 @@ int probe_read(struct pt_regs *ctx) {
     active_buf_t.buf = buf;
     active_buf_t.buf_len = buf_len;
     bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
+    bpf_printk("kprobe/read: entry FD: %d, ID: %d, conn_info: %d", fd, current_pid_tgid, 123);
 
     return 0;
 }
@@ -594,97 +565,14 @@ int probe_ret_read(struct pt_regs *ctx) {
 
     struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
 
-    if (active_buf_t != NULL) { // Could check socket_event==true here if security_socket_recvmsg krpobe was enabled
-        // dog_debug(pid, current_pid_tgid, bytes_read, "read");
-        active_buf_t->buf_len = bytes_read;
-
-        bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
-        // TODO: DRY up the duplication here with probe_red_write()
+    if (active_buf_t != NULL) {
         const char *buf;
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
-        int buf_len = active_buf_t->buf_len;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
-
-        // TODO: Use procces_data
-        struct data_event_t *event = create_data_event(current_pid_tgid);
-        if (event == NULL) {
-        return 0;
-        }
-
-        event->type = kRead;
-        event->fd = fd;
-        event->version = version;
-
-        // This is a max function, but it is written in such a way to keep older BPF verifiers happy.
-        event->data_len = (buf_len < MAX_DATA_SIZE_OPENSSL ? (buf_len & (MAX_DATA_SIZE_OPENSSL - 1)) : MAX_DATA_SIZE_OPENSSL);
-        bpf_probe_read_user(event->data, event->data_len, buf);
-
-        // Find the matching connect event so we can filter out non-socket write() calls
-        u64 key = gen_pid_fd(current_pid_tgid, fd);
-        struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-        if (conn_info == NULL) {
-            return 0;
-        }
-
-        // Infer the protocol
-        infer_http_message(conn_info, event->data);
-
-        // If the protocol is still unknown, then drop it
-        if (conn_info->protocol == pUnknown) {
-            return 0;
-        }
-        bpf_printk("kprobe/read: return PID: %d FD: %d", pid, fd);
-
-        // bpf_get_current_comm(&event->comm, sizeof(event->comm));
-        bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
+        u64 ssl_ptr = 0;
+        process_data(ctx, current_pid_tgid, kRecvfrom, buf, fd, version, 0, ssl_ptr);
     }
-
-    return 0;
-}
-
-// NOTE: security_socket_sendmsg and security_socket_recvmsg are not available on linuxkit (used by docker desktop for mac)
-// so these are not used currently. But they can be used to filter the send/recv calls intercepted.
-
-// This probe is used to identify when a call to write() comes from a network socket
-SEC("kprobe/security_socket_sendmsg")
-int probe_entry_security_socket_sendmsg(struct pt_regs *ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
-        return 0;
-    }
-
-    struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_write_args_map, &current_pid_tgid);
-
-    if (active_buf_t != NULL) {
-        active_buf_t->socket_event = true;
-    }
-
-    return 0;
-}
-
-// This probe is used to identify when a call to read() comes from a network socket
-// int security_socket_recvmsg(struct socket *sock, struct msghdr *msg, int size)
-SEC("kprobe/security_socket_recvmsg")
-int probe_entry_security_socket_recvmsg(struct pt_regs *ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
-        return 0;
-    }
-
-    struct active_buf *active_buf_t = bpf_map_lookup_elem(&active_read_args_map, &current_pid_tgid);
-
-    if (active_buf_t != NULL) {
-        active_buf_t->socket_event = true;
-    }
-
+    bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
     return 0;
 }

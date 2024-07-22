@@ -1,6 +1,7 @@
 Rails.application.routes.draw do
   get "/", to: "root#index"
 #   get "/:id", to: "root#index"
+  get "/second_http", to: "root#second_http"
   get "/second_https", to: "root#second_https"
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html

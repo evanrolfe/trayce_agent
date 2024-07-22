@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -86,7 +85,7 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
 
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf), " ssl?", event.SSL())
-	fmt.Println(hex.Dump(event.Payload()))
+	// fmt.Println(hex.Dump(event.Payload()))
 	// if event.SSL() && !socket.SSL {
 	// 	fmt.Println("[SocketHttp1.1] clearing dataBuffer")
 	// 	socket.clearDataBuffer()
