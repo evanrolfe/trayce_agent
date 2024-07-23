@@ -86,6 +86,16 @@ func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
 	// utils.PrintBytesHex(event.Payload())
 
+	if socket.SSL && !event.SSL() {
+		// If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
+		return
+	}
+
+	if event.SSL() && !socket.SSL {
+		fmt.Println("[SocketHttp1.1] upgrading to SSL")
+		socket.SSL = true
+	}
+
 	// Ignore the http2 magic string (PRI * SM...)
 	if len(event.Payload()) >= 24 && bytes.Equal(event.Payload()[0:24], http2MagicString) {
 		return

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"slices"
 
 	"github.com/evanrolfe/trayce_agent/internal/utils"
 )
@@ -149,7 +150,8 @@ func (se *DataEvent) Key() string {
 }
 
 func (se *DataEvent) SSL() bool {
-	return se.DataType == kSSLRead || se.DataType == kSSLWrite
+	sslTypes := []uint64{kSSLRead, kSSLWrite, goTlsRead, goTlsWrite}
+	return slices.Contains(sslTypes, se.DataType)
 }
 
 // IsBlank returns true if the event's payload contains only zero bytes, for some reason we get sent this from ebpf..

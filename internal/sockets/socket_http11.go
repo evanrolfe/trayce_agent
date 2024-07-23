@@ -86,11 +86,16 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf), " ssl?", event.SSL())
 	// fmt.Println(hex.Dump(event.Payload()))
-	// if event.SSL() && !socket.SSL {
-	// 	fmt.Println("[SocketHttp1.1] clearing dataBuffer")
-	// 	socket.clearDataBuffer()
-	// 	socket.SSL = true
-	// }
+
+	if socket.SSL && !event.SSL() {
+		// If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
+		return
+	}
+
+	if event.SSL() && !socket.SSL {
+		fmt.Println("[SocketHttp1.1] upgrading to SSL")
+		socket.SSL = true
+	}
 
 	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe
 	// this check fixes that because the encrypted data is dropped since it doesnt start with GET
