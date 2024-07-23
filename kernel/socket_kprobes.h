@@ -457,15 +457,6 @@ int probe_write(struct pt_regs *ctx) {
     int buf_len;
     bpf_probe_read(&buf_len, sizeof(buf_len), &PT_REGS_PARM3(ctx2));
 
-    // Find the matching connect event so we can filter out non-socket write() calls
-    u64 key = gen_pid_fd(current_pid_tgid, fd);
-    struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-    if (conn_info == NULL) {
-        bpf_printk("kprobe/write: NO CONN INFO entry PID: %d FD: %d, Key: %d", pid, fd, key);
-
-        return 0;
-    }
-
     struct active_buf active_buf_t;
     __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
     active_buf_t.fd = fd;
@@ -531,14 +522,6 @@ int probe_read(struct pt_regs *ctx) {
     int buf_len;
     bpf_probe_read(&buf_len, sizeof(buf_len), &PT_REGS_PARM3(ctx2));
 
-    // WHy the fuck does this break it??
-    // Find the matching connect event so we can filter out non-socket write() calls
-    // u64 key = gen_pid_fd(current_pid_tgid, fd);
-    // struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-    // if (conn_info == NULL || conn_info->ssl == true) {
-    //     return 0;
-    // }
-
     struct active_buf active_buf_t;
     __builtin_memset(&active_buf_t, 0, sizeof(active_buf_t));
     active_buf_t.fd = fd;
@@ -546,7 +529,7 @@ int probe_read(struct pt_regs *ctx) {
     active_buf_t.buf = buf;
     active_buf_t.buf_len = buf_len;
     bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
-    bpf_printk("kprobe/read: entry FD: %d, ID: %d, conn_info: %d", fd, current_pid_tgid, 123);
+    bpf_printk("kprobe/read: entry FD: %d, ID: %d", fd, current_pid_tgid);
 
     return 0;
 }
