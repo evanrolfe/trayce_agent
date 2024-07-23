@@ -57,7 +57,6 @@ struct connect_event_t {
     u32 ip;
     u16 port;
     bool local;
-    bool ssl;
     u32 protocol;
     u32 local_ip;
 };
@@ -227,7 +226,6 @@ static __inline struct connect_event_t copy_connect_event(struct connect_event_t
     conn_event2.tid = conn_event->tid;
     conn_event2.fd = new_fd;
     conn_event2.local = false;
-    conn_event2.ssl = false;
     conn_event2.protocol = pUnknown;
     conn_event2.local_ip = 0;
     conn_event2.ip = 0;

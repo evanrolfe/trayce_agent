@@ -83,7 +83,6 @@ int probe_accept4(struct pt_regs *ctx) {
     conn_event.tid = current_pid_tgid;
     conn_event.fd = fd;
     conn_event.local = false;
-    conn_event.ssl = false;
     conn_event.protocol = pUnknown;
     conn_event.local_ip = *local_ip;
 
@@ -168,7 +167,6 @@ int probe_connect(struct pt_regs *ctx) {
     conn_event.tid = current_pid_tgid;
     conn_event.fd = fd;
     conn_event.local = false;
-    conn_event.ssl = false;
     conn_event.protocol = pUnknown;
     conn_event.local_ip = *local_ip;
     bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
@@ -401,35 +399,35 @@ int probe_ret_recvfrom(struct pt_regs *ctx) {
 /***********************************************************
  * BPF kprobes for Go
  ***********************************************************/
-static __inline void infer_http_message(struct connect_event_t *conn_info, const char *buf) {
-    if (buf[0] == 'H' && buf[1] == 'T' && buf[2] == 'T' && buf[3] == 'P') {
-        conn_info->protocol = pHttp;
-    }
-    if (buf[0] == 'G' && buf[1] == 'E' && buf[2] == 'T') {
-        conn_info->protocol = pHttp;
-    }
-    if (buf[0] == 'H' && buf[1] == 'E' && buf[2] == 'A' && buf[3] == 'D') {
-        conn_info->protocol = pHttp;
-    }
-    if (buf[0] == 'P' && buf[1] == 'O' && buf[2] == 'S' && buf[3] == 'T') {
-        conn_info->protocol = pHttp;
-    }
-    if (buf[0] == 'P' && buf[1] == 'U' && buf[2] == 'T') {
-        conn_info->protocol = pHttp;
-    }
-    if (buf[0] == 'P' && buf[1] == 'A' && buf[2] == 'T' && buf[3] == 'C' && buf[4] == 'H') {
-        conn_info->protocol = pHttp;
-    }
-    if (buf[0] == 'D' && buf[1] == 'E' && buf[2] == 'L' && buf[3] == 'E' && buf[4] == 'T' && buf[5] == 'E') {
-        conn_info->protocol = pHttp;
-    }
-    if (buf[0] == 'O' && buf[1] == 'P' && buf[2] == 'T' && buf[3] == 'I' && buf[4] == 'O' && buf[5] == 'N' && buf[6] == 'S') {
-        conn_info->protocol = pHttp;
-    }
-    if (buf[0] == 'T' && buf[1] == 'R' && buf[2] == 'A' && buf[3] == 'C' && buf[4] == 'E') {
-        conn_info->protocol = pHttp;
-    }
-}
+// static __inline void infer_http_message(struct connect_event_t *conn_info, const char *buf) {
+//     if (buf[0] == 'H' && buf[1] == 'T' && buf[2] == 'T' && buf[3] == 'P') {
+//         conn_info->protocol = pHttp;
+//     }
+//     if (buf[0] == 'G' && buf[1] == 'E' && buf[2] == 'T') {
+//         conn_info->protocol = pHttp;
+//     }
+//     if (buf[0] == 'H' && buf[1] == 'E' && buf[2] == 'A' && buf[3] == 'D') {
+//         conn_info->protocol = pHttp;
+//     }
+//     if (buf[0] == 'P' && buf[1] == 'O' && buf[2] == 'S' && buf[3] == 'T') {
+//         conn_info->protocol = pHttp;
+//     }
+//     if (buf[0] == 'P' && buf[1] == 'U' && buf[2] == 'T') {
+//         conn_info->protocol = pHttp;
+//     }
+//     if (buf[0] == 'P' && buf[1] == 'A' && buf[2] == 'T' && buf[3] == 'C' && buf[4] == 'H') {
+//         conn_info->protocol = pHttp;
+//     }
+//     if (buf[0] == 'D' && buf[1] == 'E' && buf[2] == 'L' && buf[3] == 'E' && buf[4] == 'T' && buf[5] == 'E') {
+//         conn_info->protocol = pHttp;
+//     }
+//     if (buf[0] == 'O' && buf[1] == 'P' && buf[2] == 'T' && buf[3] == 'I' && buf[4] == 'O' && buf[5] == 'N' && buf[6] == 'S') {
+//         conn_info->protocol = pHttp;
+//     }
+//     if (buf[0] == 'T' && buf[1] == 'R' && buf[2] == 'A' && buf[3] == 'C' && buf[4] == 'E') {
+//         conn_info->protocol = pHttp;
+//     }
+// }
 
 SEC("kprobe/write")
 int probe_write(struct pt_regs *ctx) {
@@ -462,7 +460,7 @@ int probe_write(struct pt_regs *ctx) {
     // Find the matching connect event so we can filter out non-socket write() calls
     u64 key = gen_pid_fd(current_pid_tgid, fd);
     struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-    if (conn_info == NULL || conn_info->ssl == true) {
+    if (conn_info == NULL) {
         bpf_printk("kprobe/write: NO CONN INFO entry PID: %d FD: %d, Key: %d", pid, fd, key);
 
         return 0;

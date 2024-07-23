@@ -54,8 +54,8 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	fmt.Println(string(green), "[DataEvent]", string(reset), " Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD:", event.FD, " ssl_ptr:", event.SSLPtr)
 	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
-	socket = m.getOrCreateSocket(event)
-	if socket == nil {
+	socket, exists := m.getSocket(event.Key())
+	if !exists {
 		fmt.Println("[SocketMap] no socket found, dropping.")
 		return
 	}
@@ -103,24 +103,6 @@ func (m *SocketMap) Debug() {
 func (m *SocketMap) getSocket(key string) (SocketI, bool) {
 	socket, exists := m.sockets[key]
 	return socket, exists
-}
-
-func (m *SocketMap) getOrCreateSocket(event events.DataEvent) SocketI {
-	socket, exists := m.getSocket(event.Key())
-	if exists {
-		fmt.Println("Found socket:", socket.Key())
-		return socket
-	}
-	return nil
-	// If we can't find a socket then lets just create one with dst IP set to 0.0.0.0 becuause thats better than nothing
-	newSocket := NewSocketUnknown(&events.ConnectEvent{
-		PID:  event.PID,
-		TID:  event.TID,
-		FD:   event.FD,
-		IP:   0,
-		Port: 80,
-	})
-	return &newSocket
 }
 
 func (m *SocketMap) setSocket(socket SocketI) {

@@ -58,13 +58,6 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     int64_t fd;
     bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
 
-    // Mark the connection as SSL
-    u64 key = gen_pid_fd(current_pid_tgid, fd);
-    struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-    if (conn_info != NULL) {
-        conn_info->ssl = true;
-    }
-
     // Handling buffer split
     s32 remaining_buf_len = buf_len;
     const char *current_str_ptr = str_ptr;
@@ -103,6 +96,8 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
         current_str_ptr += event->data_len;
         remaining_buf_len -= event->data_len;
     }
+
+    return 0;
 }
 
 // IMPORTANT: If you dont read the entire response body in Go, i.e. `body, _ := io.ReadAll(resp.Body)`, this this
@@ -140,13 +135,6 @@ static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi)
     bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
 
     bpf_printk("gotls/read: PID: %d, fd: %d, go id: %d", pid, fd, pid_go);
-
-    // Mark the connection as SSL
-    u64 key = gen_pid_fd(current_pid_tgid, fd);
-    struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-    if (conn_info != NULL) {
-        conn_info->ssl = true;
-    }
 
     // Create the event
     struct active_go_buf active_buf_t;

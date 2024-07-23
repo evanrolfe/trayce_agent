@@ -2,7 +2,6 @@ package sockets
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -84,7 +83,7 @@ func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
 
 // TODO: Have a structure for handling the frame header + payload?
 func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
-	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, "\n", hex.Dump(event.Payload()))
+	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
 	// utils.PrintBytesHex(event.Payload())
 
 	// Ignore the http2 magic string (PRI * SM...)

@@ -102,13 +102,6 @@ int process_ssl_read_return(struct pt_regs *ctx, bool is_ex_call) {
     s32 version = active_buf_t->version;
     bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-    // Mark the connection as SSL
-    u64 key = gen_pid_fd(current_pid_tgid, fd);
-    struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-    if (conn_info != NULL) {
-      conn_info->ssl = true;
-    }
-
     process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, ssl_ex_len, active_buf_t->ssl_ptr);
   }
   bpf_map_delete_elem(&active_ssl_read_args_map, &current_pid_tgid);
@@ -179,13 +172,6 @@ int process_ssl_write_return(struct pt_regs *ctx, bool is_ex_call) {
       bpf_probe_read(&ssl_ex_len, sizeof(ssl_ex_len), active_buf_t->ssl_ex_len_ptr);
     } else {
       ssl_ex_len = 0;
-    }
-
-    // Mark the connection as SSL
-    u64 key = gen_pid_fd(current_pid_tgid, fd);
-    struct connect_event_t *conn_info = bpf_map_lookup_elem(&conn_infos, &key);
-    if (conn_info != NULL) {
-      conn_info->ssl = true;
     }
 
     process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, ssl_ex_len, active_buf_t->ssl_ptr);
