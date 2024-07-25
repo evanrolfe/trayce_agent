@@ -102,7 +102,7 @@ int process_ssl_read_return(struct pt_regs *ctx, bool is_ex_call) {
     s32 version = active_buf_t->version;
     bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-    process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, ssl_ex_len, active_buf_t->ssl_ptr);
+    process_data(ctx, current_pid_tgid, kSSLRead, buf, fd, version, ssl_ex_len);
   }
   bpf_map_delete_elem(&active_ssl_read_args_map, &current_pid_tgid);
 
@@ -174,7 +174,7 @@ int process_ssl_write_return(struct pt_regs *ctx, bool is_ex_call) {
       ssl_ex_len = 0;
     }
 
-    process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, ssl_ex_len, active_buf_t->ssl_ptr);
+    process_data(ctx, current_pid_tgid, kSSLWrite, buf, fd, version, ssl_ex_len);
   }
   bpf_map_delete_elem(&active_ssl_write_args_map, &current_pid_tgid);
   return 0;

@@ -66,6 +66,16 @@ func Test_agent_server(t *testing.T) {
 			verify: AssertFlows,
 		},
 		{
+			name:   "[Python] Server an HTTP/1.1 request to /large",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/large", megaserverIp, 3001), strconv.Itoa(numRequests), "http1"),
+			verify: AssertFlows,
+		},
+		{
+			name:   "[Python] Server an HTTPS/1.1 request to /large",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/large", megaserverIp, 3002), strconv.Itoa(numRequests), "http1"),
+			verify: AssertFlows,
+		},
+		{
 			name:   "[Ruby] Server an HTTP/1.1 request",
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/", megaserverIp, 3003), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlows,
@@ -86,6 +96,16 @@ func Test_agent_server(t *testing.T) {
 			verify: AssertFlows,
 		},
 		{
+			name:   "[Ruby] Server an HTTP/1.1 request to /large",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/large", megaserverIp, 3003), strconv.Itoa(numRequests), "http1"),
+			verify: AssertFlows,
+		},
+		{
+			name:   "[Ruby] Server an HTTPS/1.1 request to /large",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/large", megaserverIp, 3004), strconv.Itoa(numRequests), "http1"),
+			verify: AssertFlows,
+		},
+		{
 			name:   "[Go] Server an HTTPS/2 request",
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
 			verify: AssertFlowsHttp2,
@@ -103,6 +123,16 @@ func Test_agent_server(t *testing.T) {
 		{
 			name:   "[Go] Server an HTTP/1.1 request to /second_http",
 			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
+			verify: AssertFlows,
+		},
+		{
+			name:   "[Go] Server an HTTPS/1.1 request to /large",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/large", megaserverIp, 4123), strconv.Itoa(numRequests), "http1"),
+			verify: AssertFlows,
+		},
+		{
+			name:   "[Go] Server an HTTP/1.1 request to /large",
+			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/large", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
 			verify: AssertFlows,
 		},
 		// {

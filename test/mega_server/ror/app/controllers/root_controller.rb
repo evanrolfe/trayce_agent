@@ -34,4 +34,9 @@ class RootController < ApplicationController
     output = "hello world"
     render plain: output, layout: false, content_type: 'text/plain'
   end
+
+  def large
+    output = (0..999).to_a.join(',')
+    render plain: output, layout: false, content_type: 'text/plain'
+  end
 end

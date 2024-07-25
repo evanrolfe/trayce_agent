@@ -248,32 +248,47 @@ static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
     return (u64) tgid | (u32) fd;
 }
 
-static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len, u64 ssl_ptr) {
+static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len) {
     int len = (int)PT_REGS_RC(ctx);
 
     if (len < 0) {
         return 0;
     }
 
-    struct data_event_t* event = create_data_event(id);
-    if (event == NULL) {
-        return 0;
-    }
-    event->type = type;
-    event->fd = fd;
-    event->version = version;
-    event->rand = ssl_ptr;
-
-    // This is a max function, but it is written in such a way to keep older BPF verifiers happy.
     if (ssl_ex_len > 0) {
-        event->data_len = (ssl_ex_len < MAX_DATA_SIZE_OPENSSL ? (ssl_ex_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
-    } else {
-        event->data_len = (len < MAX_DATA_SIZE_OPENSSL ? (len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
+        len = ssl_ex_len;
     }
-    bpf_probe_read_user(event->data, event->data_len, buf);
-    bpf_get_current_comm(&event->comm, sizeof(event->comm));
 
-    bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
+    // Handling buffer split
+    const char *str_ptr = buf;
+    s32 remaining_buf_len = len;
+    const char *current_str_ptr = str_ptr;
+    s32 chunk_size;
+
+    // NOTE: For some reason EBPF verifier will not accept `while (remaining_buf_len <= 0)`, so instead we have to use this
+    // for loop where 32 is effectively an upper limit.
+    for (int i = 0; i < 32; i++) { // Unroll the loop up to 32 times, adjust as necessary
+        if (remaining_buf_len <= 0) {
+            break;
+        }
+
+        struct data_event_t* event = create_data_event(id);
+        if (event == NULL) {
+            return 0;
+        }
+        event->type = type;
+        event->fd = fd;
+        event->version = version;
+        event->data_len = (remaining_buf_len < MAX_DATA_SIZE_OPENSSL ? (remaining_buf_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
+
+        bpf_probe_read_user(event->data, event->data_len, current_str_ptr);
+        bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
+
+        // Move the pointer and reduce the remaining length
+        current_str_ptr += event->data_len;
+        remaining_buf_len -= event->data_len;
+    }
+
     return 0;
 }
 

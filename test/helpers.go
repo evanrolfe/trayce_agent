@@ -22,6 +22,11 @@ const (
 )
 
 func AssertFlows(t *testing.T, flows []*api.Flow) {
+	assert.Greater(t, len(flows[0].Request), 0)
+	if len(flows) > 1 {
+		assert.Greater(t, len(flows[1].Response), 0)
+	}
+
 	for _, flow := range flows {
 		assert.Greater(t, len(flow.LocalAddr), 0)
 		assert.Greater(t, len(flow.RemoteAddr), 0)
@@ -30,12 +35,16 @@ func AssertFlows(t *testing.T, flows []*api.Flow) {
 			assert.Regexp(t, regexp.MustCompile(reqRegex), string(flow.Request))
 			assert.Equal(t, "tcp", flow.L4Protocol)
 			assert.Equal(t, "http", flow.L7Protocol)
+			fmt.Println("Request:\n", string(flow.Request))
+
 		} else if len(flow.Response) > 0 {
 			assert.GreaterOrEqual(t, len(flow.Response), 15)
 			if len(flow.Response) >= 15 {
 				assert.Equal(t, "HTTP/1.1 200 OK", string(flow.Response[0:15]))
 				assert.Equal(t, "tcp", flow.L4Protocol)
 				assert.Equal(t, "http", flow.L7Protocol)
+
+				fmt.Println("RESPONSE:\n", string(flow.Response))
 			}
 		}
 	}
