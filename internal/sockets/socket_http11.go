@@ -203,7 +203,7 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 	// If its chunked but does not have the final chunk, then the response is not complete
 	if isChunked && len(buf) >= 5 {
 		// If the last chunk is on the trailer chunk: 0\r\n\r\n
-		if buf[len(buf)-5] != 0x30 || buf[len(buf)-4] != 0x0d || buf[len(buf)-3] != 0x0a || buf[len(buf)-2] != 0x0d || buf[len(buf)-1] != 0x0a {
+		if buf[len(buf)-5] != 0x30 && buf[len(buf)-4] != 0x0d && buf[len(buf)-3] != 0x0a && buf[len(buf)-2] != 0x0d && buf[len(buf)-1] != 0x0a {
 			return nil, []byte{}
 		}
 	}
