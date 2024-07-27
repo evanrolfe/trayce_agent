@@ -18,9 +18,9 @@ docker push traycer/trayce_agent:0.0.1
 ```
 
 ### Run
-Run the built container, replacing `-grpcaddr` with the address of your GRPC server for receiving network flows (i.e. from TraceGUI).
+Run the built container, replacing `-s` with the address of your GRPC server for receiving network flows (i.e. from TraceGUI).
 ```
-docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it traycer/trayce_agent:0.0.1 -grpcaddr 192.168.0.1:50051
+docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it traycer/trayce_agent:0.0.1 -s 192.168.0.1:50051
 ```
 
 ### Develop
@@ -31,7 +31,7 @@ make dev
 Then from within the container run:
 ```
 make
-./trayce_agent -grpcaddr 192.168.0.20:50051
+./trayce_agent -s 192.168.0.20:50051
 ```
 (You must have a GRPC server running at 192.168.0.20:50051, you can do that by starting the GUI).
 

@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -55,7 +54,7 @@ func main() {
 	var libSslPath, grpcServerAddr, filterCmd string
 	flag.IntVar(&pid, "pid", 0, "The PID of the docker container to instrument. Or 0 to intsrument this container.")
 	flag.StringVar(&libSslPath, "libssl", sslLibDefault, "The path to the libssl shared object.")
-	flag.StringVar(&grpcServerAddr, "grpcaddr", grpcServerDefault, "The address of the GRPC server to send observations to.")
+	flag.StringVar(&grpcServerAddr, "s", grpcServerDefault, "The address of the GRPC server to send observations to.")
 	flag.StringVar(&filterCmd, "filtercmd", "", "Only observe traffic from processes who's command contains this string")
 	flag.Parse()
 
@@ -89,19 +88,6 @@ func main() {
 	go listener.Start(socketFlowChan)
 	fmt.Println("Agent listening...")
 
-	// Start a goroutine to handle the interrupt signal
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// Go routine to detect interrupt signal
-	go func() {
-		for {
-			<-interruptChan
-			wg.Done()
-			return
-		}
-	}()
-
 	// Try to connect to GRPC server, if the server is unavailable them keep retrying every second
 	go func() {
 		for {
@@ -130,7 +116,7 @@ func main() {
 
 			// Start the main event loop which recieves commands from the GRPC CommandStream
 			// openCommandStreamAndAwait blocks until an error occurs
-			err = openCommandStreamAndAwait(grpcClient, listener, interruptChan)
+			err = openCommandStreamAndAwait(grpcClient, listener)
 			if errors.Is(err, ErrStreamClosed) {
 				fmt.Println("[GRPC] StreamClosed:", err)
 				cancel()
@@ -147,12 +133,12 @@ func main() {
 	}()
 
 	// Wait until the interrupt signal is received
-	wg.Wait()
+	<-interruptChan
 
 	fmt.Printf("Done, closing agent. PID: %d. GID: %d. EGID: %d \n", os.Getpid(), os.Getgid(), os.Getegid())
 }
 
-func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *internal.Listener, interruptChan chan os.Signal) error {
+func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *internal.Listener) error {
 	// Open command stream via GRPC
 	stream, err := grpcClient.OpenCommandStream(context.Background())
 	if err != nil {
@@ -181,7 +167,7 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 			containers, err := listener.GetAllContainers()
 			if err != nil {
 				fmt.Println("[ERROR] GetAllContainers()", err)
-				time.Sleep(500 * time.Millisecond)
+				time.Sleep(250 * time.Millisecond)
 				continue
 			}
 

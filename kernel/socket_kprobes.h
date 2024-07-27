@@ -323,7 +323,6 @@ int probe_ret_sendto(struct pt_regs *ctx) {
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        u64 ssl_ptr = 0;
         process_data(ctx, current_pid_tgid, kSendto, buf, fd, version, 0);
     }
     bpf_map_delete_elem(&active_sendto_args_map, &current_pid_tgid);
@@ -389,7 +388,6 @@ int probe_ret_recvfrom(struct pt_regs *ctx) {
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
-        u64 ssl_ptr = 0;
         process_data(ctx, current_pid_tgid, kRecvfrom, buf, fd, version, 0);
     }
     bpf_map_delete_elem(&active_recvfrom_args_map, &current_pid_tgid);
@@ -488,7 +486,6 @@ int probe_ret_write(struct pt_regs *ctx) {
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        u64 ssl_ptr = 0;
         process_data(ctx, current_pid_tgid, kWrite, buf, fd, version, 0);
     }
     bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
@@ -551,7 +548,6 @@ int probe_ret_read(struct pt_regs *ctx) {
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
-        u64 ssl_ptr = 0;
         process_data(ctx, current_pid_tgid, kRead, buf, fd, version, 0);
     }
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
