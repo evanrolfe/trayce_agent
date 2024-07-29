@@ -249,11 +249,11 @@ func checkForDuplicates(flows []*api.Flow) {
 		}
 	}
 
-	for requestID, uuids := range requestIDsMap {
-		if len(uuids) != 2 {
-			fmt.Println("X-Request-ID:", requestID, "=>", uuids)
-		}
-	}
+	// for requestID, uuids := range requestIDsMap {
+	// 	if len(uuids) != 2 {
+	// 		fmt.Println("X-Request-ID:", requestID, "=>", uuids)
+	// 	}
+	// }
 }
 
 func extractRequestID(data []byte) string {

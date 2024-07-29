@@ -124,88 +124,6 @@ int probe_ret_accept4(struct pt_regs *ctx) {
     return 0;
 }
 
-// https://linux.die.net/man/3/connect
-// int connect(int socket, const struct sockaddr *address, socklen_t address_len);
-SEC("kprobe/connect")
-int probe_connect(struct pt_regs *ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-
-    // Check if PID is intercepted
-    u32 *local_ip = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (local_ip == NULL) {
-        return 0;
-    }
-
-    // How the hell did I know to do this ctx2 trick here? Credits to kubearmor:
-    // https://github.com/kubearmor/KubeArmor/blob/main/KubeArmor/BPF/system_monitor.c#L1332
-    struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
-
-    // Get the socket file descriptor
-    int fd;
-    bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
-
-    struct sockaddr *saddr;
-    bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
-
-    // Get the address family
-    sa_family_t address_family = 0;
-    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
-
-    if (address_family != AF_INET)
-        return 0;
-
-    // Get the ip & port
-    struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
-
-    // Build the connect_event and save it to the map
-    struct connect_event_t conn_event;
-    __builtin_memset(&conn_event, 0, sizeof(conn_event));
-    conn_event.eventtype = eConnect;
-    conn_event.timestamp_ns = bpf_ktime_get_ns();
-    conn_event.pid = pid;
-    conn_event.tid = current_pid_tgid;
-    conn_event.fd = fd;
-    conn_event.local = false;
-    conn_event.protocol = pUnknown;
-    conn_event.local_ip = *local_ip;
-    bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
-    bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
-
-    bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
-
-    return 0;
-}
-
-SEC("kretprobe/connect")
-int probe_ret_connect(struct pt_regs *ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-
-    // Check the call to connect() was successful
-    int res = (int)PT_REGS_RC(ctx);
-    if (res > 0)
-        return 0;
-
-    // Send entry data from map
-    struct connect_event_t *conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-
-    if (conn_event != NULL) {
-        // Deep copy the connect_event
-        struct connect_event_t conn_event2 = copy_connect_event(conn_event, conn_event->fd);
-
-        // Build the conn_info and save it to the map
-        u64 key = gen_pid_fd(current_pid_tgid, conn_event2.fd);
-        bpf_map_update_elem(&conn_infos, &key, &conn_event2, BPF_ANY);
-        bpf_ringbuf_output(&data_events, &conn_event2, sizeof(struct connect_event_t), 0);
-        bpf_printk("kprobe/connect: Set conn_info PID: %d FD: %d, Key: %d", pid, conn_event2.fd, key);
-    }
-
-    bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
-
-    return 0;
-}
-
 // https://linux.die.net/man/3/close
 // int connect(int fd);
 SEC("kprobe/close")
@@ -321,9 +239,10 @@ int probe_ret_sendto(struct pt_regs *ctx) {
         const char *buf;
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
+        size_t buf_len = (size_t)PT_REGS_RC(ctx);
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kSendto, buf, fd, version, 0);
+        process_data(ctx, current_pid_tgid, kSendto, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_sendto_args_map, &current_pid_tgid);
 
@@ -387,45 +306,14 @@ int probe_ret_recvfrom(struct pt_regs *ctx) {
         const char *buf;
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
+        size_t buf_len = (size_t)PT_REGS_RC(ctx);
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
-        process_data(ctx, current_pid_tgid, kRecvfrom, buf, fd, version, 0);
+
+        process_data(ctx, current_pid_tgid, kRecvfrom, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_recvfrom_args_map, &current_pid_tgid);
     return 0;
 }
-
-/***********************************************************
- * BPF kprobes for Go
- ***********************************************************/
-// static __inline void infer_http_message(struct connect_event_t *conn_info, const char *buf) {
-//     if (buf[0] == 'H' && buf[1] == 'T' && buf[2] == 'T' && buf[3] == 'P') {
-//         conn_info->protocol = pHttp;
-//     }
-//     if (buf[0] == 'G' && buf[1] == 'E' && buf[2] == 'T') {
-//         conn_info->protocol = pHttp;
-//     }
-//     if (buf[0] == 'H' && buf[1] == 'E' && buf[2] == 'A' && buf[3] == 'D') {
-//         conn_info->protocol = pHttp;
-//     }
-//     if (buf[0] == 'P' && buf[1] == 'O' && buf[2] == 'S' && buf[3] == 'T') {
-//         conn_info->protocol = pHttp;
-//     }
-//     if (buf[0] == 'P' && buf[1] == 'U' && buf[2] == 'T') {
-//         conn_info->protocol = pHttp;
-//     }
-//     if (buf[0] == 'P' && buf[1] == 'A' && buf[2] == 'T' && buf[3] == 'C' && buf[4] == 'H') {
-//         conn_info->protocol = pHttp;
-//     }
-//     if (buf[0] == 'D' && buf[1] == 'E' && buf[2] == 'L' && buf[3] == 'E' && buf[4] == 'T' && buf[5] == 'E') {
-//         conn_info->protocol = pHttp;
-//     }
-//     if (buf[0] == 'O' && buf[1] == 'P' && buf[2] == 'T' && buf[3] == 'I' && buf[4] == 'O' && buf[5] == 'N' && buf[6] == 'S') {
-//         conn_info->protocol = pHttp;
-//     }
-//     if (buf[0] == 'T' && buf[1] == 'R' && buf[2] == 'A' && buf[3] == 'C' && buf[4] == 'E') {
-//         conn_info->protocol = pHttp;
-//     }
-// }
 
 SEC("kprobe/write")
 int probe_write(struct pt_regs *ctx) {
@@ -484,9 +372,10 @@ int probe_ret_write(struct pt_regs *ctx) {
         const char *buf;
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
+        size_t buf_len = (size_t)PT_REGS_RC(ctx);
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kWrite, buf, fd, version, 0);
+        process_data(ctx, current_pid_tgid, kWrite, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
 
@@ -547,8 +436,10 @@ int probe_ret_read(struct pt_regs *ctx) {
         const char *buf;
         u32 fd = active_buf_t->fd;
         s32 version = active_buf_t->version;
+        size_t buf_len = (size_t)PT_REGS_RC(ctx);
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
-        process_data(ctx, current_pid_tgid, kRead, buf, fd, version, 0);
+
+        process_data(ctx, current_pid_tgid, kRead, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
     return 0;

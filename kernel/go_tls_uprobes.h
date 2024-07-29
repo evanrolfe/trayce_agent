@@ -23,10 +23,10 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     u32 pid = current_pid_tgid >> 32;
 
     s32 buf_len;
-    const char *str_ptr;
+    const char *buf;
     void *len_ptr;
 
-    str_ptr = (void *)go_get_argument(ctx, is_register_abi, 2);
+    buf = (void *)go_get_argument(ctx, is_register_abi, 2);
     len_ptr = (void *)go_get_argument(ctx, is_register_abi, 3);
     bpf_probe_read_kernel(&buf_len, sizeof(buf_len), (void *)&len_ptr);
     if (buf_len == 0) {
@@ -58,44 +58,7 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     int64_t fd;
     bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
 
-    // Handling buffer split
-    s32 remaining_buf_len = buf_len;
-    const char *current_str_ptr = str_ptr;
-    s32 chunk_size;
-
-    // NOTE: For some reason EBPF verifier will not accept `while (remaining_buf_len <= 0)`, so instead we have to use this
-    // for loop where 32 is effectively an upper limit.
-    for (int i = 0; i < 32; i++) { // Unroll the loop up to 32 times, adjust as necessary
-        if (remaining_buf_len <= 0) {
-            break;
-        }
-
-        struct data_event_t *event = create_data_event(current_pid_tgid);
-        if (event == NULL) {
-            return 0;
-        }
-        event->type = goTlsWrite;
-        event->pid = pid;
-        event->tid = current_pid_tgid;
-        event->fd = fd;
-        event->version = 1;
-
-        // Calculate the length for this chunk
-        event->data_len = (remaining_buf_len < MAX_DATA_SIZE_OPENSSL ? (remaining_buf_len & (MAX_DATA_SIZE_OPENSSL - 1)) : MAX_DATA_SIZE_OPENSSL);
-
-        int ret = bpf_probe_read_user(event->data, event->data_len, (void *)current_str_ptr);
-        if (ret < 0) {
-            bpf_printk("gotls/write bpf_probe_read_user_str failed, ret:%d, pid:%d", ret, pid);
-            break;
-        }
-
-        bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
-        bpf_printk("gotls/write: PID: %d FD: %d", pid, fd);
-
-        // Move the pointer and reduce the remaining length
-        current_str_ptr += event->data_len;
-        remaining_buf_len -= event->data_len;
-    }
+    process_data(ctx, current_pid_tgid, goTlsWrite, buf, buf_len, fd);
 
     return 0;
 }
@@ -155,7 +118,7 @@ static __always_inline int gotls_read(struct pt_regs *ctx, bool is_register_abi)
 
 #define MAX_LEN 128
 
-static __always_inline int gotls_read_ex(struct pt_regs *ctx, bool is_register_abi) {
+static __always_inline int gotls_read_exit(struct pt_regs *ctx, bool is_register_abi) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = current_pid_tgid >> 32;
 
@@ -177,44 +140,7 @@ static __always_inline int gotls_read_ex(struct pt_regs *ctx, bool is_register_a
         bpf_probe_read(&buf_len, sizeof(u32), &len_ptr);
         bpf_printk("gotls/read exit: PID: %d buf_len: %d, fd: %d, go id: %d", pid, buf_len, fd, pid_go);
 
-        // Handling buffer split
-        const char *str_ptr = active_buf_t->buf;
-        s32 remaining_buf_len = buf_len;
-        const char *current_str_ptr = str_ptr;
-        s32 chunk_size;
-
-        // NOTE: For some reason EBPF verifier will not accept `while (remaining_buf_len <= 0)`, so instead we have to use this
-        // for loop where 32 is effectively an upper limit.
-        for (int i = 0; i < 32; i++) { // Unroll the loop up to 32 times, adjust as necessary
-            if (remaining_buf_len <= 0) {
-                break;
-            }
-
-            // Send DataEvent
-            struct data_event_t *event = create_data_event(current_pid_tgid);
-            if (event == NULL) {
-                return 0;
-            }
-            event->type = goTlsRead;
-            event->pid = pid;
-            event->tid = current_pid_tgid;
-            event->fd = fd;
-            event->version = 1;
-
-            // This is a max function, but it is written in such a way to keep older BPF verifiers happy.
-            event->data_len = (remaining_buf_len < MAX_DATA_SIZE_OPENSSL ? (remaining_buf_len & (MAX_DATA_SIZE_OPENSSL - 1)) : MAX_DATA_SIZE_OPENSSL);
-            int ret = bpf_probe_read_user(event->data, event->data_len, current_str_ptr);
-            if (ret < 0) {
-                bpf_printk("gotls/read ex bpf_probe_read_user (2) failed, ret:%d, pid:%d", ret, pid);
-            }
-
-            bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
-            // bpf_printk("gotls/read ex: sent event PID: %d, GoID: %d, len: %d, rand: %d", pid, goroutine_id, event->data_len, event->rand);
-
-            // Move the pointer and reduce the remaining length
-            current_str_ptr += event->data_len;
-            remaining_buf_len -= event->data_len;
-        }
+        process_data(ctx, current_pid_tgid, goTlsRead, active_buf_t->buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_go_read_args_map, &pid_go);
 
@@ -246,7 +172,7 @@ int probe_exit_go_tls_read(struct pt_regs* ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    gotls_read_ex(ctx, true);
+    gotls_read_exit(ctx, true);
 
     return 0;
 }

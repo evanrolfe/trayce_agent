@@ -237,7 +237,6 @@ static __inline struct connect_event_t copy_connect_event(struct connect_event_t
     return conn_event2;
 }
 
-
 // >> 32 - PID
 // << 32 - TGID
 static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
@@ -248,20 +247,14 @@ static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
     return (u64) tgid | (u32) fd;
 }
 
-static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, u32 fd, s32 version, size_t ssl_ex_len) {
-    int len = (int)PT_REGS_RC(ctx);
-
-    if (len < 0) {
+static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, size_t buf_len, u32 fd) {
+    if (buf_len < 0) {
         return 0;
-    }
-
-    if (ssl_ex_len > 0) {
-        len = ssl_ex_len;
     }
 
     // Handling buffer split
     const char *str_ptr = buf;
-    s32 remaining_buf_len = len;
+    s32 remaining_buf_len = buf_len;
     const char *current_str_ptr = str_ptr;
     s32 chunk_size;
 
@@ -278,7 +271,6 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
         }
         event->type = type;
         event->fd = fd;
-        event->version = version;
         event->data_len = (remaining_buf_len < MAX_DATA_SIZE_OPENSSL ? (remaining_buf_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
 
         bpf_probe_read_user(event->data, event->data_len, current_str_ptr);
@@ -354,19 +346,17 @@ static u32 get_fd_from_libssl_write(struct ssl_st ssl_info, u32 pid, u64 ssl_ptr
     }
 
     if (fd == -1) {
-        bpf_printk("!!!!!!!!!!!!! SSL_write looking for ssl_fd in map at: %d", ssl_ptr);
         int* fd2 = bpf_map_lookup_elem(&ssl_fd_map, &ssl_ptr);
 
         if (fd2 != NULL) {
             fd = *fd2;
-            bpf_printk("SSL_write ======> found fd2: %d", fd);
         }
     }
 
     return fd;
 }
 
-int dog_debug(u32 pid, u64 tid, int fd, char *str) {
+int trayce_debug(u32 pid, u64 tid, int fd, char *str) {
     struct debug_event_t debug_event;
     __builtin_memset(&debug_event, 0, sizeof(debug_event));
 
