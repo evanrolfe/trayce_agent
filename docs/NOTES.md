@@ -156,6 +156,8 @@ Update: it seems that the TID value is unreliable (connects happen on one TID, t
 
 It seems to be that puma is calling connect() and SSL_read/write() on separate PIDs and threads, so theres no way to correleate. We should test with a different server and have a fail-safe where if we can correleate simply using the *ssl pointer to correleate requests/response but they won't get the src/dest addresses.
 
+Update 2: I've opted to use two maps in order to track the FD from between different probes, see HOW_IT_WORKS.md
+
 ### Go HTTP2 Tracing
 
 https://blog.px.dev/ebpf-http2-tracing/

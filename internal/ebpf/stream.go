@@ -297,9 +297,8 @@ func (stream *Stream) Close() {
 
 func (stream *Stream) attachKProbes() {
 	kprobes := map[string][]string{
-		"sys_accept":  []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_accept4": []string{"probe_accept4", "probe_ret_accept4"},
-		// "sys_connect":  []string{"probe_connect", "probe_ret_connect"},
+		"sys_accept":   []string{"probe_accept4", "probe_ret_accept4"},
+		"sys_accept4":  []string{"probe_accept4", "probe_ret_accept4"},
 		"sys_close":    []string{"probe_close", "probe_ret_close"},
 		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
 		"sys_recvfrom": []string{"probe_recvfrom", "probe_ret_recvfrom"},
