@@ -17,7 +17,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Build
-          command: docker build . -t ddbuild -f Dockerfile.build
+          command: docker build . --target build -t ddbuild
       - run:
           name: Test Unit
           command: docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash -c "make && make testunit"
@@ -27,7 +27,7 @@ jobs:
       #     command: docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash -c "make && ./dd_agent"
       # - run:
       #     name: Test E2E (Load)
-      #     command: docker build . -t ddbuild -f Dockerfile.build
+      #     command: docker build . --target build -t ddbuild -f Dockerfile.build
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/configuration-reference/#workflows

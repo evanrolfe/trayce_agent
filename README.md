@@ -5,12 +5,12 @@ TrayceAgent is a binary executable, packaged in a Docker container, which uses E
 ### Build
 1. Build executable binary:
 ```
-docker build . -t trayce_build -f Dockerfile.build
+docker build . --target build -t trayce_build 
 docker run -v ./:/app -t trayce_build
 ```
 2. Build and run the final distributable docker container:
 ```
-docker build . -t traycer/trayce_agent:0.0.1
+docker build . --target production -t traycer/trayce_agent:0.0.1
 ```
 3. [Optional] Publish the container:
 ```

@@ -25,6 +25,13 @@ build-bpf:
 	rm -f .output/main.*
 	make -C kernel main
 
+build-deps:
+	go install github.com/shuLhan/go-bindata/cmd/go-bindata@latest
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+	go install github.com/onsi/ginkgo/v2/ginkgo@v2.12.0
+	go install github.com/go-delve/delve/cmd/dlv@latest
+
 generate:
 # Bundle the BPF binary into our Go code:
 	cp .output/main.bpf.o bundle/main.bpf.o
