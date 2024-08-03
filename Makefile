@@ -1,5 +1,5 @@
 CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output/"
-CGO_LDFLAGS_STATIC = "-lelf -lz /app/third_party/libbpfgo/output/libbpf.a"
+CGO_LDFLAGS_STATIC = "-lelf -lz /app/third_party/libbpfgo/output/libbpf/libbpf.a"
 CGO_EXTLDFLAGS_STATIC = '-w -extldflags "-static"'
 CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output"
 CGO_FLAGS = CC=$(CLANG) CGO_CFLAGS=$(CGO_CFLAGS_STATIC) CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) GOARCH=$(ARCH_FOR_CGO) GOOS=linux CGO_ENABLED=1

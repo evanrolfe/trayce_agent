@@ -1,18 +1,14 @@
-# TrayceAgent
+traycer/trayce_agent:0.0.1# TrayceAgent
 
 TrayceAgent is a binary executable, packaged in a Docker container, which uses EBPF to monitor network requests between Docker containers and to external hosts.
 
 ### Build
-1. Build executable binary:
+
+1. Build a multi-arch image with:
 ```
-docker build . -t trayce_build -f Dockerfile.build
-docker run -v ./:/app -t trayce_build
+docker buildx build . --platform linux/amd64,linux/arm64 -t traycer/trayce_agent:0.0.2 --push
 ```
-2. Build and run the final distributable docker container:
-```
-docker build . -t traycer/trayce_agent:0.0.1
-```
-3. [Optional] Publish the container:
+2. [Optional] Publish the container:
 ```
 docker push traycer/trayce_agent:0.0.1
 ```
@@ -20,7 +16,7 @@ docker push traycer/trayce_agent:0.0.1
 ### Run
 Run the built container, replacing `-s` with the address of your GRPC server for receiving network flows (i.e. from TraceGUI).
 ```
-docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it traycer/trayce_agent:0.0.1 -s 192.168.0.1:50051
+docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it traycer/trayce_agent:0.0.2 -s 192.168.0.1:50051
 ```
 
 ### Develop
