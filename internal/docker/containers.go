@@ -212,7 +212,7 @@ func (c *Containers) getPidsForContainer(containerId string) ([]int, error) {
 		}
 	}
 	if indexPid == -1 {
-		return nil, fmt.Errorf("no index found for PID from docker.ContainerTop()")
+		return nil, fmt.Errorf("no index found for PID from docker.ContainerTop(), titles: %v", result.Titles)
 	}
 
 	// Extract the index of the Command in the results
@@ -247,14 +247,14 @@ func (c *Containers) getPidsForContainer(containerId string) ([]int, error) {
 func ipStringToUint32(ipStr string) uint32 {
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		fmt.Println("[Error] unable to convert ip to uint32 net.ParseIP()")
+		fmt.Println("[Error] unable to convert ip to uint32 net.ParseIP()", ipStr)
 		return 0
 	}
 
 	// Convert the IP address to a 4-byte slice (IPv4)
 	ip = ip.To4()
 	if ip == nil {
-		fmt.Println("[Error] unable to convert ip to uint32 To4()")
+		fmt.Println("[Error] unable to convert ip to uint32 To4()", ipStr)
 		return 0
 	}
 
