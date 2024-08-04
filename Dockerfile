@@ -23,8 +23,7 @@ ENV PATH="$PATH:/usr/local/go/bin:/root/go/bin"
 RUN go install github.com/shuLhan/go-bindata/cmd/go-bindata@latest
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
-# RUN go install github.com/onsi/ginkgo/v2/ginkgo@v2.12.0
-# RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/onsi/ginkgo/v2/ginkgo@v2.12.0
 RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$'" >> ~/.bashrc
 
 WORKDIR /app

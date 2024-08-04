@@ -1,26 +1,27 @@
-traycer/trayce_agent:0.0.1# TrayceAgent
+# TrayceAgent
 
 TrayceAgent is a binary executable, packaged in a Docker container, which uses EBPF to monitor network requests between Docker containers and to external hosts.
 
 ### Build
 
-1. Build a multi-arch image with:
+1. Build an image for local-use (only) with:
 ```
-docker buildx build . --platform linux/amd64,linux/arm64 -t traycer/trayce_agent:0.0.2 --push
-```
-2. [Optional] Publish the container:
-```
-docker push traycer/trayce_agent:0.0.1
+docker build -t trayce_agent:local .
 ```
 
-### Run
-Run the built container, replacing `-s` with the address of your GRPC server for receiving network flows (i.e. from TraceGUI).
+2. Run the built container, replacing `-s` with the address of your GRPC server for receiving network flows (i.e. from TraceGUI).
 ```
-docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it traycer/trayce_agent:0.0.2 -s 192.168.0.1:50051
+docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it trayce_agent:local -s 192.168.0.1:50051
+```
+
+**Multi-Arch Build**
+Build and publish a multi-arch image with:
+```
+docker buildx build . --platform linux/amd64,linux/arm64 -t traycer/trayce_agent:latest --push
 ```
 
 ### Develop
-Run the bash on the build container with a volume so you can make changes, rebuild and run trayce_agent easily:
+Run the bash on the build container with a volume so you can make changes, rebuild and run trayce_agent easily. First comment out the final build stage of the Dockerfile, then build it to `trayce_agent:local` and run:
 ```
 make dev
 ```
@@ -33,7 +34,6 @@ make
 
 ### Test
 First ensure the mega server is server is running (see next section).
-
 Run tests from within the build container:
 ```
 make test

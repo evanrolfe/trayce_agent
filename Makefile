@@ -64,9 +64,6 @@ mockgrpc:
 	$(CGO_FLAGS) \
 	go run ./cmd/grpc_server
 
-buildmock:
-	go build -buildvcs=false -o ./test/mega_server/go/mock_server ./cmd/mock_server/
-
 clean:
 	rm -rf .output
 	rm -rf third_party/libbpf-bootstrap
@@ -74,7 +71,7 @@ clean:
 	rm -f internal/bundle.go
 
 dev:
-	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it trayce_build bash
+	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it trayce_agent:local bash
 
 megaserver:
 	docker run -v ./test/mega_server:/app -it mega_server
