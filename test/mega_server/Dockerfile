@@ -1,8 +1,7 @@
 FROM ubuntu:22.04
+ENV GO_VERSION=1.21.12
 
 WORKDIR /app
-
-ADD . /app
 
 # Build dependencies:
 RUN apt update -y
@@ -13,15 +12,18 @@ RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
 
 # Install Ruby/Rails
 RUN gem install rails bundler
-RUN cd ror && bundle install
 # Install Python/Flask
 RUN pip3 install requests flask pyopenssl
 
 # Install Go
-RUN wget https://go.dev/dl/go1.21.4.linux-amd64.tar.gz -O /tmp/go1.21.4.linux-amd64.tar.gz
-RUN tar -C /usr/local -xf /tmp/go1.21.4.linux-amd64.tar.gz
+RUN export ARCH=$(dpkg --print-architecture) \
+  && wget -q https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz -O /tmp/go.tar.gz \
+  && tar -C /usr/local -xf /tmp/go.tar.gz
 ENV PATH "$PATH:/usr/local/go/bin:/root/go/bin"
 
 RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$'" >> ~/.bashrc
+
+ADD . /app
+RUN cd ror && bundle install
 
 CMD ./run.sh

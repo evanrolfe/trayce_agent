@@ -272,8 +272,10 @@ func (c *Containers) getLibSSL(containerId string, rootFSPath string) LibSSL {
 	}
 
 	libPaths := map[string]int{
-		"/usr/lib/x86_64-linux-gnu/libssl.so.3":   3,
-		"/usr/lib/x86_64-linux-gnu/libssl.so.1.1": 1,
+		"/usr/lib/x86_64-linux-gnu/libssl.so.3":    3,
+		"/usr/lib/aarch64-linux-gnu/libssl.so.3":   3,
+		"/usr/lib/x86_64-linux-gnu/libssl.so.1.1":  1,
+		"/usr/lib/aarch64-linux-gnu/libssl.so.1.1": 1,
 	}
 
 	foundVersion := 0

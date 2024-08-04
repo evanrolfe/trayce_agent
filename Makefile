@@ -45,10 +45,10 @@ build: generate
 
 # NOTE: Change Test_agent_client to Test_agent_server to test a server receiving requests rather than a client making them
 test:
-	go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
-	go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
+	GOARCH=$(ARCH_FOR_CGO) go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
+	GOARCH=$(ARCH_FOR_CGO) go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
 	$(CGO_FLAGS) \
-	go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
+		go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
 
 testload:
 	$(CGO_FLAGS) \

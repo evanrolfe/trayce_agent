@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -203,11 +202,15 @@ func Test_agent_server(t *testing.T) {
 				time.Sleep(2 * time.Second)
 			}
 
-			err := os.WriteFile("/app/tmp/test_output.txt", stdoutBuf.Bytes(), 0644)
-			if err != nil {
-				fmt.Println("Error writing to file:", err)
-				os.Exit(1)
-			}
+			//
+			// OUTPUT [uncomment this to log the output to file or screen]
+			//
+			// err := os.WriteFile("/app/tmp/test_output.txt", stdoutBuf.Bytes(), 0644)
+			// if err != nil {
+			// 	fmt.Println("Error writing to file:", err)
+			// 	os.Exit(1)
+			// }
+			// fmt.Println(stdoutBuf.String())
 
 			// Verify the result
 			assert.Equal(t, expectedNumFlows, len(flows))
