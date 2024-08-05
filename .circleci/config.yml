@@ -10,14 +10,22 @@ jobs:
     # See: https://circleci.com/docs/configuration-reference/#executor-job
     docker:
       - image: cimg/base:stable
+    resource_class: large
     # Add steps to the job
     # See: https://circleci.com/docs/configuration-reference/#steps
     steps:
       - checkout
       - setup_remote_docker
       - run:
+          name: Install qemu
+          command: |
+            sudo apt update && sudo apt install -y qemu-user-static
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+            docker buildx create --use --name mybuilder
+            docker buildx inspect --bootstrap
+      - run:
           name: Build
-          command: docker build . -t trayce_agent:local
+          command: docker buildx build . --platform linux/amd64,linux/arm64 -t traycer/trayce_agent:latest
       # TODO: Make the e2e tests work in CI, currently ./dd_agent fails to start because of an ebpf permissions error
       # - run:
       #     name: Test E2E
