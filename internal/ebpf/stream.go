@@ -17,9 +17,6 @@ import (
 
 const (
 	containerPIDsRefreshRate = 50 * time.Millisecond
-	// TODO: Make it search for this in multpile places:
-	defaultLibSslPath = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
-	libSslPath1       = "/usr/lib/x86_64-linux-gnu/libssl.so.1.1"
 )
 
 // Stream is a bridge between the docker client and ebpf. When new containers and proccesses are opened, it instruments
