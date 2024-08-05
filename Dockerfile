@@ -31,6 +31,7 @@ ADD . /app
 
 RUN make install-libbpf
 RUN make
+RUN make testunit
 
 #
 # Final Image

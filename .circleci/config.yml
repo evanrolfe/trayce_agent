@@ -17,10 +17,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Build
-          command: docker build . -t ddbuild -f Dockerfile.build
-      - run:
-          name: Test Unit
-          command: docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash -c "make && make testunit"
+          command: docker build . -t trayce_agent:local
       # TODO: Make the e2e tests work in CI, currently ./dd_agent fails to start because of an ebpf permissions error
       # - run:
       #     name: Test E2E
