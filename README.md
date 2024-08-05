@@ -15,6 +15,7 @@ docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock 
 ```
 
 **Multi-Arch Build**
+
 Build and publish a multi-arch image with:
 ```
 docker buildx build . --platform linux/amd64,linux/arm64 -t traycer/trayce_agent:latest --push
@@ -34,7 +35,7 @@ make
 
 ### Test
 First ensure the mega server is server is running (see next section).
-Run tests from within the build container:
+Run tests from within the build container (from the "Develop" step):
 ```
 make test
 ```

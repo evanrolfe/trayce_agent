@@ -223,7 +223,7 @@ func (c *Containers) getPidsForContainer(containerId string) ([]int, error) {
 		}
 	}
 	if indexCmd == -1 {
-		return nil, fmt.Errorf("no index found for CMD from docker.ContainerTop()")
+		return nil, fmt.Errorf("no index found for CMD from docker.ContainerTop(), titles: %v", result.Titles)
 	}
 
 	// Collect the PIDs
