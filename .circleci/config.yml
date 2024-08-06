@@ -1,67 +1,166 @@
 version: 2.1
 
+workflows:
+  main_branch:
+    jobs:
+      - build-test-push-amd64:
+          filters:
+            branches:
+              only:
+                - main
+      - build-test-push-arm64:
+          filters:
+            branches:
+              only:
+                - main
+      - hold:
+          type: approval
+          requires:
+            - build-test-push-arm64
+            - build-test-push-amd64
+          filters:
+            branches:
+              only:
+                - main
+      - publish:
+          requires:
+            - hold
+          filters:
+            branches:
+              only:
+                - main
+  feature_branch:
+    jobs:
+      - build-test-amd64:
+          filters:
+            branches:
+              ignore:
+                - main
+      # arm64 is disabled here until i can get layer caching working
+      # - build-test-arm64:
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - main
+
 jobs:
-  build-amd64:
+  build-test-amd64:
     docker:
       - image: cimg/base:stable
     resource_class: large
+    environment:
+      GO_VERSION: 1.21.12
+      ARCH: amd64
     steps:
       - checkout
       - setup_remote_docker:
           docker_layer_caching: true
-      - run:
-          name: Install docker buildx & login
-          command: |
-            docker buildx create --use --name mybuilder
-            docker buildx inspect --bootstrap
-      - restore_cache:
-          keys:
-            - v1-docker-build-cache-amd64-{{ checksum "Dockerfile" }}
-            - v1-docker-build-cache-amd64
-      - run:
-          name: Build (multi-arch)
-          command: |
-            docker buildx build . \
-              --platform linux/amd64,linux/arm64 \
-              --tag traycer/trayce_agent:latest \
-              --cache-from=type=local,src=/tmp/.buildx-cache \
-              --cache-to=type=local,dest=/tmp/.buildx-cache-new
-      - save_cache:
-          key: v1-docker-build-cache-amd64-{{ checksum "Dockerfile" }}
-          paths:
-            - /tmp/.buildx-cache-new
-  build-arm64:
+          version: edge
+      - build-and-test
+
+  build-test-arm64:
     docker:
       - image: cimg/base:2023.06
     resource_class: arm.large
+    environment:
+      GO_VERSION: 1.21.12
+      ARCH: arm64
     steps:
       - checkout
       - setup_remote_docker:
           docker_layer_caching: true
+          version: edge
+      - build-and-test
+
+  build-test-push-amd64:
+    docker:
+      - image: cimg/base:stable
+    resource_class: large
+    environment:
+      GO_VERSION: 1.21.12
+      ARCH: amd64
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+          version: edge
+      - build-and-test
+      - push
+
+  build-test-push-arm64:
+    docker:
+      - image: cimg/base:2023.06
+    resource_class: arm.large
+    environment:
+      GO_VERSION: 1.21.12
+      ARCH: arm64
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+          version: edge
+      - build-and-test
+      - push
+
+  publish:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - publish
+
+commands:
+  build-and-test:
+    description: Build and test
+    steps:
       - run:
-          name: Install docker buildx & login
+          name: Setup
           command: |
             echo "$DOCKERHUB_PASS" | docker login -u $DOCKERHUB_USER --password-stdin
-            docker buildx create --use --name mybuilder
-            docker buildx inspect --bootstrap
-      - restore_cache:
-          keys:
-            - v1-docker-build-cache-arm64-{{ checksum "Dockerfile" }}
-            - v1-docker-build-cache-arm64
+            wget -q https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz -O /tmp/go.tar.gz
+            tar -C /home/circleci/ -xf /tmp/go.tar.gz
+            echo 'export PATH="$PATH:/home/circleci/go/bin/"' >> $BASH_ENV
       - run:
-          name: Build (multi-arch)
+          name: Start Megaserver
           command: |
-            docker buildx build . \
-              --platform linux/arm64 \
-              --tag traycer/trayce_agent:latest \
-              --cache-from=type=local,src=/tmp/.buildx-cache \
-              --cache-to=type=local,dest=/tmp/.buildx-cache-new
-      - save_cache:
-          key: v1-docker-build-cache-arm64-{{ checksum "Dockerfile" }}
-          paths:
-            - /tmp/.buildx-cache-new
-workflows:
-  main:
-    jobs:
-      - build-arm64
-      # - build-amd64
+            GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
+            GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
+            docker build test/mega_server -t mega_server:${ARCH}
+            docker run -d -t mega_server:${ARCH}
+      - run:
+          name: Build
+          command: |
+            docker build . -t traycer/trayce_agent:${ARCH}
+      - run:
+          name: Run
+          command: |
+            export HOST_IP=$(ifconfig eth1 | grep 'inet ' | awk '{print $2}')
+            docker run -d --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -t traycer/trayce_agent:${ARCH} -s ${HOST_IP}:50051
+      - run:
+          name: Test
+          command: go test ./test -v -count=1 -short -run Test_agent_server
+  push:
+    description: Push the image to docker hub
+    steps:
+      - run:
+          name: Push
+          command: |
+            docker push traycer/trayce_agent:${ARCH}
+  publish:
+    description: Combine both images into a multi-arch image & push to docker hub
+    steps:
+      - run:
+          name: Setup
+          command: |
+            echo "$DOCKERHUB_PASS" | docker login -u $DOCKERHUB_USER --password-stdin
+      - run:
+          name: Create and Push Multi-Arch Manifest
+          command: |
+            export VERSION=$(cat ./VERSION)
+            docker manifest create traycer/trayce_agent:${VERSION} \
+              traycer/trayce_agent:amd64 \
+              traycer/trayce_agent:arm64
+            docker manifest push traycer/trayce_agent:${VERSION}
+            docker manifest push traycer/trayce_agent:latest
