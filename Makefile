@@ -47,8 +47,9 @@ build: generate
 test:
 	GOARCH=$(ARCH_FOR_CGO) go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
 	GOARCH=$(ARCH_FOR_CGO) go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
-	$(CGO_FLAGS) \
-		go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
+	GOARCH=$(ARCH_FOR_CGO) go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL); \
+	TEST_EXIT_CODE=$$?; \
+	if [ $$TEST_EXIT_CODE -ne 0 ]; then exit $$TEST_EXIT_CODE; fi
 
 testload:
 	$(CGO_FLAGS) \

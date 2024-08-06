@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -26,11 +25,11 @@ func Test_agent_server(t *testing.T) {
 	grpcHandler.SetContainerIds([]string{megaserverId})
 
 	// Start trayce_agent
-	trayceAgent := exec.Command("/app/trayce_agent")
+	// trayceAgent := exec.Command("docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -t traycer/trayce_agent:amd64 -s 192.168.0.75:50051")
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	trayceAgent.Stdout = &stdoutBuf
-	trayceAgent.Stderr = &stderrBuf
+	// var stdoutBuf, stderrBuf bytes.Buffer
+	// trayceAgent.Stdout = &stdoutBuf
+	// trayceAgent.Stderr = &stderrBuf
 
 	// Wait for trayce_agent to start, timeout of 5secs:
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -38,7 +37,7 @@ func Test_agent_server(t *testing.T) {
 	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
 
 	// Trigger the command and then wait for the context to complete
-	trayceAgent.Start()
+	// trayceAgent.Start()
 	<-ctx.Done()
 
 	// Run tests
@@ -221,7 +220,7 @@ func Test_agent_server(t *testing.T) {
 		})
 	}
 
-	trayceAgent.Process.Signal(syscall.SIGTERM)
+	// trayceAgent.Process.Signal(syscall.SIGTERM)
 }
 
 func checkForDuplicates(flows []*api.Flow) {
