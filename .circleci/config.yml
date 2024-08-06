@@ -10,14 +10,14 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
-          name: Install Docker Buildx
+          name: Install docker buildx & login
           command: |
             docker buildx create --use --name mybuilder
             docker buildx inspect --bootstrap
       - restore_cache:
           keys:
-            - v1-docker-build-cache-{{ checksum "Dockerfile" }}
-            - v1-docker-build-cache
+            - v1-docker-build-cache-amd64-{{ checksum "Dockerfile" }}
+            - v1-docker-build-cache-amd64
       - run:
           name: Build (multi-arch)
           command: |
@@ -27,7 +27,7 @@ jobs:
               --cache-from=type=local,src=/tmp/.buildx-cache \
               --cache-to=type=local,dest=/tmp/.buildx-cache-new
       - save_cache:
-          key: v1-docker-build-cache-{{ checksum "Dockerfile" }}
+          key: v1-docker-build-cache-amd64-{{ checksum "Dockerfile" }}
           paths:
             - /tmp/.buildx-cache-new
   build-arm64:
@@ -39,8 +39,9 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
-          name: Install Docker Buildx
+          name: Install docker buildx & login
           command: |
+            echo "$DOCKERHUB_PASS" | docker login -u $DOCKERHUB_USER --password-stdin
             docker buildx create --use --name mybuilder
             docker buildx inspect --bootstrap
       - restore_cache:
