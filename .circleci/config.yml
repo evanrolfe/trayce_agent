@@ -24,16 +24,22 @@ jobs:
             docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
             docker buildx create --use --name mybuilder
             docker buildx inspect --bootstrap
+      - restore_cache:
+          keys:
+            - v1-docker-build-cache-{{ checksum "Dockerfile" }}
+            - v1-docker-build-cache
       - run:
           name: Build
-          command: docker buildx build . --platform linux/amd64 -t traycer/trayce_agent:latest
-      # TODO: Make the e2e tests work in CI, currently ./dd_agent fails to start because of an ebpf permissions error
-      # - run:
-      #     name: Test E2E
-      #     command: docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock -it ddbuild bash -c "make && ./dd_agent"
-      # - run:
-      #     name: Test E2E (Load)
-      #     command: docker build . -t ddbuild -f Dockerfile.build
+          command: |
+            docker buildx build . \
+              --platform linux/amd64 \
+              --tag traycer/trayce_agent:latest \
+              --cache-from=type=local,src=/tmp/.buildx-cache \
+              --cache-to=type=local,dest=/tmp/.buildx-cache-new
+      - save_cache:
+          key: v1-docker-build-cache-{{ checksum "Dockerfile" }}
+          paths:
+            - /tmp/.buildx-cache-new
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/configuration-reference/#workflows
