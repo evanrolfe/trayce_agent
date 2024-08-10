@@ -50,7 +50,7 @@ func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 	http.HandleFunc("/", serverHandler)
 	http.HandleFunc("/large", serverHandlerLarge)
 	http.HandleFunc("/chunked", serverHandlerChunked)
-	http.HandleFunc("/chunked/{[0-9]+}", serverHandlerChunked)
+	http.HandleFunc("/chunked/[0-9]+", serverHandlerChunked)
 	http.HandleFunc("/second_http", serverHandlerSecondHTTP)
 	http.HandleFunc("/second_https", serverHandlerSecondHTTPS)
 

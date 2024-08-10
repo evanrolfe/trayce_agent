@@ -218,7 +218,8 @@ func (c *Containers) getPidsForContainer(containerId string) ([]int, error) {
 	// Extract the index of the Command in the results
 	indexCmd := -1
 	for i, title := range result.Titles {
-		if title == "CMD" {
+		// It appears that some docker installations have this as CMD while others have COMMAND
+		if title == "CMD" || title == "COMMAND" {
 			indexCmd = i
 		}
 	}
@@ -317,7 +318,10 @@ func extractIP(container types.ContainerJSON) string {
 	if len(container.NetworkSettings.Networks) > 0 {
 		// If there are multiple networks, just pick the first one
 		for _, network := range container.NetworkSettings.Networks {
-			return network.IPAddress
+			// NOTE this will be an empty string if the container is on the host network
+			if network.IPAddress != "" {
+				return network.IPAddress
+			}
 		}
 	}
 

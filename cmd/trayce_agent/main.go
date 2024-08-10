@@ -31,6 +31,7 @@ const (
 	btfFilePath6      = "bundle/6.2.0-26-generic.btf"
 	sslLibDefault     = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 	grpcServerDefault = "localhost:50051"
+	version           = "0.0.2"
 )
 
 type Settings struct {
@@ -56,7 +57,15 @@ func main() {
 	flag.StringVar(&libSslPath, "libssl", sslLibDefault, "The path to the libssl shared object.")
 	flag.StringVar(&grpcServerAddr, "s", grpcServerDefault, "The address of the GRPC server to send observations to.")
 	flag.StringVar(&filterCmd, "filtercmd", "", "Only observe traffic from processes who's command contains this string")
+	versionFlg := flag.Bool("v", false, "print current TrayceAgent version")
+	version2Flg := flag.Bool("version", false, "print current TrayceAgent version")
 	flag.Parse()
+
+	// Handle version flag:
+	if *versionFlg || *version2Flg {
+		fmt.Printf("TrayceAgent v%s\n", version)
+		return
+	}
 
 	kernelVersion := getKernelVersionMajor()
 

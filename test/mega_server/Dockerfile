@@ -1,5 +1,5 @@
 FROM ubuntu:22.04
-ENV GO_VERSION=1.21.12
+ENV GO_VERSION=1.22.1
 
 WORKDIR /app
 
@@ -24,6 +24,7 @@ ENV PATH "$PATH:/usr/local/go/bin:/root/go/bin"
 RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$'" >> ~/.bashrc
 
 ADD . /app
+RUN cd go && GOARCH=$(dpkg --print-architecture) go build -o mock_server -buildvcs=false -gcflags "all=-N -l" .
 RUN cd ror && bundle install
 
 CMD ./run.sh
