@@ -43,9 +43,10 @@ build: generate
 
 	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./trayce_agent\n$(DIV)"
 
-# NOTE: Change Test_agent_client to Test_agent_server to test a server receiving requests rather than a client making them
+# test runs the tests but it also starts the trayce_agent process, its intended to be used during local development
+# from within the build container
 test:
-	go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
+	START_AGENT=true go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
 
 testload:
 	$(CGO_FLAGS) \

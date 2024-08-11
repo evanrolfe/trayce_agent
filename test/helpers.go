@@ -2,7 +2,11 @@ package test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,7 +15,9 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/evanrolfe/trayce_agent/api"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/http2"
 )
 
 const (
@@ -23,6 +29,10 @@ const (
 )
 
 func AssertFlows(t *testing.T, flows []*api.Flow) {
+	assert.Greater(t, len(flows), 0)
+	if len(flows) == 0 {
+		return
+	}
 	assert.Greater(t, len(flows[0].Request), 0)
 	if len(flows) > 1 {
 		assert.Greater(t, len(flows[1].Response), 0)
@@ -160,3 +170,44 @@ func getTestConfig() (int, int, time.Duration) {
 
 // 	fmt.Println(collectedMatches)
 // }
+
+func makeRequest(url string, ishttp2 bool) {
+	// url = fmt.Sprintf("%s/%v", url, i)
+	fmt.Println("Requesting", url)
+
+	var client *http.Client
+	if ishttp2 {
+		// Setup HTTP/2 transport
+		client = &http.Client{
+			Transport: &http2.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+	} else {
+		// Setup HTTP/1.1 transport
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				// This line forces http1.1:
+				TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
+			},
+		}
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("error constructing http request: %s\n", err)
+		os.Exit(1)
+	}
+	req.Header.Set("Accept-Encoding", "identity")
+	req.Header.Set("X-Request-ID", uuid.NewString())
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("error sending http request: %s\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("response status code: %d, ID: %s\n", res.StatusCode, res.Header.Get("X-Request-ID"))
+
+	io.ReadAll(res.Body)
+	// fmt.Println(string(body))
+}

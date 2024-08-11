@@ -5,9 +5,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
-	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -17,6 +18,13 @@ import (
 
 // Test_agent_client tests requests made from this container to another server, it listens to the server
 func Test_agent_server(t *testing.T) {
+	// Handle command line args
+	startAgentFlg := os.Getenv("START_AGENT")
+	startAgent := false
+	if startAgentFlg == "true" {
+		startAgent = true
+	}
+
 	// Find the mega_server container
 	megaserverId, megaserverIp := getMegaServer(t)
 	numRequests, expectedNumFlows, timeout := getTestConfig()
@@ -25,11 +33,14 @@ func Test_agent_server(t *testing.T) {
 	grpcHandler.SetContainerIds([]string{megaserverId})
 
 	// Start trayce_agent
-	// trayceAgent := exec.Command("docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -t traycer/trayce_agent:amd64 -s 192.168.0.75:50051")
-
-	// var stdoutBuf, stderrBuf bytes.Buffer
-	// trayceAgent.Stdout = &stdoutBuf
-	// trayceAgent.Stderr = &stderrBuf
+	var trayceAgent *exec.Cmd
+	var stdoutBuf, stderrBuf bytes.Buffer
+	if startAgent {
+		trayceAgent = exec.Command("/app/trayce_agent")
+		trayceAgent.Stdout = &stdoutBuf
+		trayceAgent.Stderr = &stderrBuf
+		fmt.Println("STARTED TRAYCE AGENT")
+	}
 
 	// Wait for trayce_agent to start, timeout of 5secs:
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -37,101 +48,141 @@ func Test_agent_server(t *testing.T) {
 	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
 
 	// Trigger the command and then wait for the context to complete
-	// trayceAgent.Start()
+	if startAgent {
+		trayceAgent.Start()
+		fmt.Println("STARTED TRAYCE AGENT2")
+	}
 	<-ctx.Done()
 
 	// Run tests
 	// Set focus: true in order to only run a single test case
 	tests := []struct {
-		name   string
-		cmd    *exec.Cmd
-		focus  bool
-		verify func(t *testing.T, requests []*api.Flow)
+		name        string
+		cmd         *exec.Cmd
+		url         string
+		numRequests int
+		http2       bool
+		focus       bool
+		verify      func(t *testing.T, requests []*api.Flow)
 	}{
 		{
-			name:   "[Python] Server an HTTP/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/", megaserverIp, 3001), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Python] Server an HTTP/1.1 request",
+			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 3001),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Python] Server an HTTPS/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3002), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Python] Server an HTTPS/1.1 request",
+			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 3002),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Python] Server an HTTPS/1.1 request to /second_https",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 3002), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Python] Server an HTTPS/1.1 request to /second_https",
+			url:         fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 3002),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Python] Server an HTTP/1.1 request to /large",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/large", megaserverIp, 3001), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Python] Server an HTTP/1.1 request to /large",
+			url:         fmt.Sprintf("http://%s:%d/large", megaserverIp, 3001),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Python] Server an HTTPS/1.1 request to /large",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/large", megaserverIp, 3002), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Python] Server an HTTPS/1.1 request to /large",
+			url:         fmt.Sprintf("https://%s:%d/large", megaserverIp, 3002),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Ruby] Server an HTTP/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/", megaserverIp, 3003), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Ruby] Server an HTTP/1.1 request",
+			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 3003),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Ruby] Server an HTTP/1.1 request to /second_http",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 3003), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Ruby] Server an HTTP/1.1 request to /second_http",
+			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 3003),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Ruby] Server an HTTPS/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 3004), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Ruby] Server an HTTPS/1.1 request",
+			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 3004),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Ruby] Server an HTTPS/1.1 request to /second_https",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/second_https", megaserverIp, 3004), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Ruby] Server an HTTPS/1.1 request to /second_https",
+			url:         fmt.Sprintf("https://%s:%d/second_https", megaserverIp, 3004),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Ruby] Server an HTTP/1.1 request to /large",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/large", megaserverIp, 3003), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Ruby] Server an HTTP/1.1 request to /large",
+			url:         fmt.Sprintf("http://%s:%d/large", megaserverIp, 3003),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Ruby] Server an HTTPS/1.1 request to /large",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/large", megaserverIp, 3004), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Ruby] Server an HTTPS/1.1 request to /large",
+			url:         fmt.Sprintf("https://%s:%d/large", megaserverIp, 3004),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Go] Server an HTTPS/2 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
-			verify: AssertFlowsHttp2,
+			name:        "[Go] Server an HTTPS/2 request",
+			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       true,
+			verify:      AssertFlowsHttp2,
 		},
 		{
-			name:   "[Go] Server an HTTPS/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/", megaserverIp, 4123), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Go] Server an HTTPS/1.1 request",
+			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Go] Server an HTTP/1.1 request",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Go] Server an HTTP/1.1 request",
+			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 4122),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Go] Server an HTTP/1.1 request to /second_http",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Go] Server an HTTP/1.1 request to /second_http",
+			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Go] Server an HTTPS/1.1 request to /large",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/large", megaserverIp, 4123), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Go] Server an HTTPS/1.1 request to /large",
+			url:         fmt.Sprintf("https://%s:%d/large", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
-			name:   "[Go] Server an HTTP/1.1 request to /large",
-			cmd:    exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/large", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
-			verify: AssertFlows,
+			name:        "[Go] Server an HTTP/1.1 request to /large",
+			url:         fmt.Sprintf("http://%s:%d/large", megaserverIp, 4122),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		// {
 		// 	name:       "[Go] Server an HTTP/1.1 request to /second",
@@ -150,12 +201,6 @@ func Test_agent_server(t *testing.T) {
 		// 	name:   "[Node] Server an HTTPS/1.1 request",
 		// 	focus:  true,
 		// 	cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 3003), strconv.Itoa(numRequests)),
-		// 	verify: AssertFlows,
-		// },
-		// TODO: Support Java
-		// {
-		// 	name:   "[Java] Server an HTTPS/1.1 request",
-		// 	cmd:    exec.Command(requestRubyScriptHttpLoad, fmt.Sprintf("https://%s:%d/", megaserverIp, 3002), strconv.Itoa(numRequests)),
 		// 	verify: AssertFlows,
 		// },
 	}
@@ -191,8 +236,8 @@ func Test_agent_server(t *testing.T) {
 
 			// Make the request
 			time.Sleep(500 * time.Millisecond)
-			tt.cmd.Start()
 
+			makeRequest(tt.url, tt.http2)
 			// Wait for the context to complete
 			<-ctx.Done()
 
@@ -209,7 +254,7 @@ func Test_agent_server(t *testing.T) {
 			// 	fmt.Println("Error writing to file:", err)
 			// 	os.Exit(1)
 			// }
-			// fmt.Println(stdoutBuf.String())
+			fmt.Println(stdoutBuf.String())
 
 			// Verify the result
 			assert.Equal(t, expectedNumFlows, len(flows))
@@ -220,7 +265,9 @@ func Test_agent_server(t *testing.T) {
 		})
 	}
 
-	// trayceAgent.Process.Signal(syscall.SIGTERM)
+	if startAgent {
+		trayceAgent.Process.Signal(syscall.SIGTERM)
+	}
 }
 
 func checkForDuplicates(flows []*api.Flow) {
