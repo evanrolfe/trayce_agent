@@ -19,9 +19,9 @@ const (
 	mockHttpsPort = 4123
 	grpcPort      = 50051
 	// TODO: make this work on both
-	requestRubyScriptHttpLoad = "/home/circleci/project/test/scripts/load_test_ruby"
-	requestPythonScript       = "/home/circleci/project/test/scripts/request_python"
-	requestGoScript           = "/home/circleci/project/test/scripts/go_request"
+	requestRubyScriptHttpLoad = "./test/scripts/load_test_ruby"
+	requestPythonScript       = "./test/scripts/request_python"
+	requestGoScript           = "./test/scripts/go_request"
 )
 
 // Test_agent_client tests requests made from this container to another server, it listens to the client
