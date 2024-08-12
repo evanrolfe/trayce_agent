@@ -34,7 +34,7 @@ func makeRequest(url string) {
 	if err != nil {
 		fmt.Printf("error http.NewRequest: %s\n", err)
 	}
-	req.Header.Set("Accept-Encoding", "identity")
+	req.Header.Set("Accept-Encoding", "gzip, deflate")
 	res, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("error making http request: %s\n", err)

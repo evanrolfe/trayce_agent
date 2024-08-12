@@ -131,7 +131,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 				cyan := "\033[36m"
 				reset := "\033[0m"
-				fmt.Println(string(cyan), "[events.ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr())
+				fmt.Println(string(cyan), "[ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr(), "type:", event.TypeStr())
 				// fmt.Print(hex.Dump(payload))
 				outputChan <- &event
 
@@ -144,7 +144,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 					panic(err)
 				}
 				if event.IsBlank() {
-					fmt.Println("\n[events.DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
+					fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
 					continue
 				}
 				// fmt.Println("\n[events.DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr)
@@ -296,6 +296,7 @@ func (stream *Stream) attachKProbes() {
 	kprobes := map[string][]string{
 		"sys_accept":   []string{"probe_accept4", "probe_ret_accept4"},
 		"sys_accept4":  []string{"probe_accept4", "probe_ret_accept4"},
+		"sys_connect":  []string{"probe_connect", "probe_ret_connect"},
 		"sys_close":    []string{"probe_close", "probe_ret_close"},
 		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
 		"sys_recvfrom": []string{"probe_recvfrom", "probe_ret_recvfrom"},

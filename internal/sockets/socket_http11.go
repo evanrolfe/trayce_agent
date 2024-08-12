@@ -4,13 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/evanrolfe/trayce_agent/internal/events"
@@ -215,38 +214,26 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 	}
 
 	// Readall from the body to ensure its complete
-	body, err := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		if err != io.ErrUnexpectedEOF {
-			fmt.Println("Error reading response body:", err)
-			return nil, []byte{}
-		}
-	}
+	// body, err := io.ReadAll(resp.Body)
+	// defer resp.Body.Close()
+	// if err != nil {
+	// 	if err != io.ErrUnexpectedEOF {
+	// 		fmt.Println("Error reading response body:", err)
+	// 		return nil, []byte{}
+	// 	}
+	// }
+	// fmt.Println("Body:", len(body), "\n", hex.Dump(body))
 
 	var bufReturn *[]byte
 
 	if resp.Header.Get("Content-Encoding") == "gzip" {
-		// Decompress if the body is gzip compressed
-		gzipReader, err := gzip.NewReader(bytes.NewReader(body))
+		decodedBuf, err := decodeGzipResponse(buf)
 		if err != nil {
-			fmt.Println("ERROR gzip.NewReader():", err)
-		}
-		defer gzipReader.Close()
-
-		decompressedBody, err := io.ReadAll(gzipReader)
-		if err != nil {
-			fmt.Println("ERROR io.ReadAll():", err)
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(decompressedBody))
-		defer resp.Body.Close()
-
-		buf2, err := httputil.DumpResponse(resp, true)
-		if err != nil {
-			fmt.Println("ERROR httputil.DumpResponse():", err)
+			fmt.Println("ERROR decodeGzipResponse():", err)
+			decodedBuf = buf
 		}
 
-		bufReturn = &buf2
+		bufReturn = &decodedBuf
 	} else if isChunked {
 		parsedBuf, err := parseChunkedResponse(buf)
 		if err != nil {
@@ -258,20 +245,48 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 	}
 
 	// Check we actually have the full body
-	contentLengthHdr := resp.Header.Get("Content-Length")
-	if contentLengthHdr != "" {
-		contentLength, err := strconv.Atoi(contentLengthHdr)
-		if err != nil {
-			return resp, *bufReturn
-		}
+	// contentLengthHdr := resp.Header.Get("Content-Length")
+	// if contentLengthHdr != "" {
+	// 	contentLength, err := strconv.Atoi(contentLengthHdr)
+	// 	if err != nil {
+	// 		return resp, *bufReturn
+	// 	}
 
-		if len(body) < contentLength {
-			return nil, []byte{}
-		}
-	}
+	// 	if len(body) < contentLength {
+	// 		return nil, []byte{}
+	// 	}
+	// }
 
 	return resp, *bufReturn
 
+}
+
+func decodeGzipResponse(buf []byte) ([]byte, error) {
+	fmt.Println("====>\n", hex.Dump(buf))
+
+	parts := bytes.SplitN(buf, []byte("\r\n\r\n"), 2)
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("invalid HTTP response: no body found")
+	}
+
+	// The body is the part after the double CRLF
+	body := parts[1]
+
+	// Create a new gzip reader
+	gzReader, err := gzip.NewReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("gzip.NewReader(): %v", err)
+	}
+	defer gzReader.Close()
+
+	// Read the decompressed data
+	decodedBody, err := io.ReadAll(gzReader)
+	if err != nil {
+		// return nil, fmt.Errorf("io.ReadAll(): %v", err)
+	}
+
+	newBuf := bytes.Join([][]byte{parts[0], decodedBody}, []byte("\r\n\r\n"))
+	return newBuf, nil
 }
 
 func (socket *SocketHttp11) clearDataBuffer() {

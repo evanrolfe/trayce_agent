@@ -30,6 +30,7 @@ typedef short unsigned int __kernel_sa_family_t;
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum event_type { eConnect, eData, eClose, eDebug };
+enum connect_event_type { kConnect, kAccept };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto, goTlsRead, goTlsWrite };
 enum protocol_type { pUnknown, pHttp };
 const u32 invalidFD = 0;
@@ -50,6 +51,7 @@ struct data_event_t {
 
 struct connect_event_t {
     u64 eventtype;
+    u64 type;
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
@@ -221,6 +223,7 @@ static __inline struct connect_event_t copy_connect_event(struct connect_event_t
     struct connect_event_t conn_event2;
     __builtin_memset(&conn_event2, 0, sizeof(conn_event2));
     conn_event2.eventtype = eConnect;
+    conn_event2.type = conn_event->type;
     conn_event2.timestamp_ns = bpf_ktime_get_ns();
     conn_event2.pid = conn_event->pid;
     conn_event2.tid = conn_event->tid;
