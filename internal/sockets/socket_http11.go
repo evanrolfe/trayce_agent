@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/evanrolfe/trayce_agent/internal/events"
@@ -214,15 +214,14 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 	}
 
 	// Readall from the body to ensure its complete
-	// body, err := io.ReadAll(resp.Body)
-	// defer resp.Body.Close()
-	// if err != nil {
-	// 	if err != io.ErrUnexpectedEOF {
-	// 		fmt.Println("Error reading response body:", err)
-	// 		return nil, []byte{}
-	// 	}
-	// }
-	// fmt.Println("Body:", len(body), "\n", hex.Dump(body))
+	body, err := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if err != nil {
+		if err != io.ErrUnexpectedEOF {
+			fmt.Println("Error reading response body:", err)
+			return nil, []byte{}
+		}
+	}
 
 	var bufReturn *[]byte
 
@@ -231,6 +230,8 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 		if err != nil {
 			fmt.Println("ERROR decodeGzipResponse():", err)
 			decodedBuf = buf
+		} else {
+			resp.Header.Del("Content-Length")
 		}
 
 		bufReturn = &decodedBuf
@@ -245,25 +246,23 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 	}
 
 	// Check we actually have the full body
-	// contentLengthHdr := resp.Header.Get("Content-Length")
-	// if contentLengthHdr != "" {
-	// 	contentLength, err := strconv.Atoi(contentLengthHdr)
-	// 	if err != nil {
-	// 		return resp, *bufReturn
-	// 	}
+	contentLengthHdr := resp.Header.Get("Content-Length")
+	if contentLengthHdr != "" {
+		contentLength, err := strconv.Atoi(contentLengthHdr)
+		if err != nil {
+			return resp, *bufReturn
+		}
 
-	// 	if len(body) < contentLength {
-	// 		return nil, []byte{}
-	// 	}
-	// }
+		if len(body) < contentLength {
+			return nil, []byte{}
+		}
+	}
 
 	return resp, *bufReturn
 
 }
 
 func decodeGzipResponse(buf []byte) ([]byte, error) {
-	fmt.Println("====>\n", hex.Dump(buf))
-
 	parts := bytes.SplitN(buf, []byte("\r\n\r\n"), 2)
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("invalid HTTP response: no body found")

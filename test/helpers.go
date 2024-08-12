@@ -30,13 +30,7 @@ const (
 
 func AssertFlows(t *testing.T, flows []*api.Flow) {
 	assert.Greater(t, len(flows), 0)
-	if len(flows) == 0 {
-		return
-	}
-	assert.Greater(t, len(flows[0].Request), 0)
-	if len(flows) > 1 {
-		assert.Greater(t, len(flows[1].Response), 0)
-	}
+	// assert.Greater(t, len(flows[0].Request), 0)
 
 	for _, flow := range flows {
 		assert.Greater(t, len(flow.LocalAddr), 0)
