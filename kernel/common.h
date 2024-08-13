@@ -308,16 +308,13 @@ static u32 get_fd_from_libssl_read(struct ssl_st ssl_info, u32 pid, u64 current_
             bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
         fd = bio_r.num;
-        bpf_printk("SSL_read fd: %d", fd);
     }
 
     if (fd == -1) {
-        bpf_printk("SSL_read looking for fd in map at: %d", current_pid_tgid);
         int* fd2 = bpf_map_lookup_elem(&fd_map, &current_pid_tgid);
 
         if (fd2 != NULL) {
             fd = *fd2;
-            bpf_printk("SSL_read backup FD: %d", fd);
         }
     }
 
@@ -345,7 +342,6 @@ static u32 get_fd_from_libssl_write(struct ssl_st ssl_info, u32 pid, u64 ssl_ptr
             bpf_printk("SSL_write enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
         fd = bio_w.num;
-        bpf_printk("SSL_write fd: %d", fd);
     }
 
     if (fd == -1) {

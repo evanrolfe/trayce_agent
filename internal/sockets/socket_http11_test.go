@@ -327,7 +327,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		})
 	})
 
-	FContext("Receiving a Connect, Data (request), Data (response) events (gzip'd)", Ordered, func() {
+	Context("Receiving a Connect, Data (request), Data (response) events (gzip'd)", Ordered, func() {
 		var flows []*sockets.Flow
 
 		BeforeAll(func() {

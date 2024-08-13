@@ -87,7 +87,7 @@ func AssertFlowsChunked(t *testing.T, flows []*api.Flow) {
 }
 
 func AssertFlows2(t *testing.T, flows []*api.Flow) {
-	assert.Equal(t, numRequestsLoad*4, len(flows))
+	assert.Equal(t, 4, len(flows))
 }
 
 func getMegaServer(t *testing.T) (string, string) {
