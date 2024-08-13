@@ -30,6 +30,7 @@ typedef short unsigned int __kernel_sa_family_t;
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum event_type { eConnect, eData, eClose, eDebug };
+enum connect_event_type { kConnect, kAccept };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto, goTlsRead, goTlsWrite };
 enum protocol_type { pUnknown, pHttp };
 const u32 invalidFD = 0;
@@ -50,6 +51,7 @@ struct data_event_t {
 
 struct connect_event_t {
     u64 eventtype;
+    u64 type;
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
@@ -221,6 +223,7 @@ static __inline struct connect_event_t copy_connect_event(struct connect_event_t
     struct connect_event_t conn_event2;
     __builtin_memset(&conn_event2, 0, sizeof(conn_event2));
     conn_event2.eventtype = eConnect;
+    conn_event2.type = conn_event->type;
     conn_event2.timestamp_ns = bpf_ktime_get_ns();
     conn_event2.pid = conn_event->pid;
     conn_event2.tid = conn_event->tid;
@@ -305,16 +308,13 @@ static u32 get_fd_from_libssl_read(struct ssl_st ssl_info, u32 pid, u64 current_
             bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
         fd = bio_r.num;
-        bpf_printk("SSL_read fd: %d", fd);
     }
 
     if (fd == -1) {
-        bpf_printk("SSL_read looking for fd in map at: %d", current_pid_tgid);
         int* fd2 = bpf_map_lookup_elem(&fd_map, &current_pid_tgid);
 
         if (fd2 != NULL) {
             fd = *fd2;
-            bpf_printk("SSL_read backup FD: %d", fd);
         }
     }
 
@@ -342,7 +342,6 @@ static u32 get_fd_from_libssl_write(struct ssl_st ssl_info, u32 pid, u64 ssl_ptr
             bpf_printk("SSL_write enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
         fd = bio_w.num;
-        bpf_printk("SSL_write fd: %d", fd);
     }
 
     if (fd == -1) {

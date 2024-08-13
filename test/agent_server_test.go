@@ -61,6 +61,7 @@ func Test_agent_server(t *testing.T) {
 		cmd         *exec.Cmd
 		url         string
 		numRequests int
+		multiplier  int
 		http2       bool
 		focus       bool
 		verify      func(t *testing.T, requests []*api.Flow)
@@ -85,6 +86,7 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
+			multiplier:  2,
 		},
 		{
 			name:        "[Python] Server an HTTP/1.1 request to /large",
@@ -101,6 +103,14 @@ func Test_agent_server(t *testing.T) {
 			verify:      AssertFlows,
 		},
 		{
+			name:        "[Python] Server an HTTP/1.1 request to /second_http",
+			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 3001),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
+			multiplier:  2,
+		},
+		{
 			name:        "[Ruby] Server an HTTP/1.1 request",
 			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 3003),
 			numRequests: numRequests,
@@ -113,6 +123,7 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
+			multiplier:  2,
 		},
 		{
 			name:        "[Ruby] Server an HTTPS/1.1 request",
@@ -126,6 +137,7 @@ func Test_agent_server(t *testing.T) {
 			url:         fmt.Sprintf("https://%s:%d/second_https", megaserverIp, 3004),
 			numRequests: numRequests,
 			http2:       false,
+			multiplier:  2,
 			verify:      AssertFlows,
 		},
 		{
@@ -168,6 +180,7 @@ func Test_agent_server(t *testing.T) {
 			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
 			numRequests: numRequests,
 			http2:       false,
+			multiplier:  2,
 			verify:      AssertFlows,
 		},
 		{
@@ -184,18 +197,22 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 		},
-		// {
-		// 	name:       "[Go] Server an HTTP/1.1 request to /second",
-		// 	cmd:        exec.Command(requestGoScript, fmt.Sprintf("http://%s:%d/second", megaserverIp, 4122), strconv.Itoa(numRequests), "http1"),
-		// 	verify:     AssertFlows2,
-		// 	multiplier: 2,
-		// },
-		// {
-		// 	name:       "[Go] Server an HTTPS/2 request to /second",
-		// 	cmd:        exec.Command(requestGoScript, fmt.Sprintf("https://%s:%d/second", megaserverIp, 4123), strconv.Itoa(numRequests), "http2"),
-		// 	verify:     AssertFlows2,
-		// 	multiplier: 2,
-		// },
+		{
+			name:        "[Go] Server an HTTP/1.1 request to /second_http",
+			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
+			multiplier:  2,
+		},
+		{
+			name:        "[Go] Server an HTTPS/2 request to /second_http",
+			url:         fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       true,
+			verify:      func(t *testing.T, requests []*api.Flow) {},
+			multiplier:  2,
+		},
 		// TODO: Support NodeJS
 		// {
 		// 	name:   "[Node] Server an HTTPS/1.1 request",
@@ -222,6 +239,10 @@ func Test_agent_server(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
+			multiplier := tt.multiplier
+			if multiplier == 0 {
+				multiplier = 1
+			}
 			// Wait until we receive 2 messages (one for the request and one for the response) from GRPC
 			flows := []*api.Flow{}
 			grpcHandler.SetCallback(func(input *api.Flows) {
@@ -229,7 +250,7 @@ func Test_agent_server(t *testing.T) {
 				if len(flows)%100 == 0 {
 					fmt.Println("Received", len(flows))
 				}
-				if len(flows) >= expectedNumFlows {
+				if len(flows) >= expectedNumFlows*multiplier {
 					cancel()
 				}
 			})
@@ -237,7 +258,7 @@ func Test_agent_server(t *testing.T) {
 			// Make the request
 			time.Sleep(500 * time.Millisecond)
 
-			makeRequest(tt.url, tt.http2)
+			makeRequests(tt.url, tt.http2, numRequests)
 			// Wait for the context to complete
 			<-ctx.Done()
 
@@ -257,9 +278,9 @@ func Test_agent_server(t *testing.T) {
 			fmt.Println(stdoutBuf.String())
 
 			// Verify the result
-			assert.Equal(t, expectedNumFlows, len(flows))
+			assert.Equal(t, expectedNumFlows*multiplier, len(flows))
 			tt.verify(t, flows)
-			fmt.Printf("Completed %d/%d\n", i, len(tests))
+			fmt.Printf("================================================\nCompleted %d/%d\n================================================\n", i, len(tests))
 
 			checkForDuplicates(flows)
 		})
@@ -298,11 +319,11 @@ func checkForDuplicates(flows []*api.Flow) {
 		}
 	}
 
-	// for requestID, uuids := range requestIDsMap {
-	// 	if len(uuids) != 2 {
-	// 		fmt.Println("X-Request-ID:", requestID, "=>", uuids)
-	// 	}
-	// }
+	for requestID, uuids := range requestIDsMap {
+		if len(uuids) != 2 {
+			fmt.Println("X-Request-ID:", requestID, "=>", uuids)
+		}
+	}
 }
 
 func extractRequestID(data []byte) string {

@@ -1,6 +1,9 @@
 package sockets_test
 
 import (
+	"encoding/hex"
+	"fmt"
+
 	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	. "github.com/onsi/ginkgo/v2"
@@ -21,6 +24,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 	event11Payload, _ := hexDumpToBytes(event11)
 	event12Payload, _ := hexDumpToBytes(event12)
 	event13Payload, _ := hexDumpToBytes(event13)
+
+	gzip1Payload, _ := hexDumpToBytes(gzipEvent1)
+	gzip2Payload, _ := hexDumpToBytes(gzipEvent2)
 
 	Context("Receiving a Connect, Data (request) events", Ordered, func() {
 		var flows []*sockets.Flow
@@ -315,6 +321,70 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
+			// Expect(flows[1].Response).To(Equal(event7Payload)) // without the trailing zeroes
+
+			// fmt.Println(string(flows[1].Response))
+		})
+	})
+
+	Context("Receiving a Connect, Data (request), Data (response) events (gzip'd)", Ordered, func() {
+		var flows []*sockets.Flow
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				IP:   2130706433,
+				Port: 80,
+			})
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			// Request event
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: 7, // goTlsWrite
+				Data:     convertSliceToArray(gzip1Payload),
+				DataLen:  int32(len(gzip1Payload)),
+			})
+
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: 6, // goTlsRead
+				Data:     convertSliceToArray(gzip2Payload),
+				DataLen:  int32(len(gzip2Payload)),
+			})
+		})
+
+		It("returns two flows", func() {
+			Expect(flows).To(HaveLen(2))
+
+			for _, flow := range flows {
+				Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("http"))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
+			}
+		})
+
+		It("the first flow contains an HTTP request", func() {
+			flow := flows[0]
+			Expect(flow.Request).To(Equal(gzip1Payload))
+			Expect(flow.Response).To(BeNil())
+		})
+
+		It("the second flow contains an HTTP request and response", func() {
+			Expect(flows[1].Request).To(BeNil())
+			Expect(flows[1].Response).ToNot(BeNil())
+
+			fmt.Println("=====================>\n", hex.Dump(flows[1].Response))
 			// Expect(flows[1].Response).To(Equal(event7Payload)) // without the trailing zeroes
 
 			// fmt.Println(string(flows[1].Response))

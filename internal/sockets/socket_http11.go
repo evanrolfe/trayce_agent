@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"slices"
 	"strconv"
 	"strings"
@@ -227,26 +226,15 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 	var bufReturn *[]byte
 
 	if resp.Header.Get("Content-Encoding") == "gzip" {
-		// Decompress if the body is gzip compressed
-		gzipReader, err := gzip.NewReader(bytes.NewReader(body))
+		decodedBuf, err := decodeGzipResponse(buf)
 		if err != nil {
-			fmt.Println("ERROR gzip.NewReader():", err)
-		}
-		defer gzipReader.Close()
-
-		decompressedBody, err := io.ReadAll(gzipReader)
-		if err != nil {
-			fmt.Println("ERROR io.ReadAll():", err)
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(decompressedBody))
-		defer resp.Body.Close()
-
-		buf2, err := httputil.DumpResponse(resp, true)
-		if err != nil {
-			fmt.Println("ERROR httputil.DumpResponse():", err)
+			fmt.Println("ERROR decodeGzipResponse():", err)
+			decodedBuf = buf
+		} else {
+			resp.Header.Del("Content-Length")
 		}
 
-		bufReturn = &buf2
+		bufReturn = &decodedBuf
 	} else if isChunked {
 		parsedBuf, err := parseChunkedResponse(buf)
 		if err != nil {
@@ -272,6 +260,32 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 
 	return resp, *bufReturn
 
+}
+
+func decodeGzipResponse(buf []byte) ([]byte, error) {
+	parts := bytes.SplitN(buf, []byte("\r\n\r\n"), 2)
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("invalid HTTP response: no body found")
+	}
+
+	// The body is the part after the double CRLF
+	body := parts[1]
+
+	// Create a new gzip reader
+	gzReader, err := gzip.NewReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("gzip.NewReader(): %v", err)
+	}
+	defer gzReader.Close()
+
+	// Read the decompressed data
+	decodedBody, err := io.ReadAll(gzReader)
+	if err != nil {
+		// return nil, fmt.Errorf("io.ReadAll(): %v", err)
+	}
+
+	newBuf := bytes.Join([][]byte{parts[0], decodedBody}, []byte("\r\n\r\n"))
+	return newBuf, nil
 }
 
 func (socket *SocketHttp11) clearDataBuffer() {

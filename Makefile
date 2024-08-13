@@ -50,7 +50,7 @@ test:
 
 testload:
 	$(CGO_FLAGS) \
-	go test ./test -v -count=1 -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
+	START_AGENT=true go test ./test -v -count=1 -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
 
 testunit: generate
 	$(CGO_FLAGS) \
@@ -72,4 +72,4 @@ dev:
 	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it trayce_agent:local bash
 
 megaserver:
-	docker run -v ./test/mega_server:/app -it mega_server
+	docker run -it mega_server

@@ -7,9 +7,15 @@ import (
 	"net"
 )
 
+const (
+	kConnect = 0
+	kAccept  = 1
+)
+
 // ConnectEvent is sent from ebpf when a socket is connected, see corresponding: struct connect_event_t
 type ConnectEvent struct {
 	EventType   uint64 `json:"eventType"`
+	Type        uint64 `json:"type"`
 	TimestampNs uint64 `json:"timestampNs"`
 	PID         uint32 `json:"pid"`
 	TID         uint32 `json:"tid"`
@@ -25,6 +31,9 @@ type ConnectEvent struct {
 func (ce *ConnectEvent) Decode(payload []byte) (err error) {
 	buf := bytes.NewBuffer(payload)
 	if err = binary.Read(buf, binary.LittleEndian, &ce.EventType); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &ce.Type); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &ce.TimestampNs); err != nil {
@@ -85,6 +94,17 @@ func (ce *ConnectEvent) LocalIPAddr() string {
 
 func (ce *ConnectEvent) Key() string {
 	return fmt.Sprintf("%d-%d", ce.PID, ce.FD)
+}
+
+func (ce *ConnectEvent) TypeStr() string {
+	switch ce.Type {
+	case kConnect:
+		return "connect"
+	case kAccept:
+		return "accept"
+	default:
+		return ""
+	}
 }
 
 // func (ce *ConnDataEvent) StringHex() string {
