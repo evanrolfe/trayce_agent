@@ -82,7 +82,6 @@ func checkGoVersion(fpath string, versionOffset uint64) (bool, string, error) {
 }
 
 func GetSymbolOffset(filePath string, symbolName string) (*GoExtendedOffset, error) {
-	fmt.Println("GetSymbolOffset()", filePath, "/", symbolName)
 	elfFile, err := elf.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("elf.Open() for %v, err: %v", elfFile, err)
@@ -135,7 +134,6 @@ func GetSymbolOffset(filePath string, symbolName string) (*GoExtendedOffset, err
 			}
 		}
 	}
-	fmt.Println("GetSymbolOffset() done")
 	return &extendedOffset, nil
 }
 

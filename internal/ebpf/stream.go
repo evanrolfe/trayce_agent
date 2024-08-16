@@ -251,7 +251,7 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	// Determine offsets for this PID and send them to ebpf
 	fdOffset, err := go_offsets.GetStructMemberOffset(proc.ExecPath, "internal/poll.FD", "Sysfd")
 	if err != nil {
-		fmt.Println("Error finding fdOffset:", err)
+		// Fail silently here because this is probably not a Go binary
 		fdOffset = 16
 	}
 	// TODO: This should be the PID, otherwise at the moment, this wont work if executables from different versions of
@@ -373,7 +373,7 @@ func (stream *Stream) attachUprobesGo(proc docker.Proc) error {
 
 		err := stream.probeManager.AttachGoUProbes(proc, probeFuncs[0], probeFuncs[1], funcName)
 		if err != nil {
-			fmt.Println("Error bpfProg.AttachGoUProbes() write:", err)
+			fmt.Println("Warning: failed to attach Go UProbes, probably not a Go binary.. msg:", err)
 			return err
 		}
 		fmt.Println("Attached Go Uprobes for", funcName, proc.PID, proc.ExecPath)
