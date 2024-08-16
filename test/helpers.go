@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -166,14 +167,17 @@ func getTestConfig() (int, int, time.Duration) {
 // }
 
 func makeRequests(url string, ishttp2 bool, num int) {
+	var wg sync.WaitGroup
 	for i := 0; i < num; i++ {
-		makeRequest(url, ishttp2)
+		wg.Add(1)
+		go makeRequest(i, url, ishttp2, &wg)
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
-func makeRequest(url string, ishttp2 bool) {
-	// url = fmt.Sprintf("%s/%v", url, i)
-	fmt.Println("Requesting", url)
+func makeRequest(i int, url string, ishttp2 bool, wg *sync.WaitGroup) {
+	defer wg.Done()
+	fmt.Println("Requesting", url, i)
 
 	var client *http.Client
 	if ishttp2 {

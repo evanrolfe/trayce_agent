@@ -179,7 +179,7 @@ int probe_ret_accept4(struct pt_regs *ctx) {
         u64 key = gen_pid_fd(current_pid_tgid, fd);
         bpf_map_update_elem(&conn_infos, &key, &conn_event2, BPF_ANY);
         bpf_ringbuf_output(&data_events, &conn_event2, sizeof(struct connect_event_t), 0);
-        bpf_printk("kprobe/accept4: Set conn_info PID: %d FD: %d, Key: %d", pid, fd, key);
+        bpf_printk("kprobe/accept4: Set conn_info ID: %d, FD: %d, Key: %d", current_pid_tgid, fd, key);
     }
 
     bpf_map_delete_elem(&active_accept4_args_map, &current_pid_tgid);
@@ -265,12 +265,14 @@ int probe_ret_close(struct pt_regs *ctx) {
 
     if (close_event != NULL) {
         bpf_ringbuf_output(&data_events, close_event, sizeof(struct close_event_t), 0);
+        bpf_printk("kprobe/close FD: %d", close_event->fd);
 
         u64 key = gen_pid_fd(current_pid_tgid, close_event->fd);
         bpf_map_delete_elem(&conn_infos, &key);
     }
 
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
+    // bpf_map_delete_elem(&fd_map, &current_pid_tgid);
 
     return 0;
 }
@@ -291,7 +293,7 @@ int probe_sendto(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
-    bpf_printk("kprobe/sendto: PID: %d FD: %d", pid, fd);
+    bpf_printk("kprobe/sendto: ID: %d FD: %d", current_pid_tgid, fd);
 
     // Save the FD incase SSL_Read or SSL_Write need it
     bpf_map_update_elem(&fd_map, &current_pid_tgid, &fd, BPF_ANY);
@@ -358,7 +360,7 @@ int probe_recvfrom(struct pt_regs *ctx) {
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
-    bpf_printk("kprobe/recvfrom: PID: %d FD: %d", pid, fd);
+    bpf_printk("kprobe/recvfrom: ID: %d FD: %d", current_pid_tgid, fd);
 
     // Save the FD incase SSL_Read or SSL_Write need it
     bpf_map_update_elem(&fd_map, &current_pid_tgid, &fd, BPF_ANY);
@@ -535,5 +537,54 @@ int probe_ret_read(struct pt_regs *ctx) {
         process_data(ctx, current_pid_tgid, kRead, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
+    return 0;
+}
+
+SEC("tracepoint/sock/inet_sock_set_state")
+int trace_inet_sock_set_state(struct trace_event_raw_inet_sock_set_state *args) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    // Check if PID is intercepted
+    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
+    if (pid_intercepted == NULL) {
+        return 0;
+    }
+
+    u32 shost;
+    bpf_probe_read_kernel(&shost, sizeof(args->saddr), BPF_CORE_READ(args, saddr));
+    u32 dhost;
+    bpf_probe_read_kernel(&dhost, sizeof(args->daddr), BPF_CORE_READ(args, daddr));
+
+    u16 sport = args->sport;
+    u16 dport = args->dport;
+    u8 new_state = args->newstate;
+
+    struct sock *sk;
+    sk = (struct sock *)BPF_CORE_READ(args, skaddr);
+
+    int fd = 0;
+    int *fd2 = bpf_map_lookup_elem(&fd_map, &current_pid_tgid);
+    if (fd2 == NULL) {
+        bpf_printk("tracepoint/sock/inet_sock_set_state ERROR no fd found");
+    } else {
+        fd = *fd2;
+    }
+
+    // Build the connect_event and save it to the map
+    struct tcp_state_event_t tcp_event;
+    __builtin_memset(&tcp_event, 0, sizeof(tcp_event));
+    tcp_event.eventtype = eTCPState;
+    tcp_event.pid = pid;
+    tcp_event.tid = current_pid_tgid;
+    tcp_event.fd = fd;
+    tcp_event.state = new_state;
+    tcp_event.shost = shost;
+    tcp_event.sport = sport;
+    tcp_event.dhost = dhost;
+    tcp_event.dport = dport;
+    bpf_ringbuf_output(&data_events, &tcp_event, sizeof(struct tcp_state_event_t), 0);
+
+    bpf_printk("tracepoint/sock/inet_sock_set_state ID: %d, FD: %d, state: %d, shost: %d", current_pid_tgid, fd, new_state, shost);
     return 0;
 }

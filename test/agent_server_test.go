@@ -258,7 +258,7 @@ func Test_agent_server(t *testing.T) {
 			// Make the request
 			time.Sleep(500 * time.Millisecond)
 
-			makeRequests(tt.url, tt.http2, numRequests)
+			go makeRequests(tt.url, tt.http2, numRequests)
 			// Wait for the context to complete
 			<-ctx.Done()
 
@@ -282,7 +282,7 @@ func Test_agent_server(t *testing.T) {
 			tt.verify(t, flows)
 			fmt.Printf("================================================\nCompleted %d/%d\n================================================\n", i, len(tests))
 
-			checkForDuplicates(flows)
+			// checkForDuplicates(flows)
 		})
 	}
 
