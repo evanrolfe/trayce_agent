@@ -64,6 +64,7 @@ func Test_agent_server(t *testing.T) {
 		multiplier  int
 		http2       bool
 		focus       bool
+		loadtest    bool
 		verify      func(t *testing.T, requests []*api.Flow)
 	}{
 		{
@@ -72,6 +73,7 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
+			loadtest:    true,
 		},
 		{
 			name:        "[Python] Server an HTTPS/1.1 request",
@@ -79,6 +81,7 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
+			loadtest:    true,
 		},
 		{
 			name:        "[Python] Server an HTTPS/1.1 request to /second_https",
@@ -87,6 +90,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 			multiplier:  2,
+			loadtest:    true,
 		},
 		{
 			name:        "[Python] Server an HTTP/1.1 request to /large",
@@ -124,6 +128,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 			multiplier:  2,
+			loadtest:    true,
 		},
 		{
 			name:        "[Ruby] Server an HTTPS/1.1 request",
@@ -139,6 +144,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			multiplier:  2,
 			verify:      AssertFlows,
+			loadtest:    true,
 		},
 		{
 			name:        "[Ruby] Server an HTTP/1.1 request to /large",
@@ -160,6 +166,7 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       true,
 			verify:      AssertFlowsHttp2,
+			loadtest:    true,
 		},
 		{
 			name:        "[Go] Server an HTTPS/1.1 request",
@@ -167,6 +174,7 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
+			loadtest:    true,
 		},
 		{
 			name:        "[Go] Server an HTTP/1.1 request",
@@ -212,6 +220,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       true,
 			verify:      func(t *testing.T, requests []*api.Flow) {},
 			multiplier:  2,
+			loadtest:    true,
 		},
 		// TODO: Support NodeJS
 		// {
@@ -231,6 +240,9 @@ func Test_agent_server(t *testing.T) {
 
 	for i, tt := range tests {
 		if hasFocus && !tt.focus {
+			continue
+		}
+		if !testing.Short() && !tt.loadtest {
 			continue
 		}
 

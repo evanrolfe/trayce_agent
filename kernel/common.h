@@ -262,8 +262,9 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     s32 chunk_size;
 
     // NOTE: For some reason EBPF verifier will not accept `while (remaining_buf_len <= 0)`, so instead we have to use this
-    // for loop where 32 is effectively an upper limit.
-    for (int i = 0; i < 32; i++) { // Unroll the loop up to 32 times, adjust as necessary
+    // for loop where 5000 is arbitrary an upper limit that is still acceptable by the ebpf verifier.
+    // This effectively means that we can handle response payloads up to 20MB large. (5000 * 4096 bytes = 20.48MB)
+    for (int i = 0; i < 5000; i++) { // Unroll the loop up to 32 times, adjust as necessary
         if (remaining_buf_len <= 0) {
             break;
         }
