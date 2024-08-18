@@ -101,7 +101,15 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 			// However its path is relative to the container its running on
 			execPath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
 			if err != nil {
-				fmt.Println("Error os.Readlink()=", err)
+				// This will happen for short-lived requests
+				procs[uint32(pid)] = Proc{
+					PID:           uint32(pid),
+					IP:            ip,
+					ExecPath:      "",
+					LibSSLVersion: libSSL.Version,
+					LibSSLPath:    libSSL.Path,
+					ContainerId:   containerId,
+				}
 				continue
 			}
 

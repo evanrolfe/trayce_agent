@@ -172,6 +172,11 @@ func (pm *ProbeManager) AttachGoUProbes(proc docker.Proc, funcName string, exitF
 		pm.probeRefs = append(pm.probeRefs, ref)
 	}
 
+	// For short lived-requests it might not have time to get the execpath so we just skip it
+	if binaryPath == "" {
+		return nil
+	}
+
 	return nil
 }
 

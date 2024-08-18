@@ -230,6 +230,14 @@ var _ = Describe("SocketHTTP1.1", func() {
 				Data:     convertSliceToArray(event6Payload),
 				DataLen:  int32(len(event6Payload)),
 			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: 3, // kWrite
+				Data:     convertSliceToArray(event13Payload),
+				DataLen:  int32(len(event13Payload)),
+			})
 		})
 		It("returns two flows", func() {
 			Expect(flows).To(HaveLen(2))
