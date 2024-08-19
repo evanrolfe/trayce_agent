@@ -36,11 +36,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				IP:   2130706433,
-				Port: 80,
+				PID: 123,
+				TID: 123,
+				FD:  5,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -84,11 +82,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				IP:   2130706433,
-				Port: 80,
+				PID: 123,
+				TID: 123,
+				FD:  5,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -153,11 +149,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				IP:   2130706433,
-				Port: 80,
+				PID: 123,
+				TID: 123,
+				FD:  5,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -204,11 +198,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				IP:   2130706433,
-				Port: 80,
+				PID: 123,
+				TID: 123,
+				FD:  5,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -276,11 +268,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				IP:   2130706433,
-				Port: 80,
+				PID: 123,
+				TID: 123,
+				FD:  5,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -340,11 +330,9 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				IP:   2130706433,
-				Port: 80,
+				PID: 123,
+				TID: 123,
+				FD:  5,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)

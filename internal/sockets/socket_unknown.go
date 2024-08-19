@@ -33,8 +33,8 @@ func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 		requestUuid: "",
 	}
 
-	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
-	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
+	socket.LocalAddr = ""  // TODO
+	socket.RemoteAddr = "" // TODO
 
 	return socket
 }
@@ -52,8 +52,8 @@ func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketUnknown) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.LocalAddr = fmt.Sprintf("%s", event.LocalIPAddr())
-	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
+	socket.LocalAddr = ""  // TODO
+	socket.RemoteAddr = "" // TODO
 }
 
 // TODO: Make this work with streams

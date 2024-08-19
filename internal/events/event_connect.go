@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"net"
 )
 
 const (
@@ -20,12 +19,6 @@ type ConnectEvent struct {
 	PID         uint32 `json:"pid"`
 	TID         uint32 `json:"tid"`
 	FD          uint32 `json:"fd"`
-	IP          uint32 `json:"ip"`
-	Port        uint16 `json:"port"`
-	Local       bool   `json:"local"`
-	SSL         bool   `json:"ssl"`
-	Protocol    uint32 `json:"protocol"`
-	LocalIP     uint32 `json:"localIp"`
 }
 
 func (ce *ConnectEvent) Decode(payload []byte) (err error) {
@@ -48,48 +41,8 @@ func (ce *ConnectEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &ce.FD); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.BigEndian, &ce.IP); err != nil {
-		return
-	}
-	if err = binary.Read(buf, binary.BigEndian, &ce.Port); err != nil {
-		return
-	}
-	if err = binary.Read(buf, binary.BigEndian, &ce.Local); err != nil {
-		return
-	}
-	if err = binary.Read(buf, binary.BigEndian, &ce.SSL); err != nil {
-		return
-	}
-	if err = binary.Read(buf, binary.BigEndian, &ce.Protocol); err != nil {
-		return
-	}
-	if err = binary.Read(buf, binary.LittleEndian, &ce.LocalIP); err != nil {
-		return
-	}
 
 	return nil
-}
-
-func (ce *ConnectEvent) IPAddr() string {
-	ipBytes := make([]byte, 4)
-	ipBytes[0] = byte(ce.IP >> 24)
-	ipBytes[1] = byte(ce.IP >> 16)
-	ipBytes[2] = byte(ce.IP >> 8)
-	ipBytes[3] = byte(ce.IP)
-	ipAddr := net.IP(ipBytes)
-
-	return ipAddr.String()
-}
-
-func (ce *ConnectEvent) LocalIPAddr() string {
-	ipBytes := make([]byte, 4)
-	ipBytes[0] = byte(ce.LocalIP >> 24)
-	ipBytes[1] = byte(ce.LocalIP >> 16)
-	ipBytes[2] = byte(ce.LocalIP >> 8)
-	ipBytes[3] = byte(ce.LocalIP)
-	ipAddr := net.IP(ipBytes)
-
-	return ipAddr.String()
 }
 
 func (ce *ConnectEvent) Key() string {

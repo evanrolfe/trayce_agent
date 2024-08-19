@@ -131,7 +131,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 				cyan := "\033[36m"
 				reset := "\033[0m"
-				fmt.Println(string(cyan), "[ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr(), "type:", event.TypeStr())
+				fmt.Println(string(cyan), "[ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, "type:", event.TypeStr())
 				// fmt.Print(hex.Dump(payload))
 				outputChan <- &event
 

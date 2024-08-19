@@ -4,7 +4,7 @@
 // common.h
 // -----------------------------------------------------------------------------
 #define TASK_COMM_LEN 16
-#define PATH_MAX_LEN 256
+#define CGROUP_LEN 256
 #define MAX_DATA_SIZE_OPENSSL 4096
 #define MAX_DATA_SIZE_MYSQL 256
 #define MAX_DATA_SIZE_POSTGRES 256
@@ -56,11 +56,8 @@ struct connect_event_t {
     u32 pid;
     u32 tid;
     u32 fd;
-    u32 ip;
-    u16 port;
-    bool local;
-    u32 protocol;
-    u32 local_ip;
+    const char *cgroup;
+    // char cgroup[CGROUP_LEN];
 };
 
 struct close_event_t {
@@ -228,14 +225,7 @@ static __inline struct connect_event_t copy_connect_event(struct connect_event_t
     conn_event2.pid = conn_event->pid;
     conn_event2.tid = conn_event->tid;
     conn_event2.fd = new_fd;
-    conn_event2.local = false;
-    conn_event2.protocol = pUnknown;
-    conn_event2.local_ip = 0;
-    conn_event2.ip = 0;
-    conn_event2.port = 0;
-    // bpf_printk("kprobe/accept4: RETURN IP: %d", conn_event->ip);
-    // bpf_probe_read_user(&conn_event2.ip, sizeof(u32), &conn_event->ip);
-    // bpf_probe_read_user(&conn_event2.port, sizeof(u16), &conn_event->port);
+    conn_event2.cgroup = conn_event->cgroup;
 
     return conn_event2;
 }

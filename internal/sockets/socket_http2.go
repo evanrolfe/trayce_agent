@@ -38,8 +38,8 @@ func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
 
-	socket.LocalAddr = event.LocalIPAddr()
-	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
+	socket.LocalAddr = ""  // TODO
+	socket.RemoteAddr = "" // TODO
 
 	return socket
 }
@@ -77,8 +77,8 @@ func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.LocalAddr = event.LocalIPAddr()
-	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
+	socket.LocalAddr = ""  // TODO
+	socket.RemoteAddr = "" // TODO
 }
 
 // TODO: Have a structure for handling the frame header + payload?
