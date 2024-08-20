@@ -194,7 +194,7 @@ func (c *Containers) GetAllContainers() ([]ContainerGUI, error) {
 		}
 
 		containerGUI := ContainerGUI{
-			ID:     containerJSON.ID[0:12],
+			ID:     containerJSON.ID,
 			Image:  containerJSON.Config.Image,
 			IP:     extractIP(containerJSON),
 			Name:   containerJSON.Name,

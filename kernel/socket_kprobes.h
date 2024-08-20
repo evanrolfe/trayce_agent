@@ -56,9 +56,7 @@ int probe_accept4(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Check if PID is intercepted
-    u32 *local_ip = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (local_ip == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 
@@ -79,6 +77,17 @@ int probe_accept4(struct pt_regs *ctx) {
     // See:
     // strace -f -e trace=open,close,connect,sendto,recvfrom,send,recv,accept,accept4 -p 1046989
 
+    // Get the cgroup name
+    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
+    if (cur_tsk == NULL) {
+        bpf_printk("failed to get cur task\n");
+        return -1;
+    }
+    int cgrp_id = memory_cgrp_id;
+    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
+    bpf_printk("kprobe/accept groupc name: %s\n", name);
+
+
     // Get the ip & port
     struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
     // Build the connect_event and save it to the map
@@ -90,13 +99,7 @@ int probe_accept4(struct pt_regs *ctx) {
     conn_event.pid = pid;
     conn_event.tid = current_pid_tgid;
     conn_event.fd = fd;
-    conn_event.local = false;
-    conn_event.protocol = pUnknown;
-    conn_event.local_ip = *local_ip;
-
-    // NOTE: FOr accept4 the IP and port appear to be 0
-    bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
-    bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
+    bpf_probe_read_str(&conn_event.cgroup, sizeof(conn_event.cgroup), name);
 
     bpf_map_update_elem(&active_accept4_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
 
@@ -110,9 +113,7 @@ int probe_connect(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Check if PID is intercepted
-    u32 *local_ip = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (local_ip == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 
@@ -137,6 +138,16 @@ int probe_connect(struct pt_regs *ctx) {
     // Get the ip & port
     struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
 
+    // Get the cgroup name
+    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
+    if (cur_tsk == NULL) {
+        bpf_printk("failed to get cur task\n");
+        return -1;
+    }
+    int cgrp_id = memory_cgrp_id;
+    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
+    bpf_printk("kprobe/connect groupc name: %s\n", name);
+
     // Build the connect_event and save it to the map
     struct connect_event_t conn_event;
     __builtin_memset(&conn_event, 0, sizeof(conn_event));
@@ -146,11 +157,7 @@ int probe_connect(struct pt_regs *ctx) {
     conn_event.pid = pid;
     conn_event.tid = current_pid_tgid;
     conn_event.fd = fd;
-    conn_event.local = false;
-    conn_event.protocol = pUnknown;
-    conn_event.local_ip = *local_ip;
-    bpf_probe_read_user(&conn_event.ip, sizeof(u32), &sin->sin_addr.s_addr);
-    bpf_probe_read_user(&conn_event.port, sizeof(u16), &sin->sin_port);
+    bpf_probe_read_str(&conn_event.cgroup, sizeof(conn_event.cgroup), name);
 
     bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
 
@@ -224,9 +231,7 @@ int probe_close(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 
@@ -282,9 +287,7 @@ int probe_sendto(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 
@@ -349,9 +352,7 @@ int probe_recvfrom(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 
@@ -415,9 +416,7 @@ int probe_write(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 
@@ -483,9 +482,7 @@ int probe_read(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 

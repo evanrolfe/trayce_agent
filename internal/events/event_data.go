@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"slices"
-
-	"github.com/evanrolfe/trayce_agent/internal/utils"
 )
 
 const (
@@ -29,7 +27,7 @@ type DataEvent struct {
 	Timestamp uint64            `json:"timestamp"`
 	PID       uint32            `json:"pid"`
 	TID       uint32            `json:"tid"`
-	Comm      [16]byte          `json:"Comm"`
+	CGroup    [128]byte         `json:"cgroup"`
 	FD        uint32            `json:"fd"`
 	Version   int32             `json:"version"`
 	SSLPtr    int64             `json:"sslPtr"`
@@ -54,7 +52,7 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &se.TID); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.Comm); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &se.CGroup); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.FD); err != nil {
@@ -76,8 +74,8 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 	return nil
 }
 
-func (se *DataEvent) GetUUID() string {
-	return fmt.Sprintf("%d_%d_%s_%d_%d", se.PID, se.TID, utils.CToGoString(se.Comm[:]), se.FD, se.DataType)
+func (se *DataEvent) CGroupName() string {
+	return convertByteArrayToString(se.CGroup)
 }
 
 func (se *DataEvent) Payload() []byte {

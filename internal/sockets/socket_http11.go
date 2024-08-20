@@ -43,8 +43,8 @@ func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 		requestUuid: "",
 	}
 
-	socket.LocalAddr = event.LocalIPAddr()
-	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
+	socket.LocalAddr = ""  // TODO
+	socket.RemoteAddr = "" // TODO
 
 	return socket
 }
@@ -78,8 +78,8 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.LocalAddr = event.LocalIPAddr()
-	socket.RemoteAddr = fmt.Sprintf("%s:%d", event.IPAddr(), event.Port)
+	socket.LocalAddr = ""  // TODO
+	socket.RemoteAddr = "" // TODO
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {

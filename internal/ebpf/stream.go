@@ -26,7 +26,7 @@ type Stream struct {
 	probeManager ProbeManagerI
 	containers   ContainersI
 
-	pidsMap           *libbpfgo.BPFMap
+	cgroupMap         *libbpfgo.BPFMap
 	goOffsetsMap      *libbpfgo.BPFMap
 	libSSLVersionsMap *libbpfgo.BPFMap
 	dataEventsChan    chan []byte
@@ -66,7 +66,7 @@ func NewStream(containers ContainersI, probeManager ProbeManagerI) *Stream {
 		interruptChan:  make(chan int),
 		dataEventsChan: make(chan []byte, 10000),
 		// Init to empy structs
-		pidsMap:           &libbpfgo.BPFMap{},
+		cgroupMap:         &libbpfgo.BPFMap{},
 		goOffsetsMap:      &libbpfgo.BPFMap{},
 		libSSLVersionsMap: &libbpfgo.BPFMap{},
 	}
@@ -94,11 +94,11 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 	}
 
 	// Intercepted PIDs map
-	pidsMap, err := stream.probeManager.GetMap("intercepted_pids")
+	cgroupMap, err := stream.probeManager.GetMap("cgroup_name_hashes")
 	if err != nil {
 		panic(err)
 	}
-	stream.pidsMap = pidsMap
+	stream.cgroupMap = cgroupMap
 	go stream.refreshPids()
 
 	// Offsets map
@@ -131,7 +131,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 				cyan := "\033[36m"
 				reset := "\033[0m"
-				fmt.Println(string(cyan), "[ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, ", remote: ", event.IPAddr(), ":", event.Port, " local IP: ", event.LocalIPAddr(), "type:", event.TypeStr())
+				fmt.Println(string(cyan), "[ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, "type:", event.TypeStr(), ", cgroup:", event.CGroupName())
 				// fmt.Print(hex.Dump(payload))
 				outputChan <- &event
 
@@ -147,8 +147,6 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 					fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
 					continue
 				}
-				// fmt.Println("\n[events.DataEvent] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.Pid, ", TID:", event.Tid, "FD: ", event.Fd, " ssl_ptr:", event.SslPtr)
-				// fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
 				outputChan <- &event
 
@@ -225,28 +223,51 @@ func (stream *Stream) refreshPids() {
 }
 
 func (stream *Stream) containerOpened(container docker.Container) {
-	fmt.Println("Container opened:", container.RootFSPath)
+	fmt.Println("Container opened:", container.RootFSPath, "ID:", container.ID)
 
+	if stream.cgroupMap != nil {
+		// On some machines the cgroup name will be like: docker-7d15edd8496d92281ba0cae75a3e96f1a5aafbf0ebd37ece0499f0ab2f8cacf6.scope
+		// on others it will be just the ID like: 7d15edd8496d92281ba0cae75a3e96f1a5aafbf0ebd37ece0499f0ab2f8cacf6
+		cgroupName1 := fmt.Sprintf("docker-%s.scope", container.ID)
+		key1 := djb2(cgroupName1)
+		cgroupName2 := container.ID // important to copy-by-value
+		key2 := djb2(cgroupName2)
+		value := uint32(1)
+
+		stream.cgroupMap.Update(unsafe.Pointer(&key1), unsafe.Pointer(&value))
+		stream.cgroupMap.Update(unsafe.Pointer(&key2), unsafe.Pointer(&value))
+	}
 	stream.attachUprobesLibSSL(container)
 }
 
 func (stream *Stream) containerClosed(container docker.Container) {
 	fmt.Println("Container closed:", container.RootFSPath)
 
+	if stream.cgroupMap != nil {
+		cgroupName1 := fmt.Sprintf("docker-%s.scope", container.ID)
+		key1 := djb2(cgroupName1)
+		cgroupName2 := container.ID // important to copy-by-value
+		key2 := djb2(cgroupName2)
+
+		stream.cgroupMap.DeleteKey(unsafe.Pointer(&key1))
+		stream.cgroupMap.DeleteKey(unsafe.Pointer(&key2))
+	}
+
 	stream.probeManager.DetachUprobesForContainer(container)
+}
+
+func djb2(s string) uint64 {
+	var hash uint64 = 5381
+
+	for _, c := range s {
+		hash = ((hash << 5) + hash) + uint64(c)
+	}
+
+	return hash
 }
 
 func (stream *Stream) procOpened(proc docker.Proc) {
 	fmt.Println("Proc opened:", proc.PID, proc.ExecPath, "libSSL:", proc.LibSSLVersion)
-	// Send the intercepted PIDs to ebpf
-	if stream.pidsMap != nil {
-		// Imporant that we copy these two vars by value here:
-		pid := proc.PID
-		ip := proc.IP
-		pidUnsafe := unsafe.Pointer(&pid)
-		ipUnsafe := unsafe.Pointer(&ip)
-		stream.pidsMap.Update(pidUnsafe, ipUnsafe)
-	}
 
 	// Determine offsets for this PID and send them to ebpf
 	fdOffset, err := go_offsets.GetStructMemberOffset(proc.ExecPath, "internal/poll.FD", "Sysfd")
@@ -258,16 +279,12 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 	// Go are running if each version has a different offset
 	key1 := uint32(0)
 	value1 := offsets{goFdOffset: fdOffset}
-	key1Unsafe := unsafe.Pointer(&key1)
-	value1Unsafe := unsafe.Pointer(&value1)
-	stream.goOffsetsMap.Update(key1Unsafe, value1Unsafe)
+	stream.goOffsetsMap.Update(unsafe.Pointer(&key1), unsafe.Pointer(&value1))
 
 	// Send the libssl version for this PID's container to ebpf
 	pid := proc.PID
 	version := proc.LibSSLVersion
-	pidUnsafe := unsafe.Pointer(&pid)
-	versionUnsafe := unsafe.Pointer(&version)
-	stream.libSSLVersionsMap.Update(pidUnsafe, versionUnsafe)
+	stream.libSSLVersionsMap.Update(unsafe.Pointer(&pid), unsafe.Pointer(&version))
 
 	// Attach uprobes to the proc (if it is a Go executable being run)
 	stream.attachUprobesGo(proc)
@@ -275,14 +292,6 @@ func (stream *Stream) procOpened(proc docker.Proc) {
 
 func (stream *Stream) procClosed(proc docker.Proc) {
 	fmt.Println("Proc closed:", proc.PID, proc.ExecPath)
-
-	// Delete the intercepted PIDs from ebpf map
-	if stream.pidsMap != nil {
-		// Imporant that we copy these two vars by value here:
-		pid := proc.PID
-		pidUnsafe := unsafe.Pointer(&pid)
-		stream.pidsMap.DeleteKey(pidUnsafe)
-	}
 
 	stream.probeManager.DetachUprobesForProc(proc)
 }

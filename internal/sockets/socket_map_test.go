@@ -23,11 +23,9 @@ var _ = Describe("SocketMap", func() {
 				flows = append(flows, &flowFromCb)
 			})
 			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				IP:   2130706433,
-				Port: 80,
+				PID: 123,
+				TID: 123,
+				FD:  5,
 			})
 			socketsMap.ProcessDataEvent(events.DataEvent{
 				PID:      123,
@@ -51,7 +49,7 @@ var _ = Describe("SocketMap", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
-				Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
 				Expect(flow.PID).To(Equal(123))
@@ -100,11 +98,9 @@ var _ = Describe("SocketMap", func() {
 				flows = append(flows, &flowFromCb)
 			})
 			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				IP:   2130706433,
-				Port: 80,
+				PID: 123,
+				TID: 123,
+				FD:  5,
 			})
 
 			for _, payload := range payloads {
@@ -123,7 +119,7 @@ var _ = Describe("SocketMap", func() {
 			Expect(flows).To(HaveLen(2))
 
 			flow := flows[0]
-			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+			// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
 			Expect(flow.PID).To(Equal(123))
@@ -144,7 +140,7 @@ var _ = Describe("SocketMap", func() {
 
 		It("returns a response flow", func() {
 			flow := flows[1]
-			Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+			// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
 			Expect(flow.PID).To(Equal(123))

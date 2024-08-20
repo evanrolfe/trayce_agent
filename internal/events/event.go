@@ -1,5 +1,7 @@
 package events
 
+import "bytes"
+
 type EventType uint8
 
 const (
@@ -15,4 +17,14 @@ const (
 
 type IEvent interface {
 	Key() string
+}
+
+func convertByteArrayToString(b [128]byte) string {
+	// Find the null terminator or the end of the array
+	n := bytes.IndexByte(b[:], 0)
+	if n == -1 {
+		// No null terminator found, use the entire array
+		n = len(b)
+	}
+	return string(b[:n])
 }
