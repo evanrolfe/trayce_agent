@@ -130,13 +130,13 @@ commands:
           name: Run
           command: |
             export HOST_IP=$(ifconfig eth1 | grep 'inet ' | awk '{print $2}')
-            docker run -d --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -t traycer/trayce_agent:${ARCH} -s ${HOST_IP}:50051
+            docker run -d --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -e DOCKER_API_VERSION=1.45 -t traycer/trayce_agent:${ARCH} -s ${HOST_IP}:50051
       - run:
           name: Test
-          command: go test ./test -v -count=1 -short -run Test_agent_server
+          command: DOCKER_API_VERSION=1.45 go test ./test -v -count=1 -short -run Test_agent_server
       - run:
           name: Load Test
-          command: go test ./test -v -count=1 -run Test_agent_server
+          command: DOCKER_API_VERSION=1.45 go test ./test -v -count=1 -run Test_agent_server
   push:
     description: Push the image to docker hub
     steps:

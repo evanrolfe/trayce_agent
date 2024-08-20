@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
 
@@ -173,7 +174,7 @@ func (c *Containers) SetContainers(containerIDs []string) {
 func (c *Containers) GetAllContainers() ([]ContainerGUI, error) {
 	containersOutput := []ContainerGUI{}
 
-	containers, err := c.dockerClient.ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := c.dockerClient.ContainerList(context.Background(), container.ListOptions{})
 	if err != nil {
 		return containersOutput, err
 	}
