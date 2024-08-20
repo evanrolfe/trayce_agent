@@ -48,17 +48,16 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	defer m.mu.Unlock()
 
 	var socket SocketI
-	green := "\033[92m"
-	reset := "\033[0m"
-
-	fmt.Println(string(green), "[DataEvent]", string(reset), " Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD:", event.FD, " ssl_ptr:", event.SSLPtr)
-	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
-
 	socket, exists := m.getSocket(event.Key())
 	if !exists {
 		fmt.Println("[SocketMap] no socket found, dropping.")
 		return
 	}
+	green := "\033[92m"
+	reset := "\033[0m"
+	fmt.Println(string(green), "[DataEvent]", string(reset), event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, ", cgroup:", event.CGroupName())
+	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
+
 	// If the socket is unknown, try to detect the protocol, if not detection then drop
 	// but if detected then convert it to the protocol socket
 	unkownSocket, isUnknown := socket.(*SocketUnknown)

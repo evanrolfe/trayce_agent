@@ -13,12 +13,13 @@ const (
 
 // ConnectEvent is sent from ebpf when a socket is connected, see corresponding: struct connect_event_t
 type ConnectEvent struct {
-	EventType   uint64 `json:"eventType"`
-	Type        uint64 `json:"type"`
-	TimestampNs uint64 `json:"timestampNs"`
-	PID         uint32 `json:"pid"`
-	TID         uint32 `json:"tid"`
-	FD          uint32 `json:"fd"`
+	EventType   uint64    `json:"eventType"`
+	Type        uint64    `json:"type"`
+	TimestampNs uint64    `json:"timestampNs"`
+	PID         uint32    `json:"pid"`
+	TID         uint32    `json:"tid"`
+	FD          uint32    `json:"fd"`
+	CGroup      [128]byte `json:"cgroup"`
 }
 
 func (ce *ConnectEvent) Decode(payload []byte) (err error) {
@@ -41,6 +42,9 @@ func (ce *ConnectEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &ce.FD); err != nil {
 		return
 	}
+	if err = binary.Read(buf, binary.LittleEndian, &ce.CGroup); err != nil {
+		return
+	}
 
 	return nil
 }
@@ -58,6 +62,10 @@ func (ce *ConnectEvent) TypeStr() string {
 	default:
 		return ""
 	}
+}
+
+func (ce *ConnectEvent) CGroupName() string {
+	return convertByteArrayToString(ce.CGroup)
 }
 
 // func (ce *ConnDataEvent) StringHex() string {

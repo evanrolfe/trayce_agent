@@ -32,9 +32,7 @@ int probe_entry_SSL_read(struct pt_regs *ctx) {
     void *ssl = (void *)PT_REGS_PARM1(ctx);
     const char *buf = (const char *)PT_REGS_PARM2(ctx);
 
-    // Check if PID is intercepted
-    u32 *local_ip = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (local_ip == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 
@@ -80,9 +78,7 @@ int probe_entry_SSL_read_ex(struct pt_regs *ctx) {
     void *ssl = (void *)PT_REGS_PARM1(ctx);
     const char *buf = (const char *)PT_REGS_PARM2(ctx);
 
-    // Check if PID is intercepted
-    u32 *local_ip = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (local_ip == NULL) {
+    if (!should_intercept()) {
         return 0;
     }
 
@@ -206,11 +202,9 @@ SEC("uprobe/SSL_write")
 int probe_entry_SSL_write(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    bpf_printk("SSL_write ENTRY current_pid_tgid: %d", current_pid_tgid);
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
-    return 0;
+
+    if (!should_intercept()) {
+        return 0;
     }
 
     void *ssl = (void *)PT_REGS_PARM1(ctx);
@@ -243,11 +237,9 @@ SEC("uprobe/SSL_write_ex")
 int probe_entry_SSL_write_ex(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
-    bpf_printk("SSL_write ENTRY current_pid_tgid: %d", current_pid_tgid);
-    // Check if PID is intercepted
-    u32 *pid_intercepted = bpf_map_lookup_elem(&intercepted_pids, &pid);
-    if (pid_intercepted == NULL) {
-    return 0;
+
+    if (!should_intercept()) {
+        return 0;
     }
 
     void *ssl = (void *)PT_REGS_PARM1(ctx);

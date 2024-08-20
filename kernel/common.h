@@ -4,7 +4,7 @@
 // common.h
 // -----------------------------------------------------------------------------
 #define TASK_COMM_LEN 16
-#define CGROUP_LEN 256
+#define CGROUP_LEN 128
 #define MAX_DATA_SIZE_OPENSSL 4096
 #define MAX_DATA_SIZE_MYSQL 256
 #define MAX_DATA_SIZE_POSTGRES 256
@@ -41,7 +41,7 @@ struct data_event_t {
     u64 timestamp_ns;
     u32 pid;
     u32 tid;
-    char comm[TASK_COMM_LEN];
+    char cgroup[CGROUP_LEN];
     u32 fd;
     s32 version;
     u64 rand;
@@ -56,8 +56,7 @@ struct connect_event_t {
     u32 pid;
     u32 tid;
     u32 fd;
-    const char *cgroup;
-    // char cgroup[CGROUP_LEN];
+    char cgroup[CGROUP_LEN];
 };
 
 struct close_event_t {
@@ -138,12 +137,13 @@ struct offsets {
 /***********************************************************
  * Exported bpf maps
  ***********************************************************/
+// The key is the djb2 hash of a ccgroup name, the value is 1 if we want to intercept this cgroup
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u32);
+    __type(key, u64);
     __type(value, u32);
     __uint(max_entries, 1024);
-} intercepted_pids SEC(".maps");
+} cgroup_name_hashes SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -225,7 +225,7 @@ static __inline struct connect_event_t copy_connect_event(struct connect_event_t
     conn_event2.pid = conn_event->pid;
     conn_event2.tid = conn_event->tid;
     conn_event2.fd = new_fd;
-    conn_event2.cgroup = conn_event->cgroup;
+    bpf_probe_read_str(&conn_event2.cgroup, sizeof(conn_event2.cgroup), conn_event->cgroup);
 
     return conn_event2;
 }
@@ -244,6 +244,15 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     if (buf_len < 0) {
         return 0;
     }
+
+    // Get the cgroup name
+    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
+    if (cur_tsk == NULL) {
+        bpf_printk("failed to get cur task\n");
+        return -1;
+    }
+    int cgrp_id = memory_cgrp_id;
+    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
 
     // Handling buffer split
     const char *str_ptr = buf;
@@ -265,6 +274,7 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
         }
         event->type = type;
         event->fd = fd;
+        bpf_probe_read_str(&event->cgroup, sizeof(event->cgroup), name); // be careful with the placement of this line, it can upset the verifier
         event->data_len = (remaining_buf_len < MAX_DATA_SIZE_OPENSSL ? (remaining_buf_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
 
         bpf_probe_read_user(event->data, event->data_len, current_str_ptr);
@@ -366,3 +376,61 @@ int trayce_debug(u32 pid, u64 tid, int fd, char *str) {
 
     return 0;
 }
+
+// hash_string implements the djb2 algorithm, see http://www.cse.yorku.ca/~oz/hash.html
+static __inline u64 hash_string(const char *str, int length) {
+    u64 hash = 5381;
+    int c;
+    for (int i = 0; i < length && (c = str[i]) != '\0'; i++) {
+        hash = ((hash << 5) + hash) + c; // hash * 33 + c
+    }
+    return hash;
+}
+
+// compare the djb2 hash of the cgroup with whats in the map, we use a hash because string comparison and substring operations
+// are tricky in ebpf given the max 512 byte stack size
+static __inline int should_intercept() {
+    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
+    if (cur_tsk == NULL) {
+        bpf_printk("failed to get cur task\n");
+        return -1;
+    }
+    int cgrp_id = memory_cgrp_id;
+    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
+
+    char cgroupname[CGROUP_LEN];
+    bpf_probe_read_str(&cgroupname, sizeof(cgroupname), name);
+
+    u64 hash = hash_string(cgroupname, CGROUP_LEN);
+
+    bpf_printk("=========> %s => %u checking", cgroupname, hash);
+
+    u32 *intercepted = bpf_map_lookup_elem(&cgroup_name_hashes, &hash);
+    if (intercepted != NULL) {
+        bpf_printk("=========> %s => %u, %u", cgroupname, hash, *intercepted);
+        return 1;
+    }
+
+    return 0;
+}
+
+
+
+// check for sub string
+// int i = 0, j = 0;
+// for (i = 0; i < CGROUP_LEN && cgroupname[i] != '\0'; i++) {
+//     if (cgroupname[i] == substr[0]) {
+//         // Check the rest of the substring
+//         for (j = 0; j < 12 && substr[j] != '\0'; j++) {
+//             // If characters don't match or main string ends, break
+//             if (i + j >= CGROUP_LEN || cgroupname[i + j] != substr[j]) {
+//                 break;
+//             }
+//         }
+
+//         if (j == 12 && substr[j] == '\0') {
+//             bpf_printk("matched cgroup: %s", cgroupname);
+//             return 1;
+//         }
+//     }
+// }
