@@ -402,12 +402,8 @@ static __inline int should_intercept() {
     bpf_probe_read_str(&cgroupname, sizeof(cgroupname), name);
 
     u64 hash = hash_string(cgroupname, CGROUP_LEN);
-
-    bpf_printk("=========> %s => %u checking", cgroupname, hash);
-
     u32 *intercepted = bpf_map_lookup_elem(&cgroup_name_hashes, &hash);
     if (intercepted != NULL) {
-        bpf_printk("=========> %s => %u, %u", cgroupname, hash, *intercepted);
         return 1;
     }
 

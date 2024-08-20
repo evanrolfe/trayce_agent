@@ -230,7 +230,7 @@ func (stream *Stream) containerOpened(container docker.Container) {
 		// on others it will be just the ID like: 7d15edd8496d92281ba0cae75a3e96f1a5aafbf0ebd37ece0499f0ab2f8cacf6
 		cgroupName1 := fmt.Sprintf("docker-%s.scope", container.ID)
 		key1 := djb2(cgroupName1)
-		cgroupName2 := container.ID // import to copy-by-value
+		cgroupName2 := container.ID // important to copy-by-value
 		key2 := djb2(cgroupName2)
 		value := uint32(1)
 
@@ -246,7 +246,7 @@ func (stream *Stream) containerClosed(container docker.Container) {
 	if stream.cgroupMap != nil {
 		cgroupName1 := fmt.Sprintf("docker-%s.scope", container.ID)
 		key1 := djb2(cgroupName1)
-		cgroupName2 := container.ID // import to copy-by-value
+		cgroupName2 := container.ID // important to copy-by-value
 		key2 := djb2(cgroupName2)
 
 		stream.cgroupMap.DeleteKey(unsafe.Pointer(&key1))
