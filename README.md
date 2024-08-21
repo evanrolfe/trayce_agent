@@ -1,5 +1,5 @@
 # TrayceAgent
-[![CircleCI](https://dl.circleci.com/status-badge/img/circleci/3buPB9tzLBfg8maGYBUAcy/MsH4GqtpozYgoKLx8htMUW/tree/main.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/circleci/3buPB9tzLBfg8maGYBUAcy/MsH4GqtpozYgoKLx8htMUW/tree/main)  ![](https://img.shields.io/badge/Go-1.21-blue)  [![ebpf.io](https://img.shields.io/badge/ebpf-yellow)](https://ebpf.io/) [![trayce.dev](https://img.shields.io/badge/Website-orange)](https://trayce.dev/)
+[![CircleCI](https://dl.circleci.com/status-badge/img/circleci/3buPB9tzLBfg8maGYBUAcy/MsH4GqtpozYgoKLx8htMUW/tree/main.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/circleci/3buPB9tzLBfg8maGYBUAcy/MsH4GqtpozYgoKLx8htMUW/tree/main)  ![](https://img.shields.io/badge/Go-1.23-blue)  [![ebpf.io](https://img.shields.io/badge/ebpf-yellow)](https://ebpf.io/) [![trayce.dev](https://img.shields.io/badge/Website-orange)](https://trayce.dev/)
 
 TrayceAgent is a binary executable, packaged in a Docker container, which uses EBPF to monitor network requests between Docker containers and to external hosts. It can be used along with the [TrayceGUI](https://github.com/evanrolfe/trayce_gui/) to inspect traffic.
 

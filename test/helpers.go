@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/evanrolfe/trayce_agent/api"
 	"github.com/google/uuid"
@@ -100,7 +100,7 @@ func getMegaServer(t *testing.T) (string, string) {
 
 	megaserverId := ""
 	megaserverIp := ""
-	containers, err := dockerClient.ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := dockerClient.ContainerList(context.Background(), container.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
