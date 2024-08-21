@@ -165,3 +165,18 @@ https://github.com/pixie-io/pixie-demos/tree/main/http2-tracing
 
 HPack Static Table:
 https://datatracker.ietf.org/doc/html/rfc7541#appendix-A
+
+### Multi-Arch Build
+
+Setup QEMU:
+```
+sudo apt update && sudo apt install -y qemu-user-static
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+docker buildx create --use --name mybuilder
+docker buildx inspect --bootstrap
+```
+
+Build and publish a multi-arch image with:
+```
+docker buildx build . --platform linux/amd64,linux/arm64 -t traycer/trayce_agent:latest --push
+```
