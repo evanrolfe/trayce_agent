@@ -87,7 +87,7 @@ func main() {
 
 	// Create a channel to receive interrupt signals
 	interruptChan := make(chan os.Signal, 1)
-	socketFlowChan := make(chan sockets.Flow, 1)
+	socketFlowChan := make(chan sockets.Flow, 1000)
 	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 
 	// Start the listener
@@ -120,7 +120,7 @@ func main() {
 
 			// Send flows from the socket flow channel to the GRPC client via FlowQueue (for batching + rate limiting)
 			ctx, cancel := context.WithCancel(context.Background())
-			flowQueue := api.NewFlowQueue(grpcClient, 100)
+			flowQueue := api.NewFlowQueue(grpcClient, 1000)
 			flowQueue.Start(ctx, socketFlowChan)
 
 			// Start the main event loop which recieves commands from the GRPC CommandStream
