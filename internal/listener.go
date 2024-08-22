@@ -37,7 +37,7 @@ func (listener *Listener) Start(outputChan chan sockets.Flow) {
 	// TODO: Just let this send flows directly to the channel
 	listener.sockets.AddFlowCallback(func(flow sockets.Flow) { outputChan <- flow })
 
-	eventsChan := make(chan events.IEvent, 999)
+	eventsChan := make(chan events.IEvent, 1000)
 	go listener.eventStream.Start(eventsChan)
 
 	for {

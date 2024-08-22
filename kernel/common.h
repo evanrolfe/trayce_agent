@@ -182,7 +182,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 * 1024); // 256 KB
+    __uint(max_entries, 1024 * 1024); // Important that its big enough otherwise events will be dropped and cause weird behaviour
 } data_events SEC(".maps");
 
 // BPF programs are limited to a 512-byte stack. We store this value per CPU
