@@ -50,7 +50,7 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	var socket SocketI
 	socket, exists := m.getSocket(event.Key())
 	if !exists {
-		fmt.Println("[SocketMap] no socket found, dropping.")
+		fmt.Println("[SocketMap] DataEvent no socket found, dropping.")
 		return
 	}
 	green := "\033[92m"
@@ -58,8 +58,8 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	fmt.Println(string(green), "[DataEvent]", string(reset), event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, ", cgroup:", event.CGroupName())
 	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
-	// If the socket is unknown, try to detect the protocol, if not detection then drop
-	// but if detected then convert it to the protocol socket
+	// If the socket is unknown, try to detect the protocol, if no protocol is detected then drop the event.
+	// Otherwise if a protocol is detected then convert it to the protocol socket
 	unkownSocket, isUnknown := socket.(*SocketUnknown)
 	if isUnknown {
 		protocol := detectProtocol(event.Payload())

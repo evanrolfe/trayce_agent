@@ -34,8 +34,8 @@ func AssertFlows(t *testing.T, flows []*api.Flow) {
 	// assert.Greater(t, len(flows[0].Request), 0)
 
 	for _, flow := range flows {
-		// assert.Greater(t, len(flow.LocalAddr), 0)
-		// assert.Greater(t, len(flow.RemoteAddr), 0)
+		// assert.Greater(t, len(flow.SourceAddr), 0)
+		// assert.Greater(t, len(flow.DestAddr), 0)
 
 		if len(flow.Request) > 0 {
 			assert.Regexp(t, regexp.MustCompile(reqRegex), string(flow.Request))

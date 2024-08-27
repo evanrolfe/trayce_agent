@@ -7,8 +7,8 @@ import (
 )
 
 type SocketUnknown struct {
-	LocalAddr  string
-	RemoteAddr string
+	SourceAddr string
+	DestAddr   string
 	Protocol   string
 	PID        uint32
 	TID        uint32
@@ -25,7 +25,7 @@ type SocketUnknown struct {
 
 func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 	socket := SocketUnknown{
-		LocalAddr:   "unknown",
+		SourceAddr:  "unknown",
 		PID:         event.PID,
 		TID:         event.TID,
 		FD:          event.FD,
@@ -33,8 +33,8 @@ func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 		requestUuid: "",
 	}
 
-	socket.LocalAddr = ""  // TODO
-	socket.RemoteAddr = "" // TODO
+	socket.SourceAddr = "" // TODO
+	socket.DestAddr = ""   // TODO
 
 	return socket
 }
@@ -52,13 +52,10 @@ func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketUnknown) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.LocalAddr = ""  // TODO
-	socket.RemoteAddr = "" // TODO
+	socket.SourceAddr = "" // TODO
+	socket.DestAddr = ""   // TODO
 }
 
-// TODO: Make this work with streams
-// TODO: Have a structure for handling the frame header + payload
 func (socket *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
-	// fmt.Println("[SocketUnknown] ProcessDataEvent, dataBuf len:", len(event.Payload()))
 
 }

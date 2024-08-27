@@ -9,8 +9,8 @@ import (
 )
 
 type SocketHttp2 struct {
-	LocalAddr  string
-	RemoteAddr string
+	SourceAddr string
+	DestAddr   string
 	Protocol   string
 	PID        uint32
 	TID        uint32
@@ -26,7 +26,7 @@ type SocketHttp2 struct {
 
 func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 	socket := SocketHttp2{
-		LocalAddr:   "unknown",
+		SourceAddr:  "unknown",
 		PID:         event.PID,
 		TID:         event.TID,
 		FD:          event.FD,
@@ -38,16 +38,16 @@ func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
 
-	socket.LocalAddr = ""  // TODO
-	socket.RemoteAddr = "" // TODO
+	socket.SourceAddr = "" // TODO
+	socket.DestAddr = ""   // TODO
 
 	return socket
 }
 
 func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 	socket := SocketHttp2{
-		LocalAddr:   unkownSocket.LocalAddr,
-		RemoteAddr:  unkownSocket.RemoteAddr,
+		SourceAddr:  unkownSocket.SourceAddr,
+		DestAddr:    unkownSocket.DestAddr,
 		PID:         unkownSocket.PID,
 		TID:         unkownSocket.TID,
 		FD:          unkownSocket.FD,
@@ -77,8 +77,8 @@ func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.LocalAddr = ""  // TODO
-	socket.RemoteAddr = "" // TODO
+	socket.SourceAddr = "" // TODO
+	socket.DestAddr = ""   // TODO
 }
 
 // TODO: Have a structure for handling the frame header + payload?
