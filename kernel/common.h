@@ -56,6 +56,10 @@ struct connect_event_t {
     u32 pid;
     u32 tid;
     u32 fd;
+    u32 src_host;
+    u32 dest_host;
+    u16 src_port;
+    u16 dest_port; // the ports need to be next to each other so C doesn't zero-pad them to 4 bytes each
     char cgroup[CGROUP_LEN];
 };
 
@@ -216,7 +220,7 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     return event;
 }
 
-static __inline struct connect_event_t copy_connect_event(struct connect_event_t *conn_event, int new_fd) {
+static __inline struct connect_event_t copy_connect_event(struct connect_event_t *conn_event, u32 dest_host, u16 dest_port) {
     struct connect_event_t conn_event2;
     __builtin_memset(&conn_event2, 0, sizeof(conn_event2));
     conn_event2.eventtype = eConnect;
@@ -224,7 +228,12 @@ static __inline struct connect_event_t copy_connect_event(struct connect_event_t
     conn_event2.timestamp_ns = bpf_ktime_get_ns();
     conn_event2.pid = conn_event->pid;
     conn_event2.tid = conn_event->tid;
-    conn_event2.fd = new_fd;
+    conn_event2.fd = conn_event->fd;
+    conn_event2.src_host = conn_event->src_host;
+    conn_event2.src_port = conn_event->src_port;
+    conn_event2.dest_host = dest_host;
+    conn_event2.dest_port = dest_port;
+
     bpf_probe_read_str(&conn_event2.cgroup, sizeof(conn_event2.cgroup), conn_event->cgroup);
 
     return conn_event2;
@@ -234,10 +243,8 @@ static __inline struct connect_event_t copy_connect_event(struct connect_event_t
 // << 32 - TGID
 static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
     u32 pid = current_pid_tgid >> 32;
-    u32 tgid = current_pid_tgid << 32;
 
-    // Don't ask me why this works, but it does..
-    return (u64) tgid | (u32) fd;
+    return (u32) pid | (u32) fd;
 }
 
 static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, size_t buf_len, u32 fd) {

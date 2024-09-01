@@ -25,16 +25,14 @@ type SocketUnknown struct {
 
 func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 	socket := SocketUnknown{
-		SourceAddr:  "unknown",
+		SourceAddr:  event.SourceAddr(),
+		DestAddr:    event.DestAddr(),
 		PID:         event.PID,
 		TID:         event.TID,
 		FD:          event.FD,
 		SSL:         false,
 		requestUuid: "",
 	}
-
-	socket.SourceAddr = "" // TODO
-	socket.DestAddr = ""   // TODO
 
 	return socket
 }
@@ -50,12 +48,8 @@ func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
 	socket.flowCallbacks = append(socket.flowCallbacks, callback)
 }
 
-// ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketUnknown) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.SourceAddr = "" // TODO
-	socket.DestAddr = ""   // TODO
 }
 
 func (socket *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
-
 }

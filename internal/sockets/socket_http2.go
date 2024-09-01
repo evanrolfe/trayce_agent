@@ -26,7 +26,8 @@ type SocketHttp2 struct {
 
 func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 	socket := SocketHttp2{
-		SourceAddr:  "unknown",
+		SourceAddr:  event.SourceAddr(),
+		DestAddr:    event.DestAddr(),
 		PID:         event.PID,
 		TID:         event.TID,
 		FD:          event.FD,
@@ -143,7 +144,7 @@ func (socket *SocketHttp2) clearFrameBuffer(key string) {
 func (socket *SocketHttp2) sendFlowBack(flow Flow) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
-	fmt.Printf("%s[Flow]%s Local: %s, Remote: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
+	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
 	flow.Debug()
 
 	for _, callback := range socket.flowCallbacks {

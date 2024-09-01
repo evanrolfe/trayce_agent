@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"net"
 )
 
 const (
@@ -19,6 +20,10 @@ type ConnectEvent struct {
 	PID         uint32    `json:"pid"`
 	TID         uint32    `json:"tid"`
 	FD          uint32    `json:"fd"`
+	SourceHost  uint32    `json:"source_host"`
+	SourcePort  uint16    `json:"source_port"`
+	DestHost    uint32    `json:"dest_host"`
+	DestPort    uint16    `json:"dest_port"`
 	CGroup      [128]byte `json:"cgroup"`
 }
 
@@ -40,6 +45,18 @@ func (ce *ConnectEvent) Decode(payload []byte) (err error) {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &ce.FD); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &ce.SourceHost); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &ce.DestHost); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.BigEndian, &ce.SourcePort); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.BigEndian, &ce.DestPort); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &ce.CGroup); err != nil {
@@ -68,34 +85,19 @@ func (ce *ConnectEvent) CGroupName() string {
 	return convertByteArrayToString(ce.CGroup)
 }
 
-// func (ce *ConnDataEvent) StringHex() string {
-// 	s := fmt.Sprintf("PID:%d, Comm:%s, TID:%d, FD:%d, Addr: %s", ce.Pid, bytes.TrimSpace(ce.Comm[:]), ce.Tid, ce.Fd, ce.Addr)
-// 	return s
-// }
+func (ce *ConnectEvent) SourceAddr() string {
+	host := uint32ToIP(ce.SourceHost).String()
+	return fmt.Sprintf("%s:%d", host, ce.SourcePort)
+}
 
-// func (ce *ConnDataEvent) String() string {
-// 	s := fmt.Sprintf("PID:%d, Comm:%s, TID:%d, FD:%d, Addr: %s", ce.Pid, bytes.TrimSpace(ce.Comm[:]), ce.Tid, ce.Fd, ce.Addr)
-// 	return s
-// }
+func (ce *ConnectEvent) DestAddr() string {
+	host := uint32ToIP(ce.DestHost).String()
+	return fmt.Sprintf("%s:%d", host, ce.DestPort)
+}
 
-// func (ce *ConnDataEvent) Clone() IEventStruct {
-// 	event := new(ConnDataEvent)
-// 	event.eventType = EventTypeModuleData
-// 	return event
-// }
+func uint32ToIP(ipUint32 uint32) net.IP {
+	ipBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(ipBytes, ipUint32)
 
-// func (ce *ConnDataEvent) EventType() EventType {
-// 	return ce.eventType
-// }
-
-// func (ce *ConnDataEvent) GetUUID() string {
-// 	return fmt.Sprintf("%d_%d_%s_%d", ce.Pid, ce.Tid, bytes.TrimSpace(ce.Comm[:]), ce.Fd)
-// }
-
-// func (ce *ConnDataEvent) Payload() []byte {
-// 	return []byte(ce.Addr)
-// }
-
-// func (ce *ConnDataEvent) PayloadLen() int {
-// 	return len(ce.Addr)
-// }
+	return net.IPv4(ipBytes[0], ipBytes[1], ipBytes[2], ipBytes[3])
+}

@@ -131,8 +131,8 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 				cyan := "\033[36m"
 				reset := "\033[0m"
-				fmt.Println(string(cyan), "[ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, "type:", event.TypeStr(), ", cgroup:", event.CGroupName())
-				// fmt.Print(hex.Dump(payload))
+				fmt.Printf("%s[ConnectEvent]%s PID: %d, TID: %d, FD: %d, source: %s, %s=>%s cgroup: %s\n", cyan, reset, event.PID, event.TID, event.FD, event.TypeStr(), event.SourceAddr(), event.DestAddr(), event.CGroupName())
+				fmt.Println(hex.Dump(payload))
 				outputChan <- &event
 
 				// events.DataEvent
@@ -303,14 +303,15 @@ func (stream *Stream) Close() {
 
 func (stream *Stream) attachKProbes() {
 	kprobes := map[string][]string{
-		"sys_accept":   []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_accept4":  []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_connect":  []string{"probe_connect", "probe_ret_connect"},
-		"sys_close":    []string{"probe_close", "probe_ret_close"},
-		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
-		"sys_recvfrom": []string{"probe_recvfrom", "probe_ret_recvfrom"},
-		"sys_write":    []string{"probe_write", "probe_ret_write"},
-		"sys_read":     []string{"probe_read", "probe_ret_read"},
+		"sys_accept":      []string{"probe_accept4", "probe_ret_accept4"},
+		"sys_accept4":     []string{"probe_accept4", "probe_ret_accept4"},
+		"sys_connect":     []string{"probe_connect", "probe_ret_connect"},
+		"sys_getsockname": []string{"probe_getsockname", "probe_ret_getsockname"},
+		"sys_close":       []string{"probe_close", "probe_ret_close"},
+		"sys_sendto":      []string{"probe_sendto", "probe_ret_sendto"},
+		"sys_recvfrom":    []string{"probe_recvfrom", "probe_ret_recvfrom"},
+		"sys_write":       []string{"probe_write", "probe_ret_write"},
+		"sys_read":        []string{"probe_read", "probe_ret_read"},
 	}
 	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
 	// security_socket_sendmsg & security_socket_recvmsg
