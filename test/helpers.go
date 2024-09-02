@@ -34,8 +34,10 @@ func AssertFlows(t *testing.T, flows []*api.Flow) {
 	// assert.Greater(t, len(flows[0].Request), 0)
 
 	for _, flow := range flows {
-		// assert.Greater(t, len(flow.SourceAddr), 0)
-		// assert.Greater(t, len(flow.DestAddr), 0)
+		assert.Greater(t, len(flow.SourceAddr), 0)
+		assert.Greater(t, len(flow.DestAddr), 0)
+		assert.NotEqual(t, flow.SourceAddr, "0.0.0.0:0")
+		assert.NotEqual(t, flow.DestAddr, "0.0.0.0:0")
 
 		if len(flow.Request) > 0 {
 			assert.Regexp(t, regexp.MustCompile(reqRegex), string(flow.Request))
@@ -135,7 +137,7 @@ func getTestConfig() (int, int, time.Duration) {
 		timeout = 5 * time.Second
 	} else {
 		numRequests = numRequestsLoad
-		timeout = 40 * time.Second
+		timeout = 30 * time.Second
 	}
 
 	return numRequests, numRequests * 2, timeout
@@ -173,6 +175,7 @@ func makeRequests(url string, ishttp2 bool, num int) {
 		go makeRequest(i, url, ishttp2, &wg)
 		time.Sleep(50 * time.Millisecond)
 	}
+	wg.Wait()
 }
 
 func makeRequest(i int, url string, ishttp2 bool, wg *sync.WaitGroup) {
@@ -211,5 +214,4 @@ func makeRequest(i int, url string, ishttp2 bool, wg *sync.WaitGroup) {
 	}
 
 	io.ReadAll(res.Body)
-	// fmt.Println(string(body))
 }

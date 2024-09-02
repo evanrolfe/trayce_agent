@@ -4,56 +4,56 @@ struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct accept_args_t);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_accept4_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct accept_args_t);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_getsockname_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct accept_args_t);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_connect_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct close_event_t);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_close_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct active_buf);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_read_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct active_buf);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_write_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct active_buf);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_sendto_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct active_buf);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_recvfrom_args_map SEC(".maps");
 
 // https://linux.die.net/man/3/accept
@@ -67,6 +67,7 @@ int probe_accept4(struct pt_regs *ctx) {
         return 0;
     }
 
+    bpf_printk("kprobe/accept entry: PID: %d\n", pid);
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
     struct sockaddr *saddr;
@@ -93,6 +94,7 @@ int probe_ret_accept4(struct pt_regs *ctx) {
     // Get the FD and check the call to accept4() was successful
     int fd = (int)PT_REGS_RC(ctx);
     if (fd < 0) {
+        bpf_printk("kprobe/accept return: failed: PID: %d, FD: %d\n", pid, fd);
         return 0;
     }
 
@@ -103,7 +105,7 @@ int probe_ret_accept4(struct pt_regs *ctx) {
     // Get the cgroup name
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
     if (cur_tsk == NULL) {
-        bpf_printk("failed to get cur task\n");
+        bpf_printk("kprobe/accept return: failed to get cur task PID: %d, FD: %d\n", pid, fd);
         return -1;
     }
     int cgrp_id = memory_cgrp_id;

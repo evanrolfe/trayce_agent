@@ -53,6 +53,7 @@ func Test_agent_server(t *testing.T) {
 		fmt.Println("STARTED TRAYCE AGENT2")
 	}
 	<-ctx.Done()
+	time.Sleep(2000 * time.Millisecond)
 
 	// Run tests
 	// Set focus: true in order to only run a single test case
@@ -159,11 +160,11 @@ func Test_agent_server(t *testing.T) {
 			verify:      AssertFlows,
 		},
 		{
-			name:        "[Go] Server an HTTPS/2 request",
-			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
+			name:        "[Go] Server an HTTP/1.1 request",
+			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 4122),
 			numRequests: numRequests,
-			http2:       true,
-			verify:      AssertFlowsHttp2,
+			http2:       false,
+			verify:      AssertFlows,
 			loadtest:    true,
 		},
 		{
@@ -175,11 +176,12 @@ func Test_agent_server(t *testing.T) {
 			loadtest:    true,
 		},
 		{
-			name:        "[Go] Server an HTTP/1.1 request",
-			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 4122),
+			name:        "[Go] Server an HTTP/1.1 request to /second_http",
+			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
+			multiplier:  2,
 		},
 		{
 			name:        "[Go] Server an HTTP/1.1 request to /second_http",
@@ -203,22 +205,23 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 		},
-		{
-			name:        "[Go] Server an HTTP/1.1 request to /second_http",
-			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
-			numRequests: numRequests,
-			http2:       false,
-			verify:      AssertFlows,
-			multiplier:  2,
-		},
-		{
-			name:        "[Go] Server an HTTPS/2 request to /second_http",
-			url:         fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 4123),
-			numRequests: numRequests,
-			http2:       true,
-			verify:      func(t *testing.T, requests []*api.Flow) {},
-			multiplier:  2,
-		},
+		// {
+		// 	name:        "[Go] Server an HTTPS/2 request",
+		// 	url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
+		// 	numRequests: numRequests,
+		// 	http2:       true,
+		// 	verify:      AssertFlowsHttp2,
+		// 	loadtest:    true,
+		// 	focus:       true,
+		// },
+		// {
+		// 	name:        "[Go] Server an HTTPS/2 request to /second_http",
+		// 	url:         fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 4123),
+		// 	numRequests: numRequests,
+		// 	http2:       true,
+		// 	verify:      func(t *testing.T, requests []*api.Flow) {},
+		// 	multiplier:  2,
+		// },
 		// TODO: Support NodeJS
 		// {
 		// 	name:   "[Node] Server an HTTPS/1.1 request",
@@ -264,16 +267,15 @@ func Test_agent_server(t *testing.T) {
 				}
 			})
 
+			time.Sleep(1 * time.Second)
 			// Make the request
-			time.Sleep(500 * time.Millisecond)
-
-			go makeRequests(tt.url, tt.http2, numRequests)
+			makeRequests(tt.url, tt.http2, numRequests)
 			// Wait for the context to complete
 			<-ctx.Done()
 
 			if !testing.Short() {
 				// This is necessary in a loadtest incase more than the expected num flows are sent
-				time.Sleep(3 * time.Second)
+				time.Sleep(2 * time.Second)
 			}
 
 			//

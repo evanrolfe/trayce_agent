@@ -194,7 +194,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 1024 * 1024); // Important that its big enough otherwise events will be dropped and cause weird behaviour
+    __uint(max_entries, 1024 * 1024 * 128); // Important that its big enough otherwise events will be dropped and cause weird behaviour
 } data_events SEC(".maps");
 
 // BPF programs are limited to a 512-byte stack. We store this value per CPU
@@ -388,7 +388,6 @@ static __inline u64 hash_string(const char *str, int length) {
 static __inline int should_intercept() {
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
     if (cur_tsk == NULL) {
-        bpf_printk("failed to get cur task\n");
         return -1;
     }
     int cgrp_id = memory_cgrp_id;
