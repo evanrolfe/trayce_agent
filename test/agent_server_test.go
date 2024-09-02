@@ -165,7 +165,6 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
-			loadtest:    true,
 		},
 		{
 			name:        "[Go] Server an HTTPS/1.1 request",
@@ -173,7 +172,6 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
-			loadtest:    true,
 		},
 		{
 			name:        "[Go] Server an HTTP/1.1 request to /second_http",
@@ -182,6 +180,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 			multiplier:  2,
+			loadtest:    true,
 		},
 		{
 			name:        "[Go] Server an HTTP/1.1 request to /second_http",
@@ -205,23 +204,23 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 		},
-		// {
-		// 	name:        "[Go] Server an HTTPS/2 request",
-		// 	url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
-		// 	numRequests: numRequests,
-		// 	http2:       true,
-		// 	verify:      AssertFlowsHttp2,
-		// 	loadtest:    true,
-		// 	focus:       true,
-		// },
-		// {
-		// 	name:        "[Go] Server an HTTPS/2 request to /second_http",
-		// 	url:         fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 4123),
-		// 	numRequests: numRequests,
-		// 	http2:       true,
-		// 	verify:      func(t *testing.T, requests []*api.Flow) {},
-		// 	multiplier:  2,
-		// },
+		{
+			name:        "[Go] Server an HTTPS/2 request",
+			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       true,
+			verify:      AssertFlowsHttp2,
+			loadtest:    true,
+		},
+		{
+			name:        "[Go] Server an HTTPS/2 request to /second_http",
+			url:         fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       true,
+			verify:      func(t *testing.T, requests []*api.Flow) {},
+			multiplier:  2,
+			loadtest:    true,
+		},
 		// TODO: Support NodeJS
 		// {
 		// 	name:   "[Node] Server an HTTPS/1.1 request",
@@ -267,7 +266,7 @@ func Test_agent_server(t *testing.T) {
 				}
 			})
 
-			time.Sleep(1 * time.Second)
+			time.Sleep(250 * time.Millisecond)
 			// Make the request
 			makeRequests(tt.url, tt.http2, numRequests)
 			// Wait for the context to complete
@@ -284,7 +283,6 @@ func Test_agent_server(t *testing.T) {
 			// err := os.WriteFile("/app/tmp/test_output.txt", stdoutBuf.Bytes(), 0644)
 			// if err != nil {
 			// 	fmt.Println("Error writing to file:", err)
-			// 	os.Exit(1)
 			// }
 			// fmt.Println(stdoutBuf.String())
 

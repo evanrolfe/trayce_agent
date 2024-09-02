@@ -128,6 +128,9 @@ func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 }
 
 func (socket *SocketHttp2) processFrame(frame *Http2Frame) {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
 	stream := socket.findOrCreateStream(frame.StreamID())
 	flow := stream.ProcessFrame(frame)
 	if flow != nil {
@@ -136,9 +139,6 @@ func (socket *SocketHttp2) processFrame(frame *Http2Frame) {
 }
 
 func (socket *SocketHttp2) findOrCreateStream(streamID uint32) *Http2Stream {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
-
 	stream, exists := socket.streams[streamID]
 	if !exists {
 		fmt.Println("[SocketHTTP2] creating stream", streamID, " socket:", socket.Key())
