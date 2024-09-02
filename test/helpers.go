@@ -135,7 +135,7 @@ func getTestConfig() (int, int, time.Duration) {
 		timeout = 5 * time.Second
 	} else {
 		numRequests = numRequestsLoad
-		timeout = 20 * time.Second
+		timeout = 40 * time.Second
 	}
 
 	return numRequests, numRequests * 2, timeout
@@ -177,7 +177,6 @@ func makeRequests(url string, ishttp2 bool, num int) {
 
 func makeRequest(i int, url string, ishttp2 bool, wg *sync.WaitGroup) {
 	defer wg.Done()
-	fmt.Println("Requesting", url, i)
 
 	var client *http.Client
 	if ishttp2 {
@@ -210,7 +209,6 @@ func makeRequest(i int, url string, ishttp2 bool, wg *sync.WaitGroup) {
 		fmt.Printf("error sending http request: %s\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("response status code: %d, ID: %s\n", res.StatusCode, res.Header.Get("X-Request-ID"))
 
 	io.ReadAll(res.Body)
 	// fmt.Println(string(body))

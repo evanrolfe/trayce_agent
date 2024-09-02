@@ -115,6 +115,11 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 	}
 	stream.libSSLVersionsMap = libSSLVersionsMap
 
+	// colours
+	red := "\033[35m"
+	cyan := "\033[36m"
+	reset := "\033[0m"
+
 	for {
 		// Check if the interrupt signal has been received
 		select {
@@ -129,10 +134,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 				event := events.ConnectEvent{}
 				event.Decode(payload)
 
-				cyan := "\033[36m"
-				reset := "\033[0m"
 				fmt.Printf("%s[ConnectEvent]%s PID: %d, TID: %d, FD: %d, source: %s, %s=>%s cgroup: %s\n", cyan, reset, event.PID, event.TID, event.FD, event.TypeStr(), event.SourceAddr(), event.DestAddr(), event.CGroupName())
-				fmt.Println(hex.Dump(payload))
 				outputChan <- &event
 
 				// events.DataEvent
@@ -153,18 +155,23 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 			} else if eventType == 2 {
 				event := events.CloseEvent{}
 				event.Decode(payload)
-				red := "\033[35m"
-				reset := "\033[0m"
 
-				fmt.Println(string(red), "[events.CloseEvent]", string(reset), " PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
+				fmt.Println(string(red), "[CloseEvent]", string(reset), " PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
 				outputChan <- &event
 
 				// DebugEvent
 			} else if eventType == 3 {
 				event := events.DebugEvent{}
 				event.Decode(payload)
+
 				fmt.Println("\n[DebugEvent] Received, PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, " - ", string(event.Payload()))
 				fmt.Print(hex.Dump(payload))
+			} else if eventType == 4 {
+				event := events.GetsocknameEvent{}
+				event.Decode(payload)
+
+				fmt.Printf("%s[GetsocknameEvent]%s PID: %d, TID: %d, FD: %d, %s\n", cyan, reset, event.PID, event.TID, event.FD, event.Addr())
+				outputChan <- &event
 			}
 		}
 	}

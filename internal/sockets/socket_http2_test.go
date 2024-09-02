@@ -39,9 +39,20 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -117,9 +128,20 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -185,9 +207,20 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -283,9 +316,20 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -383,9 +427,20 @@ var _ = Describe("SocketHTTP2", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)

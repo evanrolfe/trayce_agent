@@ -45,6 +45,8 @@ func (listener *Listener) Start(outputChan chan sockets.Flow) {
 		switch ev := event.(type) {
 		case *events.ConnectEvent:
 			listener.sockets.ProcessConnectEvent(*ev)
+		case *events.GetsocknameEvent:
+			listener.sockets.ProcessGetsocknameEvent(*ev)
 		case *events.DataEvent:
 			listener.sockets.ProcessDataEvent(*ev)
 		case *events.CloseEvent:

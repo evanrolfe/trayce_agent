@@ -111,6 +111,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 			multiplier:  2,
+			loadtest:    true,
 		},
 		{
 			name:        "[Ruby] Server an HTTP/1.1 request",
@@ -165,59 +166,59 @@ func Test_agent_server(t *testing.T) {
 			verify:      AssertFlowsHttp2,
 			loadtest:    true,
 		},
-		// {
-		// 	name:        "[Go] Server an HTTPS/1.1 request",
-		// 	url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
-		// 	numRequests: numRequests,
-		// 	http2:       false,
-		// 	verify:      AssertFlows,
-		// 	loadtest:    true,
-		// },
-		// {
-		// 	name:        "[Go] Server an HTTP/1.1 request",
-		// 	url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 4122),
-		// 	numRequests: numRequests,
-		// 	http2:       false,
-		// 	verify:      AssertFlows,
-		// },
-		// {
-		// 	name:        "[Go] Server an HTTP/1.1 request to /second_http",
-		// 	url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
-		// 	numRequests: numRequests,
-		// 	http2:       false,
-		// 	multiplier:  2,
-		// 	verify:      AssertFlows,
-		// },
-		// {
-		// 	name:        "[Go] Server an HTTPS/1.1 request to /large",
-		// 	url:         fmt.Sprintf("https://%s:%d/large", megaserverIp, 4123),
-		// 	numRequests: numRequests,
-		// 	http2:       false,
-		// 	verify:      AssertFlows,
-		// },
-		// {
-		// 	name:        "[Go] Server an HTTP/1.1 request to /large",
-		// 	url:         fmt.Sprintf("http://%s:%d/large", megaserverIp, 4122),
-		// 	numRequests: numRequests,
-		// 	http2:       false,
-		// 	verify:      AssertFlows,
-		// },
-		// {
-		// 	name:        "[Go] Server an HTTP/1.1 request to /second_http",
-		// 	url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
-		// 	numRequests: numRequests,
-		// 	http2:       false,
-		// 	verify:      AssertFlows,
-		// 	multiplier:  2,
-		// },
-		// {
-		// 	name:        "[Go] Server an HTTPS/2 request to /second_http",
-		// 	url:         fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 4123),
-		// 	numRequests: numRequests,
-		// 	http2:       true,
-		// 	verify:      func(t *testing.T, requests []*api.Flow) {},
-		// 	multiplier:  2,
-		// },
+		{
+			name:        "[Go] Server an HTTPS/1.1 request",
+			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
+			loadtest:    true,
+		},
+		{
+			name:        "[Go] Server an HTTP/1.1 request",
+			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 4122),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
+		},
+		{
+			name:        "[Go] Server an HTTP/1.1 request to /second_http",
+			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
+			numRequests: numRequests,
+			http2:       false,
+			multiplier:  2,
+			verify:      AssertFlows,
+		},
+		{
+			name:        "[Go] Server an HTTPS/1.1 request to /large",
+			url:         fmt.Sprintf("https://%s:%d/large", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
+		},
+		{
+			name:        "[Go] Server an HTTP/1.1 request to /large",
+			url:         fmt.Sprintf("http://%s:%d/large", megaserverIp, 4122),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
+		},
+		{
+			name:        "[Go] Server an HTTP/1.1 request to /second_http",
+			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
+			numRequests: numRequests,
+			http2:       false,
+			verify:      AssertFlows,
+			multiplier:  2,
+		},
+		{
+			name:        "[Go] Server an HTTPS/2 request to /second_http",
+			url:         fmt.Sprintf("https://%s:%d/second_http", megaserverIp, 4123),
+			numRequests: numRequests,
+			http2:       true,
+			verify:      func(t *testing.T, requests []*api.Flow) {},
+			multiplier:  2,
+		},
 		// TODO: Support NodeJS
 		// {
 		// 	name:   "[Node] Server an HTTPS/1.1 request",
@@ -272,7 +273,7 @@ func Test_agent_server(t *testing.T) {
 
 			if !testing.Short() {
 				// This is necessary in a loadtest incase more than the expected num flows are sent
-				time.Sleep(2 * time.Second)
+				time.Sleep(3 * time.Second)
 			}
 
 			//
@@ -283,7 +284,7 @@ func Test_agent_server(t *testing.T) {
 			// 	fmt.Println("Error writing to file:", err)
 			// 	os.Exit(1)
 			// }
-			fmt.Println(stdoutBuf.String())
+			// fmt.Println(stdoutBuf.String())
 
 			// Verify the result
 			assert.Equal(t, expectedNumFlows*multiplier, len(flows))

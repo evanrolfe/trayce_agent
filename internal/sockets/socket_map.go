@@ -43,6 +43,17 @@ func (m *SocketMap) ProcessConnectEvent(event events.ConnectEvent) {
 	}
 }
 
+func (m *SocketMap) ProcessGetsocknameEvent(event events.GetsocknameEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	socket, exists := m.getSocket(event.Key())
+	if !exists {
+		return
+	}
+	socket.ProcessGetsocknameEvent(&event)
+}
+
 func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

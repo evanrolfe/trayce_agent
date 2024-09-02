@@ -22,6 +22,8 @@ type SocketHttp2 struct {
 	mu          sync.Mutex
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
+	// The flows are buffered until a GetsocknameEvent is received which sets the source/dest address on the flows
+	flowBuf []Flow
 }
 
 func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
@@ -34,13 +36,11 @@ func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 		SSL:         false,
 		streams:     map[uint32]*Http2Stream{},
 		frameBuffer: map[string][]byte{},
+		flowBuf:     []Flow{},
 	}
 
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
-
-	socket.SourceAddr = "" // TODO
-	socket.DestAddr = ""   // TODO
 
 	return socket
 }
@@ -55,8 +55,9 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 		SSL:         false,
 		streams:     map[uint32]*Http2Stream{},
 		frameBuffer: map[string][]byte{},
+		flowBuf:     []Flow{},
 	}
-
+	fmt.Println("!!!!!!!!!!!! NEW HTTP2 Source:", socket.SourceAddr, "Dest:", socket.DestAddr)
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
 
@@ -78,8 +79,19 @@ func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.SourceAddr = "" // TODO
-	socket.DestAddr = ""   // TODO
+}
+
+func (socket *SocketHttp2) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
+	fmt.Println("!!!!!!!!!!!! HTTP2 Source:", socket.SourceAddr, "Dest:", socket.DestAddr)
+	if socket.SourceAddr == "0.0.0.0:0" {
+		socket.SourceAddr = event.Addr()
+		fmt.Println("!!!!!!!!!!!! HTTP2 set Source:", event.Addr())
+	} else if socket.DestAddr == "0.0.0.0:0" {
+		socket.DestAddr = event.Addr()
+		fmt.Println("!!!!!!!!!!!! HTTP2 set Dest:", event.Addr())
+	}
+
+	socket.releaseFlows()
 }
 
 // TODO: Have a structure for handling the frame header + payload?
@@ -141,9 +153,29 @@ func (socket *SocketHttp2) clearFrameBuffer(key string) {
 	socket.frameBuffer[key] = []byte{}
 }
 
+func (socket *SocketHttp2) releaseFlows() {
+	for _, flow := range socket.flowBuf {
+		flow.SourceAddr = socket.SourceAddr
+		flow.DestAddr = socket.DestAddr
+		socket.sendFlowBack(flow)
+	}
+
+	socket.flowBuf = []Flow{}
+}
+
 func (socket *SocketHttp2) sendFlowBack(flow Flow) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
+
+	if socket.DestAddr == "0.0.0.0:0" || socket.SourceAddr == "0.0.0.0:0" {
+		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
+		socket.flowBuf = append(socket.flowBuf, flow)
+		return
+	}
+
+	flow.SourceAddr = socket.SourceAddr
+	flow.DestAddr = socket.DestAddr
+
 	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
 	flow.Debug()
 

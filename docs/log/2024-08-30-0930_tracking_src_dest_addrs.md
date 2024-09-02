@@ -9,6 +9,7 @@
 - seems impossible to get the FD from any tcp tracepoints
 - second best option is to correleate the FD using current_pid_tgid, so the kprobes (write/read/sendto/recvfrom) set the FD on a map with current_pid_tgid as key
 - I noticed some kprobe read/writes were called with a buf_len=1 and 0 as the only byte, they setting the FD to a different number and messing it up so I put an if check to prevent that
+- In ruby, getsockname() is called after recvfrom("GET / HTTP1.1")
 
 +## Capturing short lived requests
 +very interesting discussion here: https://github.com/weaveworks/scope/issues/356

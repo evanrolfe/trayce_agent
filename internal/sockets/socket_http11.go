@@ -28,6 +28,8 @@ type SocketHttp11 struct {
 	dataBuf []byte
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
+	// The flows are buffered until a GetsocknameEvent is received which sets the source/dest address on the flows
+	flowBuf []Flow
 	// When a request is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
 }
@@ -79,8 +81,17 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.SourceAddr = "" // TODO
-	socket.DestAddr = ""   // TODO
+
+}
+
+func (socket *SocketHttp11) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
+	if socket.SourceAddr == "0.0.0.0:0" {
+		socket.SourceAddr = event.Addr()
+	} else if socket.DestAddr == "0.0.0.0:0" {
+		socket.DestAddr = event.Addr()
+	}
+
+	socket.releaseFlows()
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
@@ -153,9 +164,27 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	}
 }
 
+func (socket *SocketHttp11) releaseFlows() {
+	for _, flow := range socket.flowBuf {
+		socket.sendFlowBack(flow)
+	}
+
+	socket.flowBuf = []Flow{}
+}
+
 func (socket *SocketHttp11) sendFlowBack(flow Flow) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
+
+	if socket.DestAddr == "0.0.0.0:0" || socket.SourceAddr == "0.0.0.0:0" {
+		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
+		socket.flowBuf = append(socket.flowBuf, flow)
+		return
+	}
+
+	flow.SourceAddr = socket.SourceAddr
+	flow.DestAddr = socket.DestAddr
+
 	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
 	flow.Debug()
 

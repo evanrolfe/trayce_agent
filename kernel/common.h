@@ -29,7 +29,7 @@ typedef short unsigned int __kernel_sa_family_t;
 
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
-enum event_type { eConnect, eData, eClose, eDebug };
+enum event_type { eConnect, eData, eClose, eDebug, eGetsockname };
 enum connect_event_type { kConnect, kAccept };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto, goTlsRead, goTlsWrite };
 enum protocol_type { pUnknown, pHttp };
@@ -79,6 +79,16 @@ struct debug_event_t {
     u32 fd;
     s32 data_len;
     char data[300];
+};
+
+struct getsockname_event_t {
+    u64 eventtype;
+    u64 timestamp_ns;
+    u32 pid;
+    u32 tid;
+    u32 fd;
+    u32 host;
+    u16 port;
 };
 
 // OPENSSL struct to offset , via kern/README.md
@@ -138,6 +148,11 @@ struct offsets {
     __u64 go_fd_offset;
 };
 
+struct accept_args_t {
+    struct sockaddr_in* addr;
+    int fd;
+};
+
 /***********************************************************
  * Exported bpf maps
  ***********************************************************/
@@ -160,28 +175,21 @@ struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, u32);
     __type(value, struct offsets);
-    __uint(max_entries, 1024);
+    __uint(max_entries, 1024 * 1024);
 } libssl_versions_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, u64);
-    __type(value, struct connect_event_t);
-    __uint(max_entries, 1024);
-} conn_infos SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u64);
     __type(value, u32);
-    __uint(max_entries, 1024);
+    __uint(max_entries, 1024 * 1024);
 } fd_map SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, u64);
     __type(value, u32);
-    __uint(max_entries, 1024);
+    __uint(max_entries, 1024 * 1024);
 } ssl_fd_map SEC(".maps");
 
 struct {
@@ -220,32 +228,13 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     return event;
 }
 
-static __inline struct connect_event_t copy_connect_event(struct connect_event_t *conn_event, u32 dest_host, u16 dest_port) {
-    struct connect_event_t conn_event2;
-    __builtin_memset(&conn_event2, 0, sizeof(conn_event2));
-    conn_event2.eventtype = eConnect;
-    conn_event2.type = conn_event->type;
-    conn_event2.timestamp_ns = bpf_ktime_get_ns();
-    conn_event2.pid = conn_event->pid;
-    conn_event2.tid = conn_event->tid;
-    conn_event2.fd = conn_event->fd;
-    conn_event2.src_host = conn_event->src_host;
-    conn_event2.src_port = conn_event->src_port;
-    conn_event2.dest_host = dest_host;
-    conn_event2.dest_port = dest_port;
-
-    bpf_probe_read_str(&conn_event2.cgroup, sizeof(conn_event2.cgroup), conn_event->cgroup);
-
-    return conn_event2;
-}
-
 // >> 32 - PID
 // << 32 - TGID
-static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
-    u32 pid = current_pid_tgid >> 32;
+// static __inline u64 gen_pid_fd(u64 current_pid_tgid, int fd) {
+//     u32 pid = current_pid_tgid >> 32;
 
-    return (u32) pid | (u32) fd;
-}
+//     return (u32) pid | (u32) fd;
+// }
 
 static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, size_t buf_len, u32 fd) {
     if (buf_len < 0) {
@@ -417,7 +406,45 @@ static __inline int should_intercept() {
     return 0;
 }
 
+struct addr_t {
+    u32 ip;
+    u16 port;
+};
 
+// parse_address takes an accept_args and parses the IP and Port. Sometimes the accept_args only contain an IPV6 address
+// even though its actually IPV4. In that case the IPV4 IP is embedded in an IPV6 one i.e. ::ffff:172.17.0.2 (this happens in Go programs)
+// so this function extracts the V4 address.
+static __inline void parse_address(struct addr_t *result, struct accept_args_t* args) {
+    result->ip = 0;
+    result->port = 0;
+
+    struct sockaddr_in sin = {};
+    struct sockaddr_in6 sin6 = {};
+
+    // Read the address based on the sa_family
+    struct sockaddr* saddr = (struct sockaddr *) args->addr;
+    sa_family_t address_family = 0;
+    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
+
+    if (address_family == AF_INET) {
+        bpf_probe_read(&sin, sizeof(sin), args->addr);
+        result->ip = sin.sin_addr.s_addr;
+        result->port = sin.sin_port;
+    } else if (address_family == AF_INET6) {
+        bpf_probe_read(&sin6, sizeof(sin6), args->addr);
+        result->port = sin6.sin6_port;
+        u8 ipv6_addr[16];
+        bpf_probe_read(&ipv6_addr, sizeof(ipv6_addr), &sin6.sin6_addr);
+
+        // Check if it's an IPv4-mapped IPv6 address (::ffff:0:0/96 prefix)
+        if (ipv6_addr[0] == 0 && ipv6_addr[1] == 0 && ipv6_addr[2] == 0 && ipv6_addr[3] == 0 &&
+            ipv6_addr[4] == 0 && ipv6_addr[5] == 0 && ipv6_addr[6] == 0 && ipv6_addr[7] == 0 &&
+            ipv6_addr[8] == 0 && ipv6_addr[9] == 0 && ipv6_addr[10] == 0xff && ipv6_addr[11] == 0xff) {
+            // Extract the IPv4 address from the last 4 bytes
+            result->ip = *(u32 *)&ipv6_addr[12];
+        }
+    }
+}
 
 // check for sub string
 // int i = 0, j = 0;

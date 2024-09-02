@@ -51,5 +51,13 @@ func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
 func (socket *SocketUnknown) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
+func (socket *SocketUnknown) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
+	if socket.SourceAddr == "0.0.0.0:0" {
+		socket.SourceAddr = event.Addr()
+	} else if socket.DestAddr == "0.0.0.0:0" {
+		socket.DestAddr = event.Addr()
+	}
+}
+
 func (socket *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
 }
