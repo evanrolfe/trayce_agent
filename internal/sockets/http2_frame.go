@@ -118,11 +118,11 @@ func (f *Http2Frame) Headers() ([]hpack.HeaderField, error) {
 		return []hpack.HeaderField{}, fmt.Errorf("cannot parse headers for this frame")
 	}
 
-	decoder := hpack.NewDecoder(2048, nil)
+	decoder := hpack.NewDecoder(4096, nil)
 	hf, err := decoder.DecodeFull(f.Payload())
 
 	if err != nil {
-		return []hpack.HeaderField{}, err
+		return []hpack.HeaderField{}, fmt.Errorf("decoder.DecodeFull(): %w", err)
 	}
 
 	return hf, nil
@@ -176,7 +176,7 @@ func (f *Http2Frame) psuedoHeaders() map[string]string {
 
 	headers, err := f.Headers()
 	if err != nil {
-		fmt.Println("ERROR:", err)
+		fmt.Println("ERROR from f.Headers():", err)
 		return psuedoHeaders
 	}
 

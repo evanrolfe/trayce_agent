@@ -16,6 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	mockHttpPort  = 4122
+	mockHttpsPort = 4123
+	grpcPort      = 50051
+)
+
 // Test_agent_client tests requests made from this container to another server, it listens to the server
 func Test_agent_server(t *testing.T) {
 	// Handle command line args
@@ -53,6 +59,7 @@ func Test_agent_server(t *testing.T) {
 		fmt.Println("STARTED TRAYCE AGENT2")
 	}
 	<-ctx.Done()
+	time.Sleep(2000 * time.Millisecond)
 
 	// Run tests
 	// Set focus: true in order to only run a single test case
@@ -111,6 +118,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 			multiplier:  2,
+			loadtest:    true,
 		},
 		{
 			name:        "[Ruby] Server an HTTP/1.1 request",
@@ -158,12 +166,11 @@ func Test_agent_server(t *testing.T) {
 			verify:      AssertFlows,
 		},
 		{
-			name:        "[Go] Server an HTTPS/2 request",
-			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
+			name:        "[Go] Server an HTTP/1.1 request",
+			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 4122),
 			numRequests: numRequests,
-			http2:       true,
-			verify:      AssertFlowsHttp2,
-			loadtest:    true,
+			http2:       false,
+			verify:      AssertFlows,
 		},
 		{
 			name:        "[Go] Server an HTTPS/1.1 request",
@@ -171,14 +178,15 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
-			loadtest:    true,
 		},
 		{
-			name:        "[Go] Server an HTTP/1.1 request",
-			url:         fmt.Sprintf("http://%s:%d/", megaserverIp, 4122),
+			name:        "[Go] Server an HTTP/1.1 request to /second_http",
+			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
+			multiplier:  2,
+			loadtest:    true,
 		},
 		{
 			name:        "[Go] Server an HTTP/1.1 request to /second_http",
@@ -203,12 +211,12 @@ func Test_agent_server(t *testing.T) {
 			verify:      AssertFlows,
 		},
 		{
-			name:        "[Go] Server an HTTP/1.1 request to /second_http",
-			url:         fmt.Sprintf("http://%s:%d/second_http", megaserverIp, 4122),
+			name:        "[Go] Server an HTTPS/2 request",
+			url:         fmt.Sprintf("https://%s:%d/", megaserverIp, 4123),
 			numRequests: numRequests,
-			http2:       false,
-			verify:      AssertFlows,
-			multiplier:  2,
+			http2:       true,
+			verify:      AssertFlowsHttp2,
+			loadtest:    true,
 		},
 		{
 			name:        "[Go] Server an HTTPS/2 request to /second_http",
@@ -217,6 +225,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       true,
 			verify:      func(t *testing.T, requests []*api.Flow) {},
 			multiplier:  2,
+			loadtest:    true,
 		},
 		// TODO: Support NodeJS
 		// {
@@ -263,10 +272,9 @@ func Test_agent_server(t *testing.T) {
 				}
 			})
 
+			time.Sleep(250 * time.Millisecond)
 			// Make the request
-			time.Sleep(500 * time.Millisecond)
-
-			go makeRequests(tt.url, tt.http2, numRequests)
+			makeRequests(tt.url, tt.http2, numRequests)
 			// Wait for the context to complete
 			<-ctx.Done()
 
@@ -281,7 +289,6 @@ func Test_agent_server(t *testing.T) {
 			// err := os.WriteFile("/app/tmp/test_output.txt", stdoutBuf.Bytes(), 0644)
 			// if err != nil {
 			// 	fmt.Println("Error writing to file:", err)
-			// 	os.Exit(1)
 			// }
 			fmt.Println(stdoutBuf.String())
 

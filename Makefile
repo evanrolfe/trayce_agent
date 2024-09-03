@@ -73,3 +73,7 @@ dev:
 
 megaserver:
 	docker run -it mega_server
+
+decision:
+	@timestamp=$$(date +"%Y-%m-%d"); \
+	touch "docs/log/$${timestamp}_TODO.md"

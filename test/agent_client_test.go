@@ -1,29 +1,11 @@
 package test
 
-import (
-	"bytes"
-	"context"
-	"fmt"
-	"os"
-	"os/exec"
-	"strconv"
-	"testing"
-	"time"
-
-	"github.com/evanrolfe/trayce_agent/api"
-	"github.com/stretchr/testify/assert"
-)
-
+/*
 const (
-	mockHttpPort  = 4122
-	mockHttpsPort = 4123
-	grpcPort      = 50051
-	// TODO: make this work on both
 	requestRubyScriptHttpLoad = "./test/scripts/load_test_ruby"
 	requestPythonScript       = "./test/scripts/request_python"
 	requestGoScript           = "./test/scripts/go_request"
 )
-
 // Test_agent_client tests requests made from this container to another server, it listens to the client
 func Test_agent_client(t *testing.T) {
 	// Set trayce_agent to track the container this is running from:
@@ -173,3 +155,31 @@ func Test_agent_client(t *testing.T) {
 		})
 	}
 }
+
+
+
+// TODO: Make this verify that it has all the correct requests
+// func hasAllFlows(flows []*api.Flow) {
+// 	collectedMatches := []int{}
+
+// 	for _, f := range flows {
+// 		if f.Request == nil {
+// 			continue
+// 		}
+
+// 		req := string(f.Request[0:8])
+// 		pattern := `GET /(\d+)`
+// 		re := regexp.MustCompile(pattern)
+// 		matches := re.FindStringSubmatch(req)
+
+// 		if len(matches) >= 2 {
+// 			// The number is in the first capture group (index 1)
+// 			number := matches[1]
+// 			n, _ := strconv.Atoi(number)
+// 			collectedMatches = append(collectedMatches, n)
+// 		}
+// 	}
+
+// 	fmt.Println(collectedMatches)
+// }
+*/

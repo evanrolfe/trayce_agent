@@ -3,50 +3,57 @@
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
-  __type(value, struct connect_event_t);
-  __uint(max_entries, 1024);
+  __type(value, struct accept_args_t);
+  __uint(max_entries, 1024*128);
 } active_accept4_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
-  __type(value, struct connect_event_t);
-  __uint(max_entries, 1024);
+  __type(value, struct accept_args_t);
+  __uint(max_entries, 1024*128);
+} active_getsockname_args_map SEC(".maps");
+
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, u64);
+  __type(value, struct accept_args_t);
+  __uint(max_entries, 1024*128);
 } active_connect_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct close_event_t);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_close_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct active_buf);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_read_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct active_buf);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_write_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct active_buf);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_sendto_args_map SEC(".maps");
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, u64);
   __type(value, struct active_buf);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 1024*128);
 } active_recvfrom_args_map SEC(".maps");
 
 // https://linux.die.net/man/3/accept
@@ -60,36 +67,50 @@ int probe_accept4(struct pt_regs *ctx) {
         return 0;
     }
 
+    bpf_printk("kprobe/accept entry: PID: %d\n", pid);
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
-
-    // Get the socket file descriptor
-    int fd;
-    bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
 
     struct sockaddr *saddr;
     bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
 
-    // Get the address family
-    sa_family_t address_family = 0;
-    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
+    // Build the connect_event and save it to the map
+    struct accept_args_t accept_args = {};
+    accept_args.addr = (struct sockaddr_in *)saddr;
+    bpf_map_update_elem(&active_accept4_args_map, &current_pid_tgid, &accept_args, BPF_ANY);
 
-    // TODO: Go appears to convert IPv4 hosts to v6, i.e. ::ffff:172.17.0.2, so we need to handle this
-    // See:
-    // strace -f -e trace=open,close,connect,sendto,recvfrom,send,recv,accept,accept4 -p 1046989
+    return 0;
+}
+
+SEC("kretprobe/accept4")
+int probe_ret_accept4(struct pt_regs *ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    struct accept_args_t* accept_args = bpf_map_lookup_elem(&active_accept4_args_map, &current_pid_tgid);
+    if (accept_args == NULL) {
+        return 0;
+    }
+
+    // Get the FD and check the call to accept4() was successful
+    int fd = (int)PT_REGS_RC(ctx);
+    if (fd < 0) {
+        bpf_printk("kprobe/accept return: failed: PID: %d, FD: %d\n", pid, fd);
+        return 0;
+    }
+
+    // Get the source IP & port
+    struct addr_t src_addr = {};
+    parse_address(&src_addr, accept_args);
 
     // Get the cgroup name
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
     if (cur_tsk == NULL) {
-        bpf_printk("failed to get cur task\n");
+        bpf_printk("kprobe/accept return: failed to get cur task PID: %d, FD: %d\n", pid, fd);
         return -1;
     }
     int cgrp_id = memory_cgrp_id;
     const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
-    bpf_printk("kprobe/accept groupc name: %s\n", name);
 
-
-    // Get the ip & port
-    struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
     // Build the connect_event and save it to the map
     struct connect_event_t conn_event;
     __builtin_memset(&conn_event, 0, sizeof(conn_event));
@@ -99,9 +120,15 @@ int probe_accept4(struct pt_regs *ctx) {
     conn_event.pid = pid;
     conn_event.tid = current_pid_tgid;
     conn_event.fd = fd;
+    conn_event.src_host = src_addr.ip;
+    conn_event.src_port = src_addr.port;
+    conn_event.dest_host = 0;
+    conn_event.dest_port = 0;
     bpf_probe_read_str(&conn_event.cgroup, sizeof(conn_event.cgroup), name);
 
-    bpf_map_update_elem(&active_accept4_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
+    bpf_map_delete_elem(&active_accept4_args_map, &current_pid_tgid);
+    bpf_printk("kprobe/accept return: PID: %d, FD: %d", pid, fd);
+    bpf_ringbuf_output(&data_events, &conn_event, sizeof(struct connect_event_t), 0);
 
     return 0;
 }
@@ -117,8 +144,6 @@ int probe_connect(struct pt_regs *ctx) {
         return 0;
     }
 
-    // How the hell did I know to do this ctx2 trick here? Credits to kubearmor:
-    // https://github.com/kubearmor/KubeArmor/blob/main/KubeArmor/BPF/system_monitor.c#L1332
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
     // Get the socket file descriptor
@@ -128,68 +153,11 @@ int probe_connect(struct pt_regs *ctx) {
     struct sockaddr *saddr;
     bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
 
-    // Get the address family
-    sa_family_t address_family = 0;
-    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
-
-    if (address_family != AF_INET)
-        return 0;
-
-    // Get the ip & port
-    struct sockaddr_in *sin = (struct sockaddr_in *)saddr;
-
-    // Get the cgroup name
-    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
-    if (cur_tsk == NULL) {
-        bpf_printk("failed to get cur task\n");
-        return -1;
-    }
-    int cgrp_id = memory_cgrp_id;
-    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
-    bpf_printk("kprobe/connect groupc name: %s\n", name);
-
     // Build the connect_event and save it to the map
-    struct connect_event_t conn_event;
-    __builtin_memset(&conn_event, 0, sizeof(conn_event));
-    conn_event.eventtype = eConnect;
-    conn_event.type = kConnect;
-    conn_event.timestamp_ns = bpf_ktime_get_ns();
-    conn_event.pid = pid;
-    conn_event.tid = current_pid_tgid;
-    conn_event.fd = fd;
-    bpf_probe_read_str(&conn_event.cgroup, sizeof(conn_event.cgroup), name);
-
-    bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &conn_event, BPF_ANY);
-
-    return 0;
-}
-
-
-SEC("kretprobe/accept4")
-int probe_ret_accept4(struct pt_regs *ctx) {
-    u64 current_pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = current_pid_tgid >> 32;
-
-    // Check the call to connect() was successful
-    int fd = (int)PT_REGS_RC(ctx);
-    if (fd < 0) {
-        return 0;
-    }
-
-    // Send entry data from map
-    struct connect_event_t *conn_event = bpf_map_lookup_elem(&active_accept4_args_map, &current_pid_tgid);
-    if (conn_event != NULL) {
-        // Deep copy the connect_event
-        struct connect_event_t conn_event2 = copy_connect_event(conn_event, fd);
-
-        // Build the conn_info and save it to the map
-        u64 key = gen_pid_fd(current_pid_tgid, fd);
-        bpf_map_update_elem(&conn_infos, &key, &conn_event2, BPF_ANY);
-        bpf_ringbuf_output(&data_events, &conn_event2, sizeof(struct connect_event_t), 0);
-        bpf_printk("kprobe/accept4: Set conn_info ID: %d, FD: %d, Key: %d", current_pid_tgid, fd, key);
-    }
-
-    bpf_map_delete_elem(&active_accept4_args_map, &current_pid_tgid);
+    struct accept_args_t connect_args = {};
+    connect_args.addr = (struct sockaddr_in *)saddr;
+    connect_args.fd = fd;
+    bpf_map_update_elem(&active_connect_args_map, &current_pid_tgid, &connect_args, BPF_ANY);
 
     return 0;
 }
@@ -199,30 +167,137 @@ int probe_ret_connect(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    // Check the call to connect() was successful
-    int res = (int)PT_REGS_RC(ctx);
-    if (res > 0)
+    // NOTE: we do not check if return value is successful because it might be EINPROGRESS which we still want to track
+    struct accept_args_t* connect_args = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
+    if (connect_args == NULL) {
         return 0;
-
-    // Send entry data from map
-    struct connect_event_t *conn_event = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
-
-    if (conn_event != NULL) {
-        // Deep copy the connect_event
-        struct connect_event_t conn_event2 = copy_connect_event(conn_event, conn_event->fd);
-
-        // Build the conn_info and save it to the map
-        u64 key = gen_pid_fd(current_pid_tgid, conn_event2.fd);
-        bpf_map_update_elem(&conn_infos, &key, &conn_event2, BPF_ANY);
-        bpf_ringbuf_output(&data_events, &conn_event2, sizeof(struct connect_event_t), 0);
-        bpf_printk("kprobe/connect: Set conn_info PID: %d FD: %d, Key: %d", pid, conn_event2.fd, key);
     }
 
+    // Get the IP of the container which this requests originates from
+    u32 src_ip = should_intercept();
+
+    // Get the source IP & port
+    struct addr_t dest_addr = {};
+    parse_address(&dest_addr, connect_args);
+
+    // Get the cgroup name
+    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
+    if (cur_tsk == NULL) {
+        bpf_printk("failed to get cur task\n");
+        return -1;
+    }
+    int cgrp_id = memory_cgrp_id;
+    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
+
+    // Build the connect_event and save it to the map
+    struct connect_event_t conn_event;
+    __builtin_memset(&conn_event, 0, sizeof(conn_event));
+    conn_event.eventtype = eConnect;
+    conn_event.type = kConnect;
+    conn_event.timestamp_ns = bpf_ktime_get_ns();
+    conn_event.pid = pid;
+    conn_event.tid = current_pid_tgid;
+    conn_event.fd = connect_args->fd;
+    conn_event.src_host = src_ip;
+    conn_event.src_port = 0;
+    conn_event.dest_host = dest_addr.ip;
+    conn_event.dest_port = dest_addr.port;
+    bpf_probe_read_str(&conn_event.cgroup, sizeof(conn_event.cgroup), name);
+
+    bpf_ringbuf_output(&data_events, &conn_event, sizeof(struct connect_event_t), 0);
     bpf_map_delete_elem(&active_connect_args_map, &current_pid_tgid);
+    bpf_printk("kprobe/connect: return PID: %d, FD: %d, IP: %d Port: %x", pid, connect_args->fd, dest_addr.ip, dest_addr.port);
 
     return 0;
 }
 
+// https://linux.die.net/man/3/getsockname
+// int getsockname(int socket, struct sockaddr *restrict address, socklen_t *restrict address_len);
+SEC("kprobe/getsockname")
+int probe_getsockname(struct pt_regs *ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    if (!should_intercept()) {
+        return 0;
+    }
+    struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
+
+    // Get the socket file descriptor
+    int fd;
+    bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
+
+    struct sockaddr *saddr;
+    bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
+
+    struct accept_args_t getsockname_args = {};
+    getsockname_args.addr = (struct sockaddr_in *)saddr;
+    getsockname_args.fd = fd;
+    bpf_map_update_elem(&active_getsockname_args_map, &current_pid_tgid, &getsockname_args, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kretprobe/getsockname")
+int probe_ret_getsockname(struct pt_regs *ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    if (!should_intercept()) {
+        return 0;
+    }
+
+    struct accept_args_t* getsockname_args = bpf_map_lookup_elem(&active_getsockname_args_map, &current_pid_tgid);
+    if (getsockname_args == NULL) {
+        return 0;
+    }
+
+    // Get the IP address and port
+    u32 ip_addr = 0;
+    u16 port = 0;
+    struct sockaddr_in sin = {};
+    struct sockaddr_in6 sin6 = {};
+
+    // Read the address based on the sa_family
+    struct sockaddr* saddr = (struct sockaddr *) getsockname_args->addr;
+    sa_family_t address_family = 0;
+    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
+
+    if (address_family == AF_INET) {
+        bpf_probe_read(&sin, sizeof(sin), getsockname_args->addr);
+        ip_addr = sin.sin_addr.s_addr;
+        port = sin.sin_port;
+    } else if (address_family == AF_INET6) {
+        bpf_probe_read(&sin6, sizeof(sin6), getsockname_args->addr);
+        port = sin6.sin6_port;
+        u8 ipv6_addr[16];
+        bpf_probe_read(&ipv6_addr, sizeof(ipv6_addr), &sin6.sin6_addr);
+
+        // Check if it's an IPv4-mapped IPv6 address (::ffff:0:0/96 prefix)
+        if (ipv6_addr[0] == 0 && ipv6_addr[1] == 0 && ipv6_addr[2] == 0 && ipv6_addr[3] == 0 &&
+            ipv6_addr[4] == 0 && ipv6_addr[5] == 0 && ipv6_addr[6] == 0 && ipv6_addr[7] == 0 &&
+            ipv6_addr[8] == 0 && ipv6_addr[9] == 0 && ipv6_addr[10] == 0xff && ipv6_addr[11] == 0xff) {
+            // Extract the IPv4 address from the last 4 bytes
+            ip_addr = *(u32 *)&ipv6_addr[12];
+        }
+    }
+
+    // Deep copy the connect_event
+    struct getsockname_event_t sock_event;
+    __builtin_memset(&sock_event, 0, sizeof(sock_event));
+    sock_event.eventtype = eGetsockname;
+    sock_event.timestamp_ns = bpf_ktime_get_ns();
+    sock_event.pid = pid;
+    sock_event.tid = current_pid_tgid;
+    sock_event.fd = getsockname_args->fd;
+    sock_event.host = ip_addr;
+    sock_event.port = port;
+
+    bpf_ringbuf_output(&data_events, &sock_event, sizeof(struct getsockname_event_t), 0);
+    bpf_printk("kprobe/getsockname: return PID: %d, FD: %d, IP: %d Port: %x", pid, getsockname_args->fd, ip_addr, port);
+
+   return 0;
+}
 
 // https://linux.die.net/man/3/close
 // int connect(int fd);
@@ -268,16 +343,13 @@ int probe_ret_close(struct pt_regs *ctx) {
     // Send entry data from map
     struct close_event_t *close_event = bpf_map_lookup_elem(&active_close_args_map, &current_pid_tgid);
 
-    if (close_event != NULL) {
-        bpf_ringbuf_output(&data_events, close_event, sizeof(struct close_event_t), 0);
-        bpf_printk("kprobe/close FD: %d", close_event->fd);
-
-        u64 key = gen_pid_fd(current_pid_tgid, close_event->fd);
-        bpf_map_delete_elem(&conn_infos, &key);
+    if (close_event == NULL) {
+        return 0;
     }
 
+    bpf_ringbuf_output(&data_events, close_event, sizeof(struct close_event_t), 0);
+    bpf_printk("kprobe/close FD: %d", close_event->fd);
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
-    // bpf_map_delete_elem(&fd_map, &current_pid_tgid);
 
     return 0;
 }

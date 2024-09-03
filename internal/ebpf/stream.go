@@ -115,6 +115,11 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 	}
 	stream.libSSLVersionsMap = libSSLVersionsMap
 
+	// colours
+	red := "\033[35m"
+	cyan := "\033[36m"
+	reset := "\033[0m"
+
 	for {
 		// Check if the interrupt signal has been received
 		select {
@@ -129,10 +134,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 				event := events.ConnectEvent{}
 				event.Decode(payload)
 
-				cyan := "\033[36m"
-				reset := "\033[0m"
-				fmt.Println(string(cyan), "[ConnectEvent]", string(reset), " Received ", len(payload), "bytes", "PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, "type:", event.TypeStr(), ", cgroup:", event.CGroupName())
-				// fmt.Print(hex.Dump(payload))
+				fmt.Printf("%s[ConnectEvent]%s PID: %d, TID: %d, FD: %d, source: %s, %s=>%s cgroup: %s\n", cyan, reset, event.PID, event.TID, event.FD, event.TypeStr(), event.SourceAddr(), event.DestAddr(), event.CGroupName())
 				outputChan <- &event
 
 				// events.DataEvent
@@ -153,18 +155,23 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 			} else if eventType == 2 {
 				event := events.CloseEvent{}
 				event.Decode(payload)
-				red := "\033[35m"
-				reset := "\033[0m"
 
-				fmt.Println(string(red), "[events.CloseEvent]", string(reset), " PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
+				fmt.Println(string(red), "[CloseEvent]", string(reset), " PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
 				outputChan <- &event
 
 				// DebugEvent
 			} else if eventType == 3 {
 				event := events.DebugEvent{}
 				event.Decode(payload)
+
 				fmt.Println("\n[DebugEvent] Received, PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, " - ", string(event.Payload()))
 				fmt.Print(hex.Dump(payload))
+			} else if eventType == 4 {
+				event := events.GetsocknameEvent{}
+				event.Decode(payload)
+
+				fmt.Printf("%s[GetsocknameEvent]%s PID: %d, TID: %d, FD: %d, %s\n", cyan, reset, event.PID, event.TID, event.FD, event.Addr())
+				outputChan <- &event
 			}
 		}
 	}
@@ -232,7 +239,7 @@ func (stream *Stream) containerOpened(container docker.Container) {
 		key1 := djb2(cgroupName1)
 		cgroupName2 := container.ID // important to copy-by-value
 		key2 := djb2(cgroupName2)
-		value := uint32(1)
+		value := container.IP
 
 		stream.cgroupMap.Update(unsafe.Pointer(&key1), unsafe.Pointer(&value))
 		stream.cgroupMap.Update(unsafe.Pointer(&key2), unsafe.Pointer(&value))
@@ -303,14 +310,15 @@ func (stream *Stream) Close() {
 
 func (stream *Stream) attachKProbes() {
 	kprobes := map[string][]string{
-		"sys_accept":   []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_accept4":  []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_connect":  []string{"probe_connect", "probe_ret_connect"},
-		"sys_close":    []string{"probe_close", "probe_ret_close"},
-		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
-		"sys_recvfrom": []string{"probe_recvfrom", "probe_ret_recvfrom"},
-		"sys_write":    []string{"probe_write", "probe_ret_write"},
-		"sys_read":     []string{"probe_read", "probe_ret_read"},
+		"sys_accept":      []string{"probe_accept4", "probe_ret_accept4"},
+		"sys_accept4":     []string{"probe_accept4", "probe_ret_accept4"},
+		"sys_connect":     []string{"probe_connect", "probe_ret_connect"},
+		"sys_getsockname": []string{"probe_getsockname", "probe_ret_getsockname"},
+		"sys_close":       []string{"probe_close", "probe_ret_close"},
+		"sys_sendto":      []string{"probe_sendto", "probe_ret_sendto"},
+		"sys_recvfrom":    []string{"probe_recvfrom", "probe_ret_recvfrom"},
+		"sys_write":       []string{"probe_write", "probe_ret_write"},
+		"sys_read":        []string{"probe_read", "probe_ret_read"},
 	}
 	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
 	// security_socket_sendmsg & security_socket_recvmsg

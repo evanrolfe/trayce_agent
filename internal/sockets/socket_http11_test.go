@@ -28,7 +28,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 	gzip1Payload, _ := hexDumpToBytes(gzipEvent1)
 	gzip2Payload, _ := hexDumpToBytes(gzipEvent2)
 
-	Context("Receiving a Connect, Data (request) events", Ordered, func() {
+	Context("Receiving a Connect, Getsockname, Data (request) events", Ordered, func() {
 		var flows []*sockets.Flow
 		payloads := [][]byte{
 			event1Payload,
@@ -36,9 +36,20 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -60,7 +71,66 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows).To(HaveLen(1))
 
 			flow := flows[0]
-			// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+			Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+			Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("http"))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
+		})
+
+		It("the flow contains the HTTP request", func() {
+			flow := flows[0]
+			Expect(flow.Request).To(Equal(event1Payload))
+			Expect(flow.Response).To(BeNil())
+		})
+	})
+
+	Context("Receiving a Connect, Data (request), Getsockname, events", Ordered, func() {
+		var flows []*sockets.Flow
+		payloads := [][]byte{
+			event1Payload,
+		}
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
+			})
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			for _, payload := range payloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 1, // TODO: Use the constant from bpf_events kSSLWrite
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+		})
+
+		It("returns a flow", func() {
+			Expect(flows).To(HaveLen(1))
+
+			flow := flows[0]
+			Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+			Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http"))
 			Expect(flow.PID).To(Equal(123))
@@ -82,9 +152,20 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -120,7 +201,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
-				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
 				Expect(flow.PID).To(Equal(123))
@@ -149,9 +231,20 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 0,
+				SourcePort: 0,
+				DestHost:   33558956,
+				DestPort:   1234,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -173,7 +266,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
-				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.SourceAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.DestAddr).To(Equal("172.17.0.2:1234"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
 				Expect(flow.PID).To(Equal(123))
@@ -198,9 +292,20 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -235,7 +340,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
-				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
 				Expect(flow.PID).To(Equal(123))
@@ -268,9 +374,20 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -303,7 +420,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
-				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
 				Expect(flow.PID).To(Equal(123))
@@ -330,9 +448,20 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		BeforeAll(func() {
 			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
@@ -362,7 +491,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
-				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
 				Expect(flow.PID).To(Equal(123))

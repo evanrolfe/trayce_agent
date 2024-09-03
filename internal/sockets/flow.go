@@ -7,8 +7,8 @@ import (
 // Flow represents an exchange of data over a socket in the form of request + response.
 type Flow struct {
 	UUID       string
-	LocalAddr  string
-	RemoteAddr string
+	SourceAddr string
+	DestAddr   string
 	L4Protocol string
 	L7Protocol string
 	Request    []byte
@@ -20,8 +20,8 @@ type Flow struct {
 func NewFlow(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request []byte) *Flow {
 	m := &Flow{
 		UUID:       uuid,
-		LocalAddr:  localAddr,
-		RemoteAddr: remoteAddr,
+		SourceAddr: localAddr,
+		DestAddr:   remoteAddr,
 		L4Protocol: l4protocol,
 		L7Protocol: l7protocol,
 		PID:        pid,
@@ -35,8 +35,8 @@ func NewFlow(uuid string, localAddr string, remoteAddr string, l4protocol string
 func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, response []byte) *Flow {
 	m := &Flow{
 		UUID:       uuid,
-		LocalAddr:  localAddr,
-		RemoteAddr: remoteAddr,
+		SourceAddr: localAddr,
+		DestAddr:   remoteAddr,
 		L4Protocol: l4protocol,
 		L7Protocol: l7protocol,
 		PID:        pid,
@@ -49,8 +49,8 @@ func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protoco
 func (flow *Flow) Clone() Flow {
 	m := Flow{
 		UUID:       flow.UUID,
-		LocalAddr:  flow.LocalAddr,
-		RemoteAddr: flow.RemoteAddr,
+		SourceAddr: flow.SourceAddr,
+		DestAddr:   flow.DestAddr,
 		L4Protocol: flow.L4Protocol,
 		L7Protocol: flow.L7Protocol,
 		PID:        flow.PID,
@@ -62,7 +62,7 @@ func (flow *Flow) Clone() Flow {
 }
 
 func (flow *Flow) Complete() bool {
-	return flow.L4Protocol != "" && flow.L7Protocol != "" && flow.RemoteAddr != ""
+	return flow.L4Protocol != "" && flow.L7Protocol != "" && flow.DestAddr != ""
 }
 
 func (flow *Flow) AddResponse(response []byte) {

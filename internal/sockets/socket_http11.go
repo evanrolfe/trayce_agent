@@ -17,8 +17,8 @@ import (
 )
 
 type SocketHttp11 struct {
-	LocalAddr  string
-	RemoteAddr string
+	SourceAddr string
+	DestAddr   string
 	Protocol   string
 	PID        uint32
 	TID        uint32
@@ -28,13 +28,16 @@ type SocketHttp11 struct {
 	dataBuf []byte
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
+	// The flows are buffered until a GetsocknameEvent is received which sets the source/dest address on the flows
+	flowBuf []Flow
 	// When a request is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
 }
 
 func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 	socket := SocketHttp11{
-		LocalAddr:   "unknown",
+		SourceAddr:  event.SourceAddr(),
+		DestAddr:    event.DestAddr(),
 		PID:         event.PID,
 		TID:         event.TID,
 		FD:          event.FD,
@@ -43,16 +46,13 @@ func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 		requestUuid: "",
 	}
 
-	socket.LocalAddr = ""  // TODO
-	socket.RemoteAddr = "" // TODO
-
 	return socket
 }
 
 func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 	socket := SocketHttp11{
-		LocalAddr:   unkownSocket.LocalAddr,
-		RemoteAddr:  unkownSocket.RemoteAddr,
+		SourceAddr:  unkownSocket.SourceAddr,
+		DestAddr:    unkownSocket.DestAddr,
 		PID:         unkownSocket.PID,
 		TID:         unkownSocket.TID,
 		FD:          unkownSocket.FD,
@@ -78,8 +78,17 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
 func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
-	socket.LocalAddr = ""  // TODO
-	socket.RemoteAddr = "" // TODO
+
+}
+
+func (socket *SocketHttp11) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
+	if socket.SourceAddr == ZeroAddr {
+		socket.SourceAddr = event.Addr()
+	} else if socket.DestAddr == ZeroAddr {
+		socket.DestAddr = event.Addr()
+	}
+
+	socket.releaseFlows()
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
@@ -112,8 +121,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 		fmt.Println("[SocketHttp1.1] HTTP request complete")
 		flow := NewFlow(
 			socket.requestUuid,
-			socket.LocalAddr,
-			socket.RemoteAddr,
+			socket.SourceAddr,
+			socket.DestAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
 			int(socket.PID),
@@ -136,8 +145,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
 		flow := NewFlowResponse(
 			socket.requestUuid,
-			socket.LocalAddr,
-			socket.RemoteAddr,
+			socket.SourceAddr,
+			socket.DestAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
 			int(socket.PID),
@@ -152,10 +161,28 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	}
 }
 
+func (socket *SocketHttp11) releaseFlows() {
+	for _, flow := range socket.flowBuf {
+		socket.sendFlowBack(flow)
+	}
+
+	socket.flowBuf = []Flow{}
+}
+
 func (socket *SocketHttp11) sendFlowBack(flow Flow) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
-	fmt.Printf("%s[Flow]%s Local: %s, Remote: %s, UUID: %s\n", blackOnYellow, reset, flow.LocalAddr, flow.RemoteAddr, flow.UUID)
+
+	if socket.DestAddr == ZeroAddr || socket.SourceAddr == ZeroAddr {
+		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
+		socket.flowBuf = append(socket.flowBuf, flow)
+		return
+	}
+
+	flow.SourceAddr = socket.SourceAddr
+	flow.DestAddr = socket.DestAddr
+
+	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
 	flow.Debug()
 
 	for _, callback := range socket.flowCallbacks {

@@ -23,9 +23,20 @@ var _ = Describe("SocketMap", func() {
 				flows = append(flows, &flowFromCb)
 			})
 			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socketsMap.ProcessGetsocknameEvent(events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 			socketsMap.ProcessDataEvent(events.DataEvent{
 				PID:      123,
@@ -98,9 +109,20 @@ var _ = Describe("SocketMap", func() {
 				flows = append(flows, &flowFromCb)
 			})
 			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				PID: 123,
-				TID: 123,
-				FD:  5,
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socketsMap.ProcessGetsocknameEvent(events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
 			})
 
 			for _, payload := range payloads {

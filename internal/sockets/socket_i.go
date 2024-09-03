@@ -9,5 +9,6 @@ type SocketI interface {
 	AddFlowCallback(callback func(Flow))
 	ProcessConnectEvent(event *events.ConnectEvent)
 	ProcessDataEvent(event *events.DataEvent)
+	ProcessGetsocknameEvent(event *events.GetsocknameEvent)
 	Clear()
 }

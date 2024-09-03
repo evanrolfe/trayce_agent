@@ -26,7 +26,6 @@ type Containers struct {
 
 type Proc struct {
 	PID           uint32
-	IP            uint32
 	ContainerId   string
 	ExecPath      string
 	LibSSLVersion int
@@ -82,8 +81,6 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 			continue
 		}
 
-		ip := ipStringToUint32(extractIP(container))
-
 		containerFSPath := fmt.Sprintf("/proc/%v/root", container.State.Pid)
 		libSSL := c.getLibSSL(containerId, containerFSPath)
 
@@ -105,7 +102,6 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 				// This will happen for short-lived requests
 				procs[uint32(pid)] = Proc{
 					PID:           uint32(pid),
-					IP:            ip,
 					ExecPath:      "",
 					LibSSLVersion: libSSL.Version,
 					LibSSLPath:    libSSL.Path,
@@ -124,7 +120,6 @@ func (c *Containers) GetProcsToIntercept() map[uint32]Proc {
 
 			procs[uint32(pid)] = Proc{
 				PID:           uint32(pid),
-				IP:            ip,
 				ExecPath:      execPathHost,
 				LibSSLVersion: libSSL.Version,
 				LibSSLPath:    libSSL.Path,
@@ -268,8 +263,8 @@ func ipStringToUint32(ipStr string) uint32 {
 		return 0
 	}
 
-	// Convert the 4-byte slice to a uint32
-	ipUint32 := uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
+	// Convert the 4-byte slice to a uint32 (little-endian)
+	ipUint32 := uint32(ip[0]) | uint32(ip[1])<<8 | uint32(ip[2])<<16 | uint32(ip[3])<<24
 
 	return ipUint32
 }
