@@ -46,9 +46,6 @@ func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 		requestUuid: "",
 	}
 
-	socket.SourceAddr = "" // TODO
-	socket.DestAddr = ""   // TODO
-
 	return socket
 }
 
@@ -85,9 +82,9 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
 func (socket *SocketHttp11) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	if socket.SourceAddr == "0.0.0.0:0" {
+	if socket.SourceAddr == ZeroAddr {
 		socket.SourceAddr = event.Addr()
-	} else if socket.DestAddr == "0.0.0.0:0" {
+	} else if socket.DestAddr == ZeroAddr {
 		socket.DestAddr = event.Addr()
 	}
 
@@ -176,7 +173,7 @@ func (socket *SocketHttp11) sendFlowBack(flow Flow) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
 
-	if socket.DestAddr == "0.0.0.0:0" || socket.SourceAddr == "0.0.0.0:0" {
+	if socket.DestAddr == ZeroAddr || socket.SourceAddr == ZeroAddr {
 		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
 		socket.flowBuf = append(socket.flowBuf, flow)
 		return

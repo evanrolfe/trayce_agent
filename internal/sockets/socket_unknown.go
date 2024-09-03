@@ -52,9 +52,9 @@ func (socket *SocketUnknown) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
 func (socket *SocketUnknown) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	if socket.SourceAddr == "0.0.0.0:0" {
+	if socket.SourceAddr == ZeroAddr {
 		socket.SourceAddr = event.Addr()
-	} else if socket.DestAddr == "0.0.0.0:0" {
+	} else if socket.DestAddr == ZeroAddr {
 		socket.DestAddr = event.Addr()
 	}
 }

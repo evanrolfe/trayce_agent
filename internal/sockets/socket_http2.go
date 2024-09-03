@@ -38,7 +38,6 @@ func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 		frameBuffer: map[string][]byte{},
 		flowBuf:     []Flow{},
 	}
-
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
 
@@ -57,7 +56,6 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 		frameBuffer: map[string][]byte{},
 		flowBuf:     []Flow{},
 	}
-	fmt.Println("!!!!!!!!!!!! NEW HTTP2 Source:", socket.SourceAddr, "Dest:", socket.DestAddr)
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
 
@@ -82,13 +80,10 @@ func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
 func (socket *SocketHttp2) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	fmt.Println("!!!!!!!!!!!! HTTP2 Source:", socket.SourceAddr, "Dest:", socket.DestAddr)
-	if socket.SourceAddr == "0.0.0.0:0" {
+	if socket.SourceAddr == ZeroAddr {
 		socket.SourceAddr = event.Addr()
-		fmt.Println("!!!!!!!!!!!! HTTP2 set Source:", event.Addr())
-	} else if socket.DestAddr == "0.0.0.0:0" {
+	} else if socket.DestAddr == ZeroAddr {
 		socket.DestAddr = event.Addr()
-		fmt.Println("!!!!!!!!!!!! HTTP2 set Dest:", event.Addr())
 	}
 
 	socket.releaseFlows()
@@ -167,7 +162,7 @@ func (socket *SocketHttp2) sendFlowBack(flow Flow) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
 
-	if socket.DestAddr == "0.0.0.0:0" || socket.SourceAddr == "0.0.0.0:0" {
+	if socket.DestAddr == ZeroAddr || socket.SourceAddr == ZeroAddr {
 		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
 		socket.flowBuf = append(socket.flowBuf, flow)
 		return
