@@ -38,7 +38,6 @@ var _ = Describe("Stream", func() {
 		}
 		proc1 = docker.Proc{
 			PID:           uint32(123),
-			IP:            uint32(2886795266),
 			ContainerId:   container1.ID,
 			ExecPath:      "/home/myserver",
 			LibSSLVersion: 3,
@@ -46,7 +45,6 @@ var _ = Describe("Stream", func() {
 		}
 		proc2 = docker.Proc{
 			PID:           uint32(124),
-			IP:            uint32(2886795267),
 			ContainerId:   container2.ID,
 			ExecPath:      "/home/apache",
 			LibSSLVersion: 3,
@@ -54,7 +52,6 @@ var _ = Describe("Stream", func() {
 		}
 		proc3 = docker.Proc{
 			PID:           uint32(125),
-			IP:            uint32(2886795266),
 			ContainerId:   container1.ID,
 			ExecPath:      "/home/myserver", // Important that this has the same path as proc1, but different PID
 			LibSSLVersion: 3,

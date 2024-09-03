@@ -167,17 +167,18 @@ int probe_ret_connect(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
+    // NOTE: we do not check if return value is successful because it might be EINPROGRESS which we still want to track
     struct accept_args_t* connect_args = bpf_map_lookup_elem(&active_connect_args_map, &current_pid_tgid);
     if (connect_args == NULL) {
         return 0;
     }
-    // NOTE: we do not check if return value is successful because it might be EINPROGRESS which we still want to track
 
-    // Get the source IP & port
+    // Get the IP of the container which this requests originates from
+    u32 src_ip = should_intercept();
+
     // Get the source IP & port
     struct addr_t dest_addr = {};
     parse_address(&dest_addr, connect_args);
-
 
     // Get the cgroup name
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
@@ -197,8 +198,8 @@ int probe_ret_connect(struct pt_regs *ctx) {
     conn_event.pid = pid;
     conn_event.tid = current_pid_tgid;
     conn_event.fd = connect_args->fd;
-    conn_event.src_host = 1;
-    conn_event.src_port = 2;
+    conn_event.src_host = src_ip;
+    conn_event.src_port = 0;
     conn_event.dest_host = dest_addr.ip;
     conn_event.dest_port = dest_addr.port;
     bpf_probe_read_str(&conn_event.cgroup, sizeof(conn_event.cgroup), name);

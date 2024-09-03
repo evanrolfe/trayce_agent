@@ -239,7 +239,7 @@ func (stream *Stream) containerOpened(container docker.Container) {
 		key1 := djb2(cgroupName1)
 		cgroupName2 := container.ID // important to copy-by-value
 		key2 := djb2(cgroupName2)
-		value := uint32(1)
+		value := container.IP
 
 		stream.cgroupMap.Update(unsafe.Pointer(&key1), unsafe.Pointer(&value))
 		stream.cgroupMap.Update(unsafe.Pointer(&key2), unsafe.Pointer(&value))

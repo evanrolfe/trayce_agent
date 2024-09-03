@@ -383,9 +383,10 @@ static __inline u64 hash_string(const char *str, int length) {
     return hash;
 }
 
-// compare the djb2 hash of the cgroup with whats in the map, we use a hash because string comparison and substring operations
+// should_intercept returns the IP of the container being intercepted, or zero if it is not to be intercepted.
+// It compares the djb2 hash of the cgroup with whats in the map, we use a hash because string comparison and substring operations
 // are tricky in ebpf given the max 512 byte stack size
-static __inline int should_intercept() {
+static __inline u32 should_intercept() {
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
     if (cur_tsk == NULL) {
         return -1;
@@ -397,9 +398,9 @@ static __inline int should_intercept() {
     bpf_probe_read_str(&cgroupname, sizeof(cgroupname), name);
 
     u64 hash = hash_string(cgroupname, CGROUP_LEN);
-    u32 *intercepted = bpf_map_lookup_elem(&cgroup_name_hashes, &hash);
-    if (intercepted != NULL) {
-        return 1;
+    u32 *container_ip = bpf_map_lookup_elem(&cgroup_name_hashes, &hash);
+    if (container_ip != NULL) {
+        return *container_ip;
     }
 
     return 0;

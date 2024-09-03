@@ -16,6 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	mockHttpPort  = 4122
+	mockHttpsPort = 4123
+	grpcPort      = 50051
+)
+
 // Test_agent_client tests requests made from this container to another server, it listens to the server
 func Test_agent_server(t *testing.T) {
 	// Handle command line args
@@ -284,7 +290,7 @@ func Test_agent_server(t *testing.T) {
 			// if err != nil {
 			// 	fmt.Println("Error writing to file:", err)
 			// }
-			// fmt.Println(stdoutBuf.String())
+			fmt.Println(stdoutBuf.String())
 
 			// Verify the result
 			assert.Equal(t, expectedNumFlows*multiplier, len(flows))
