@@ -1,32 +1,45 @@
 # Implementation Details
 
-**Overview**
+Network traffic is captured using a combination of eBPF kprobes and uprobes which send events from kernel-space to user-space (Go). In user-space the events are using to build up a `SocketMap` which contains the details of each socket, each socket in the `SocketMap` collects data sent kernel-space until a complete HTTP1.1 or HTTP2 has been gather, at which point it sends the Flow to the GUI over GRPC.
 
-Network traffic is captured using a combination of eBPF kprobes and uprobes. `kprobe/accept4` (for incoming) or `kprobe/connect` (for outgoing) are called when a new connection is opened, the kprobe sends the connection to the user-space Go program which creatse a new socket in the `SocketMap`. When `kprobe/close` is called, the socket is deleted from the `SocketMap`. The remaining kprobes and uprobes (for OpenSSL-encrypted or Go crypto/tls traffic) are used to read the data that is sent or received over the connection, the data also gets sent to userspace and is stored on its socket from `SocketMap` if it exists.
+The eBPF probes and their uses are listed below:
+- **kprobe/accept4:** indicates an incoming connection has been opened, sends a `ConnectEvent` to Go which creates a socket in `SocketMap`
+- **kprobe/connect:** indicates an outgoing connection has been opened, sends a `ConnectEvent` to Go which creates a socket in `SocketMap`
+- **kprobe/getsockname:** sends a `GetsocknameEvent` to Go which is used to populate the source/dest address of a socket in `SocketMap`
+- **kprobe/close:** indicates a connection has been closed, sends a `CloseEvent` which deletes a socket (if it exists) from the `SocketMap`
+- **kprobe/sendto:** indicates data has been sent over a non-encrypted connection, sends a `DataEvent` which collects the data in a socket from `SocketMap` (if it exists)
+- **kprobe/recvfrom:** see above
+- **kprobe/write:** see above
+- **kprobe/read:** see above
+- **uprobe/SSL_read:** indicates data has been sent over an encrypted connection, sends a `DataEvent` which collects the data in a socket from `SocketMap` (if it exists)
+- **uprobe/SSL_write:** see above
+- **uprobe/SSL_write_ex:** see above
+- **uprobe/SSL_read_ex:** see above
 
 For non-TLS HTTP traffic, only the kprobes are used. Requests and responses are sent from eBPF to user-space in the form of a `DataEvent`. They are then processed by the `SocketMap`. As soon as a `DataEvent` is received containing a string which identifies the protocol in use (i.e. HTTP1.1 or HTTP2), then the socket is upgraded from `SocketUnknown` to `SocketHTTP11` or `SocketHTTP2`. After the upgrade it will be able to parse a stream of `DataEvent` into Request/Response Flows which are sent over GRPC to the GUI.
 
-![](https://github.com/evanrolfe/trayce_agent/blob/main/docs/non_tls_traffic.png)
+![](https://github.com/evanrolfe/trayce_agent/blob/main/docs/img/non_tls_traffic.png)
 
-For TLS-encrypted HTTP traffic (OpenSSL), the `accept4`, `connect` and `close` kprobes are used along with uprobes for the OpenSSL library calls (`SSL_read`/`SSL_read_ex`/`SSL_write`/`SSL_write_ex`). As soon as a `DataEvent` is received from a probe indicating encrypted traffic, the socket in the SocketMap is marked as `SSl=true` and all future `DataEvent`s coming from kprobes are ignored so that it does not try to process encrypted data.
+For TLS-encrypted HTTP traffic by OpenSSL, uprobes for the OpenSSL library calls (`SSL_read`/`SSL_read_ex`/`SSL_write`/`SSL_write_ex`) are using to collect the un-ecrypted data being sent & received. As soon as a `DataEvent` is received from a probe indicating encrypted traffic, the socket in the `SocketMap` is marked as `SSl=true` and all future `DataEvent`s coming from kprobes are ignored so that it does not try to process encrypted data.
 
-For TLS-encrypted HTTP traffic (Go), the `accept4`, `connect` and `close` kprobes are used along with uprobes for the `crypto/tls.(*Conn).Write` and `crypto/tls.(*Conn).Read` functions in Go's `crypto/tls` package.
+For TLS-encrypted HTTP traffic by Go's `crypto/tls` package, uprobes for the functions `crypto/tls.(*Conn).Write` and `crypto/tls.(*Conn).Read` are attached to the running process. These uprobes send `DataEvents` which contain the unecrypted data. It also marks the socket with `SSl=true`.
 
 **eBPF Probes**
 
-Probe               | Python | Python TLS | Ruby | Ruby TLS | Go | Go TLS
---------------------|--------|------------|------|----------|----|-------
-kprobe/accept4      | X      | X          | X    | X        | X  | X
-kprobe/connect      | X      | X          | X    | X        | X  | X
-kprobe/close        | X      | X          | X    | X        | X  | X
-kprobe/sendto       | X      | .          | X    | .        | .  | .
-kprobe/recvfrom     | X      | .          | X    | .        | .  | .
-kprobe/write        | .      | .          | .    | .        | X  | .
-kprobe/read         | .      | .          | .    | .        | X  | .
-uprobe/SSL_read     | .      | .          | .    | X        | .  | .
-uprobe/SSL_write    | .      | .          | .    | X        | .  | .
-uprobe/SSL_write_ex | .      | X          | .    | .        | .  | .
-uprobe/SSL_read_ex  | .      | X          | .    | .        | .  | .
+|        Probe        | Python | Python TLS | Ruby | Ruby TLS | Go  | Go TLS |
+| ------------------- | ------ | ---------- | ---- | -------- | --- | ------ |
+| kprobe/accept4      | X      | X          | X    | X        | X   | X      |
+| kprobe/connect      | X      | X          | X    | X        | X   | X      |
+| kprobe/getsockname  | X      | X          | X    | X        | X   | X      |
+| kprobe/close        | X      | X          | X    | X        | X   | X      |
+| kprobe/sendto       | X      | .          | X    | .        | .   | .      |
+| kprobe/recvfrom     | X      | .          | X    | .        | .   | .      |
+| kprobe/write        | .      | .          | .    | .        | X   | .      |
+| kprobe/read         | .      | .          | .    | .        | X   | .      |
+| uprobe/SSL_read     | .      | .          | .    | X        | .   | .      |
+| uprobe/SSL_write    | .      | .          | .    | X        | .   | .      |
+| uprobe/SSL_write_ex | .      | X          | .    | .        | .   | .      |
+| uprobe/SSL_read_ex  | .      | X          | .    | .        | .   | .      |
 
 **Trayce Agent Go Implementation**
 
@@ -48,3 +61,5 @@ Connections are stored in the `SocketMap` using their PID and FD (file descripto
 - in `kprobe/recvfrom` the FD is set on the `fd_map` using `current_pid_tgid` key
 - in `uprobe/SSL_Read` the FD is fetched from `fd_map` (see `get_fd_from_libssl_read()`) and the saved again to `ssl_fd_map` using the `ssl` pointer num as key
 - in `uprobe/SSL_Write` the FD is fetched from `ssl_fd_map` since `SSL_Read` and `SSL_Write` both have the same pointer to the `ssl` arg
+
+![](https://github.com/evanrolfe/trayce_agent/blob/main/docs/img/fd_map.png)

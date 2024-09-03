@@ -148,6 +148,7 @@ struct offsets {
     __u64 go_fd_offset;
 };
 
+// TODO: Rename this to be more generic
 struct accept_args_t {
     struct sockaddr_in* addr;
     int fd;
@@ -445,22 +446,3 @@ static __inline void parse_address(struct addr_t *result, struct accept_args_t* 
         }
     }
 }
-
-// check for sub string
-// int i = 0, j = 0;
-// for (i = 0; i < CGROUP_LEN && cgroupname[i] != '\0'; i++) {
-//     if (cgroupname[i] == substr[0]) {
-//         // Check the rest of the substring
-//         for (j = 0; j < 12 && substr[j] != '\0'; j++) {
-//             // If characters don't match or main string ends, break
-//             if (i + j >= CGROUP_LEN || cgroupname[i + j] != substr[j]) {
-//                 break;
-//             }
-//         }
-
-//         if (j == 12 && substr[j] == '\0') {
-//             bpf_printk("matched cgroup: %s", cgroupname);
-//             return 1;
-//         }
-//     }
-// }
