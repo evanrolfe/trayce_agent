@@ -8,7 +8,7 @@ service TrayceAgent {
     rpc SendFlowsObserved (Flows) returns (Reply) {}
 	rpc SendContainersObserved (Containers) returns (Reply) {}
     rpc SendAgentStarted (AgentStarted) returns (Reply) {}
-    rpc OpenCommandStream (stream NooP) returns (stream Command) {}
+    rpc OpenCommandStream (stream AgentStarted) returns (stream Command) {}
 }
 
 message Flow {
@@ -29,8 +29,9 @@ message Reply {
     string status = 1;
 }
 
-message AgentStarted {}
-message NooP {}
+message AgentStarted {
+	string version = 1;
+}
 
 message Command {
     string type = 1;

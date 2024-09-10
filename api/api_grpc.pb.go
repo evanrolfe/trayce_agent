@@ -73,7 +73,7 @@ func (c *trayceAgentClient) OpenCommandStream(ctx context.Context, opts ...grpc.
 }
 
 type TrayceAgent_OpenCommandStreamClient interface {
-	Send(*NooP) error
+	Send(*AgentStarted) error
 	Recv() (*Command, error)
 	grpc.ClientStream
 }
@@ -82,7 +82,7 @@ type trayceAgentOpenCommandStreamClient struct {
 	grpc.ClientStream
 }
 
-func (x *trayceAgentOpenCommandStreamClient) Send(m *NooP) error {
+func (x *trayceAgentOpenCommandStreamClient) Send(m *AgentStarted) error {
 	return x.ClientStream.SendMsg(m)
 }
 
@@ -194,7 +194,7 @@ func _TrayceAgent_OpenCommandStream_Handler(srv interface{}, stream grpc.ServerS
 
 type TrayceAgent_OpenCommandStreamServer interface {
 	Send(*Command) error
-	Recv() (*NooP, error)
+	Recv() (*AgentStarted, error)
 	grpc.ServerStream
 }
 
@@ -206,8 +206,8 @@ func (x *trayceAgentOpenCommandStreamServer) Send(m *Command) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *trayceAgentOpenCommandStreamServer) Recv() (*NooP, error) {
-	m := new(NooP)
+func (x *trayceAgentOpenCommandStreamServer) Recv() (*AgentStarted, error) {
+	m := new(AgentStarted)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}

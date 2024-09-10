@@ -190,7 +190,7 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 	}()
 
 	// Send a NooP to the stream so the server send back the settings
-	stream.Send(&api.NooP{})
+	stream.Send(&api.AgentStarted{Version: version})
 	fmt.Println("[GRPC] sent NooP to command stream")
 	// NOTE: This seems to block the entire thing if it doesn't receive the set_settings message from the server
 	for {
