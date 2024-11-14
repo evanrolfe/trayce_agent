@@ -13,7 +13,7 @@ class RootController < ApplicationController
   end
 
   def second_http
-    uri = URI.parse("http://www.example.com")
+    uri = URI.parse("http://trayce.dev")
     http = Net::HTTP.new(uri.host, uri.port)
     request = Net::HTTP::Get.new(uri.request_uri)
     response = http.request(request)
@@ -24,7 +24,7 @@ class RootController < ApplicationController
   end
 
   def second_https
-    uri = URI.parse("https://www.example.com")
+    uri = URI.parse("https://trayce.dev")
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = true
     request = Net::HTTP::Get.new(uri.request_uri)

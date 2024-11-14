@@ -39,6 +39,7 @@ func main() {
 	})
 
 	// Server
+	fmt.Println("Starting GRPC server on port", grpcPort)
 	err = grpcServer.Serve(lis)
 	if err != nil {
 		log.Fatalf("failed to serve: %v", err)

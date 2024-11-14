@@ -131,7 +131,7 @@ func serverHandlerSecondHTTP(w http.ResponseWriter, req *http.Request) {
 
 	reqID := req.Header.Get("X-Request-ID")
 
-	makeRequest("http://www.example.com")
+	makeRequest("http://trayce.dev")
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("X-Request-ID", reqID)
 
@@ -145,7 +145,7 @@ func serverHandlerSecondHTTPS(w http.ResponseWriter, req *http.Request) {
 
 	reqID := req.Header.Get("X-Request-ID")
 
-	makeRequest("http://www.example.com")
+	makeRequest("https://trayce.dev")
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("X-Request-ID", reqID)
 

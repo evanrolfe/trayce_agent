@@ -227,6 +227,14 @@ func Test_agent_server(t *testing.T) {
 			multiplier:  2,
 			loadtest:    true,
 		},
+		{
+			name:        "[Go] Server a GRPC message",
+			url:         fmt.Sprintf("grpc://%s:%d", megaserverIp, 50051),
+			numRequests: numRequests,
+			http2:       true,
+			verify:      func(t *testing.T, requests []*api.Flow) {},
+			loadtest:    false,
+		},
 		// TODO: Support NodeJS
 		// {
 		// 	name:   "[Node] Server an HTTPS/1.1 request",

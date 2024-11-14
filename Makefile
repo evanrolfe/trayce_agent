@@ -33,6 +33,12 @@ generate:
 # Generate the grpc code
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative api/api.proto
 
+# Generates the code for the grpc test server in mega_server
+generate-test:
+	go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
+	go build -o grpc_server ./cmd/grpc_server/
+	mv grpc_server test/mega_server/go/
+
 # Compile our Go binary using .output/main.bpf.o
 build: generate
 # Compile the Go app to our final executable ./trayce_agent

@@ -19,6 +19,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/http2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -137,37 +139,73 @@ func makeRequests(url string, ishttp2 bool, num int) {
 func makeRequest(i int, url string, ishttp2 bool, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	var client *http.Client
-	if ishttp2 {
-		// Setup HTTP/2 transport
-		client = &http.Client{
-			Transport: &http2.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
+	if url[0:4] == "grpc" {
+		makeGrpcRequest(url[7:])
+	} else if url[0:4] == "http" {
+		var client *http.Client
+		if ishttp2 {
+			// Setup HTTP/2 transport
+			client = &http.Client{
+				Transport: &http2.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				},
+			}
+		} else {
+			// Setup HTTP/1.1 transport
+			client = &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					// This line forces http1.1:
+					TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
+				},
+			}
 		}
-	} else {
-		// Setup HTTP/1.1 transport
-		client = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				// This line forces http1.1:
-				TLSNextProto: map[string]func(string, *tls.Conn) http.RoundTripper{},
-			},
-		}
-	}
 
-	req, err := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			fmt.Printf("error constructing http request: %s\n", err)
+			os.Exit(1)
+		}
+		req.Header.Set("Accept-Encoding", "identity")
+		req.Header.Set("X-Request-ID", uuid.NewString())
+		res, err := client.Do(req)
+		if err != nil {
+			fmt.Printf("error sending http request: %s\n", err)
+			os.Exit(1)
+		}
+
+		io.ReadAll(res.Body)
+	}
+}
+
+func makeGrpcRequest(addr string) {
+	client, err := grpc.NewClient(
+		addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
-		fmt.Printf("error constructing http request: %s\n", err)
+		fmt.Printf("error constructing grpc client: %s\n", err)
 		os.Exit(1)
 	}
-	req.Header.Set("Accept-Encoding", "identity")
-	req.Header.Set("X-Request-ID", uuid.NewString())
-	res, err := client.Do(req)
+
+	trayceClient := api.NewTrayceAgentClient(client)
+
+	// reply, err := trayceClient.SendAgentStarted(context.Background(), &api.AgentStarted{Version: "1.2.3"})
+	reply, err := trayceClient.SendContainersObserved(context.Background(), &api.Containers{
+		Containers: []*api.Container{
+			{
+				Id:     "1234",
+				Image:  "ubuntu",
+				Ip:     "172.0.1.19",
+				Name:   "evan",
+				Status: "running",
+			},
+		},
+	})
 	if err != nil {
-		fmt.Printf("error sending http request: %s\n", err)
+		fmt.Printf("error sending agent started over grpc: %s\n", err)
 		os.Exit(1)
 	}
 
-	io.ReadAll(res.Body)
+	fmt.Println("grpc reply:", reply.Status)
 }

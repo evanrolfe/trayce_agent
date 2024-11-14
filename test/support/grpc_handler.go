@@ -43,6 +43,10 @@ func (ts *GRPCHandler) SendAgentStarted(ctx context.Context, input *api.AgentSta
 	return &api.Reply{Status: "success "}, nil
 }
 
+func (ts *GRPCHandler) SendContainersObserved(ctx context.Context, input *api.Containers) (*api.Reply, error) {
+	return &api.Reply{Status: "success "}, nil
+}
+
 func (ts *GRPCHandler) OpenCommandStream(srv api.TrayceAgent_OpenCommandStreamServer) error {
 	log.Println("start new stream")
 

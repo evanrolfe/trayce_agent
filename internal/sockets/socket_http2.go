@@ -91,8 +91,11 @@ func (socket *SocketHttp2) ProcessGetsocknameEvent(event *events.GetsocknameEven
 
 // TODO: Have a structure for handling the frame header + payload?
 func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+
 	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
-	// utils.PrintBytesHex(event.Payload())
+	// fmt.Println(hex.Dump(event.Payload()))
 
 	if socket.SSL && !event.SSL() {
 		// If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
@@ -123,9 +126,6 @@ func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 }
 
 func (socket *SocketHttp2) processFrame(frame *Http2Frame) {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
-
 	stream := socket.findOrCreateStream(frame.StreamID())
 	flow := stream.ProcessFrame(frame)
 	if flow != nil {

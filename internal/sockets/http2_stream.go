@@ -59,17 +59,20 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 			fmt.Println("ERROR: no active request UUID for this response")
 			return nil
 		}
-
-		stream.activeFlow = NewFlowResponse(
-			*stream.activeUuid,
-			"0.0.0.0",
-			"127.0.0.1:80",
-			"tcp",
-			"http2",
-			123,
-			5,
-			[]byte(frame.HeadersText()),
-		)
+		// GRPC sends a header frame AFTER the data frames have been sent, this is the trailer frame and we ignore it
+		// so if there is already an active flow then dont try and create a new one
+		if stream.activeFlow == nil {
+			stream.activeFlow = NewFlowResponse(
+				*stream.activeUuid,
+				"0.0.0.0",
+				"127.0.0.1:80",
+				"tcp",
+				"http2",
+				123,
+				5,
+				[]byte(frame.HeadersText()),
+			)
+		}
 	}
 
 	// TODO: For requests with large headers split over multiple frames, this should add the header data to the activeFlow

@@ -8,12 +8,12 @@ def hello():
 
 @app.route("/second_http")
 def second_http():
-    requests.get("http://www.example.com")
+    requests.get("http://trayce.dev")
     return "Hello World!"
 
 @app.route("/second_https")
 def second_https():
-    requests.get("https://www.example.com")
+    requests.get("https://trayce.dev")
     return "Hello World! (https)"
 
 @app.route("/large")
