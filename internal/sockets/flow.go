@@ -4,6 +4,49 @@ import (
 	"fmt"
 )
 
+// -------------------------------------------------------------------------------------------------
+// FlowRequest
+// -------------------------------------------------------------------------------------------------
+type FlowRequest interface {
+	AddData(data []byte)
+	GetData() []byte
+}
+
+type HTTPRequest struct {
+	data []byte
+}
+
+func (req *HTTPRequest) AddData(data []byte) {
+	req.data = append(req.data, data...)
+}
+
+func (req *HTTPRequest) GetData() []byte {
+	return req.data
+}
+
+// -------------------------------------------------------------------------------------------------
+// FlowResponse
+// -------------------------------------------------------------------------------------------------
+type FlowResponse interface {
+	AddData(data []byte)
+	GetData() []byte
+}
+
+type HTTPResponse struct {
+	data []byte
+}
+
+func (res *HTTPResponse) AddData(data []byte) {
+	res.data = append(res.data, data...)
+}
+
+func (res *HTTPResponse) GetData() []byte {
+	return res.data
+}
+
+// -------------------------------------------------------------------------------------------------
+// Flow
+// -------------------------------------------------------------------------------------------------
 // Flow represents an exchange of data over a socket in the form of request + response.
 type Flow struct {
 	UUID       string
@@ -11,8 +54,8 @@ type Flow struct {
 	DestAddr   string
 	L4Protocol string
 	L7Protocol string
-	Request    []byte
-	Response   []byte
+	Request    FlowRequest
+	Response   FlowResponse
 	PID        int
 	FD         int
 }
@@ -26,7 +69,7 @@ func NewFlow(uuid string, localAddr string, remoteAddr string, l4protocol string
 		L7Protocol: l7protocol,
 		PID:        pid,
 		FD:         fd,
-		Request:    request,
+		Request:    &HTTPRequest{data: request},
 		Response:   nil,
 	}
 	return m
@@ -41,7 +84,7 @@ func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protoco
 		L7Protocol: l7protocol,
 		PID:        pid,
 		FD:         fd,
-		Response:   response,
+		Response:   &HTTPResponse{data: response},
 	}
 	return m
 }
@@ -66,57 +109,31 @@ func (flow *Flow) Complete() bool {
 }
 
 func (flow *Flow) AddResponse(response []byte) {
-	flow.Response = response
+	flow.Response = &HTTPResponse{data: response}
 }
 
 // AddData adds bytes onto either the request or the response depending on which type the flow is
 func (flow *Flow) AddData(data []byte) {
-	if len(flow.Request) > 0 {
-		flow.Request = append(flow.Request, data...)
-	} else if len(flow.Response) > 0 {
-		flow.Response = append(flow.Response, data...)
+	if flow.Request != nil {
+		flow.Request.AddData(data)
+	} else if flow.Response != nil {
+		flow.Response.AddData(data)
 	}
 }
 
 func (flow *Flow) Debug() {
 	if flow.Request != nil {
 		fmt.Println("Request:")
-		fmt.Println(string(flow.Request))
+		fmt.Println(string(flow.Request.GetData()))
 	}
 
 	if flow.Response != nil {
 		fmt.Println("Response:")
 
-		if len(flow.Response) >= 512 {
-			fmt.Println(string(flow.Response[0:512]))
+		if len(flow.Response.GetData()) >= 512 {
+			fmt.Println(string(flow.Response.GetData()[0:512]))
 		} else {
-			fmt.Println(string(flow.Response))
+			fmt.Println(string(flow.Response.GetData()))
 		}
-
-		// fmt.Print(hex.Dump(flow.response))
 	}
-
-	// if flow.request != nil {
-	// 	body, err := io.ReadAll(flow.request.Body)
-	// 	if err != nil {
-	// 		fmt.Println("Error reading request body:", err)
-	// 	}
-	// 	flow.request.Body.Close()
-
-	// 	fmt.Println("Request:", flow.request.Method, flow.request.URL)
-	// 	fmt.Println(string(body))
-	// }
-
-	// if flow.response != nil {
-	// 	body, err := io.ReadAll(flow.response.Body)
-	// 	if err != nil {
-	// 		fmt.Println("Error reading response body:", err)
-	// 	}
-	// 	flow.response.Body.Close()
-
-	// 	fmt.Println("Response:", flow.response.Status)
-	// 	fmt.Println("Content Length:", flow.response.ContentLength)
-	// 	fmt.Println("Transfer Encoding:", flow.response.TransferEncoding)
-	// 	fmt.Println(string(body))
-	// }
 }

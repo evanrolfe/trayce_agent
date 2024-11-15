@@ -82,7 +82,7 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 	if frame.Flags().EndStream {
 		flow := *stream.activeFlow
 		stream.clearActiveFlow()
-		if len(flow.Response) > 0 {
+		if flow.Response != nil {
 			stream.clearActiveUuid()
 		}
 
@@ -104,7 +104,7 @@ func (stream *Http2Stream) processDataFrame(frame *Http2Frame) *Flow {
 		// Send the flow back
 		flow := *stream.activeFlow
 		stream.clearActiveFlow()
-		if len(flow.Response) > 0 {
+		if flow.Response != nil {
 			stream.clearActiveUuid()
 		}
 

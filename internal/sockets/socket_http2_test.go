@@ -84,7 +84,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			Expect(lines[1]).To(Equal("host: 172.17.0.3:4123"))
 			Expect(lines[2]).To(Equal("user-agent: curl/7.81.0"))
@@ -106,7 +106,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
 
-			lines := strings.Split(string(flow.Response), "\r\n")
+			lines := strings.Split(string(flow.Response.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("HTTP/2 200"))
 			Expect(lines[1]).To(Equal("content-type: text/plain"))
 			Expect(lines[2]).To(Equal("content-length: 13"))
@@ -175,7 +175,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			fmt.Print(lines)
 		})
@@ -268,7 +268,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			fmt.Print(lines)
 		})
@@ -285,7 +285,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).To(BeNil())
 			// Expect(flow.Response).To(BeNil())
 
-			// lines := strings.Split(string(flow.Request), "\r\n")
+			// lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			// Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			// fmt.Print(lines)
 		})
@@ -367,7 +367,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			fmt.Print(lines)
 		})
@@ -485,7 +485,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flows[1].Request).To(BeNil())
 			Expect(flows[1].Response).ToNot(BeNil())
 
-			// lines := strings.Split(string(flow.Request), "\r\n")
+			// lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			// Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			// fmt.Print(lines)
 		})

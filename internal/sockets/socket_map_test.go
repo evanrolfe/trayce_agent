@@ -70,13 +70,13 @@ var _ = Describe("SocketMap", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request).To(Equal(event1Payload))
+			Expect(flow.Request.GetData()).To(Equal(event1Payload))
 			Expect(flow.Response).To(BeNil())
 		})
 
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
-			Expect(flows[1].Response).To(Equal(event2Payload))
+			Expect(flows[1].Response.GetData()).To(Equal(event2Payload))
 		})
 	})
 
@@ -150,7 +150,7 @@ var _ = Describe("SocketMap", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			Expect(lines[1]).To(Equal("host: 172.17.0.3:4123"))
 			Expect(lines[2]).To(Equal("user-agent: curl/7.81.0"))
@@ -171,7 +171,7 @@ var _ = Describe("SocketMap", func() {
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
 
-			lines := strings.Split(string(flow.Response), "\r\n")
+			lines := strings.Split(string(flow.Response.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("HTTP/2 200"))
 			Expect(lines[1]).To(Equal("content-type: text/plain"))
 			Expect(lines[2]).To(Equal("content-length: 13"))
