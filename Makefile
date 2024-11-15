@@ -17,6 +17,9 @@ all: build-bpf build
 install-libbpf: clean
 	git clone --recurse-submodules https://github.com/libbpf/libbpf-bootstrap ./third_party/libbpf-bootstrap
 	git clone https://github.com/aquasecurity/libbpfgo  ./third_party/libbpfgo
+# TODO: Figure out why this commit breaks it saying "vmlinux.h not found"
+# https://github.com/libbpf/libbpf-bootstrap/commit/4a567f229efe8fc79ee1a2249569eb6b9c02ad1b
+	cd ./third_party/libbpf-bootstrap && git checkout 70de71d17613a25b7d43ce9a0ec649be1af1c4c9
 	cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./libbpf
 	cd third_party/libbpfgo && make libbpfgo-static
 
