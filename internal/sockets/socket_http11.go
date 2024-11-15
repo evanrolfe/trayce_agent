@@ -19,7 +19,6 @@ import (
 type SocketHttp11 struct {
 	SourceAddr string
 	DestAddr   string
-	Protocol   string
 	PID        uint32
 	TID        uint32
 	FD         uint32

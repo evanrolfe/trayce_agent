@@ -81,7 +81,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the flow contains the HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request).To(Equal(event1Payload))
+			Expect(flow.Request.GetData()).To(Equal(event1Payload))
 			Expect(flow.Response).To(BeNil())
 		})
 	})
@@ -139,7 +139,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the flow contains the HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request).To(Equal(event1Payload))
+			Expect(flow.Request.GetData()).To(Equal(event1Payload))
 			Expect(flow.Response).To(BeNil())
 		})
 	})
@@ -212,13 +212,13 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request).To(Equal(event1Payload))
+			Expect(flow.Request.GetData()).To(Equal(event1Payload))
 			Expect(flow.Response).To(BeNil())
 		})
 
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
-			Expect(flows[1].Response).To(Equal(event2Payload))
+			Expect(flows[1].Response.GetData()).To(Equal(event2Payload))
 		})
 	})
 
@@ -277,13 +277,13 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request).To(Equal(event1Payload))
+			Expect(flow.Request.GetData()).To(Equal(event1Payload))
 			Expect(flow.Response).To(BeNil())
 		})
 
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
-			Expect(flows[1].Response).To(Equal(event2Payload))
+			Expect(flows[1].Response.GetData()).To(Equal(event2Payload))
 		})
 	})
 
@@ -351,13 +351,13 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request).To(Equal(event5Payload))
+			Expect(flow.Request.GetData()).To(Equal(event5Payload))
 			Expect(flow.Response).To(BeNil())
 		})
 
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
-			Expect(len(flows[1].Response)).To(Equal(1060))
+			Expect(len(flows[1].Response.GetData())).To(Equal(1060))
 		})
 	})
 
@@ -431,7 +431,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request).To(Equal(event7Payload))
+			Expect(flow.Request.GetData()).To(Equal(event7Payload))
 			Expect(flow.Response).To(BeNil())
 		})
 
@@ -502,7 +502,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request).To(Equal(gzip1Payload))
+			Expect(flow.Request.GetData()).To(Equal(gzip1Payload))
 			Expect(flow.Response).To(BeNil())
 		})
 
@@ -510,7 +510,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows[1].Request).To(BeNil())
 			Expect(flows[1].Response).ToNot(BeNil())
 
-			fmt.Println("=====================>\n", hex.Dump(flows[1].Response))
+			fmt.Println("=====================>\n", hex.Dump(flows[1].Response.GetData()))
 			// Expect(flows[1].Response).To(Equal(event7Payload)) // without the trailing zeroes
 
 			// fmt.Println(string(flows[1].Response))

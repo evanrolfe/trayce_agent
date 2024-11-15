@@ -84,7 +84,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			Expect(lines[1]).To(Equal("host: 172.17.0.3:4123"))
 			Expect(lines[2]).To(Equal("user-agent: curl/7.81.0"))
@@ -106,7 +106,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
 
-			lines := strings.Split(string(flow.Response), "\r\n")
+			lines := strings.Split(string(flow.Response.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("HTTP/2 200"))
 			Expect(lines[1]).To(Equal("content-type: text/plain"))
 			Expect(lines[2]).To(Equal("content-length: 13"))
@@ -175,7 +175,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			fmt.Print(lines)
 		})
@@ -268,7 +268,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("GET / HTTP/2"))
 			fmt.Print(lines)
 		})
@@ -367,7 +367,7 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
+			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			fmt.Print(lines)
 		})
@@ -484,6 +484,78 @@ var _ = Describe("SocketHTTP2", func() {
 
 			Expect(flows[1].Request).To(BeNil())
 			Expect(flows[1].Response).ToNot(BeNil())
+
+			// lines := strings.Split(string(flow.Request), "\r\n")
+			// Expect(lines[0]).To(Equal("POST / HTTP/2"))
+			// fmt.Print(lines)
+		})
+	})
+
+	Context("Receiving a Connect & Data events (GRPC messages)", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		grpcEvent1Bytes, _ := hexDumpToBytes(grpcEvent1)
+		grpcEvent2Bytes, _ := hexDumpToBytes(grpcEvent2)
+		grpcEvent3Bytes, _ := hexDumpToBytes(grpcEvent3)
+		grpcEvent4Bytes, _ := hexDumpToBytes(grpcEvent4)
+
+		requestPayloads := [][]byte{grpcEvent1Bytes, grpcEvent2Bytes}
+		responsePayloads := [][]byte{grpcEvent3Bytes, grpcEvent4Bytes}
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
+			})
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			// Process request payloads
+			for _, payload := range requestPayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 6, // go_tls_read
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+			// Process response payloads
+			for _, payload := range responsePayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 7, // go_tls_write
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+		})
+
+		It("returns a request flow", func() {
+			Expect(flows).To(HaveLen(2))
+
+			Expect(flows[0].Request).ToNot(BeNil())
+			Expect(flows[0].Response).To(BeNil())
+
+			// Expect(flows[1].Request).To(BeNil())
+			// Expect(flows[1].Response).ToNot(BeNil())
 
 			// lines := strings.Split(string(flow.Request), "\r\n")
 			// Expect(lines[0]).To(Equal("POST / HTTP/2"))

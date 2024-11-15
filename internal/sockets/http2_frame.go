@@ -3,6 +3,7 @@ package sockets
 import (
 	"encoding/binary"
 	"fmt"
+	"strings"
 
 	"golang.org/x/net/http2/hpack"
 )
@@ -134,37 +135,28 @@ func (f *Http2Frame) HeadersText() string {
 		return ""
 	}
 
-	// Gather the psuedo headers map
-	psuedoHeaders := f.psuedoHeaders()
-
-	headersText := ""
-	if psuedoHeaders[":method"] != "" {
-		// Build the HTTP request line
-		headersText += fmt.Sprintf("%s %s HTTP/2\r\n", psuedoHeaders[":method"], psuedoHeaders[":path"])
-		headersText += fmt.Sprintf("host: %s\r\n", psuedoHeaders[":authority"])
-
-	} else if psuedoHeaders[":status"] != "" {
-		// Build the HTTP response line
-		headersText += fmt.Sprintf("HTTP/2 %s\r\n", psuedoHeaders[":status"])
-	}
-
-	// Add the remaining non-psuedo headers
 	headers, err := f.Headers()
 	if err != nil {
 		fmt.Println("ERROR:", err)
 		return fmt.Sprintf("Error parsing headers: %s", err.Error())
 	}
-	for _, header := range headers {
-		if header.IsPseudo() {
-			continue
-		}
 
-		headersText += fmt.Sprintf("%s: %s\r\n", header.Name, header.Value)
+	// Check for GRPC
+	isGRPC := false
+	for _, header := range headers {
+		if strings.ToLower(header.Name) == "content-type" && header.Value == "application/grpc" {
+			isGRPC = true
+		}
 	}
 
-	headersText += "\r\n"
+	// Gather the psuedo headers map
+	psuedoHeaders := f.psuedoHeaders()
 
-	return headersText
+	if isGRPC {
+		return buildHeaderTextGRPC(headers, psuedoHeaders)
+	} else {
+		return buildHeaderTextHTTP(headers, psuedoHeaders)
+	}
 }
 
 func (f *Http2Frame) IsRequest() bool {
@@ -187,4 +179,40 @@ func (f *Http2Frame) psuedoHeaders() map[string]string {
 	}
 	return psuedoHeaders
 
+}
+
+func buildHeaderTextHTTP(headers []hpack.HeaderField, psuedoHeaders map[string]string) string {
+	headersText := ""
+	if psuedoHeaders[":method"] != "" {
+		// Build the HTTP request line
+		headersText += fmt.Sprintf("%s %s HTTP/2\r\n", psuedoHeaders[":method"], psuedoHeaders[":path"])
+		headersText += fmt.Sprintf("host: %s\r\n", psuedoHeaders[":authority"])
+
+	} else if psuedoHeaders[":status"] != "" {
+		// Build the HTTP response line
+		headersText += fmt.Sprintf("HTTP/2 %s\r\n", psuedoHeaders[":status"])
+	}
+
+	// Add the remaining non-psuedo headers
+	for _, header := range headers {
+		if header.IsPseudo() {
+			continue
+		}
+
+		headersText += fmt.Sprintf("%s: %s\r\n", header.Name, header.Value)
+	}
+
+	headersText += "\r\n"
+
+	return headersText
+}
+
+func buildHeaderTextGRPC(headers []hpack.HeaderField, psuedoHeaders map[string]string) string {
+	headersText := "GRPC"
+
+	if psuedoHeaders[":path"] != "" {
+		headersText += fmt.Sprintf("%s\r\n", psuedoHeaders[":path"])
+	}
+
+	return headersText
 }

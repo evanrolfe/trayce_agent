@@ -30,17 +30,21 @@ func (fq *FlowQueue) Start(ctx context.Context, inputChan chan sockets.Flow) {
 				fmt.Println("[FlowQueue] stopping receiver go-routine")
 				return
 			case flow := <-inputChan:
-				fmt.Println("[FlowQueue] received flow", flow.UUID, "req:", len(flow.Request), "resp:", len(flow.Response))
+				fmt.Println("[FlowQueue] received flow", flow.UUID, "req:", len(flow.Request.GetData()), "resp:", len(flow.Response.GetData()))
 				// Convert socket.Flow to Flow
 				apiFlow := &Flow{
-					Uuid:       flow.UUID,
-					SourceAddr: flow.SourceAddr,
-					DestAddr:   flow.DestAddr,
-					L4Protocol: flow.L4Protocol,
-					L7Protocol: flow.L7Protocol,
-					Request:    flow.Request,
-					Response:   flow.Response,
+					Uuid:        flow.UUID,
+					SourceAddr:  flow.SourceAddr,
+					DestAddr:    flow.DestAddr,
+					L4Protocol:  flow.L4Protocol,
+					L7Protocol:  flow.L7Protocol,
+					RequestTxt:  flow.Request.GetData(),
+					ResponseTxt: flow.Response.GetData(),
+					// Request: &Flow_HttpRequest{
+					// 	HttpRequest: &HTTPRequest{},
+					// },
 				}
+
 				// Queue the Flow
 				fq.flows = append(fq.flows, apiFlow)
 

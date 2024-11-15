@@ -1,6 +1,7 @@
 package sockets
 
 import (
+	"encoding/hex"
 	"fmt"
 	"slices"
 
@@ -40,6 +41,10 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 	} else {
 		fmt.Println("[HTTP2Stream] processHeaderFrame (response)")
 	}
+	fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!! Header:")
+	fmt.Println(hex.Dump(frame.Payload()))
+	fmt.Println("Headers:", frame.HeadersText())
+
 	if frame.IsRequest() {
 		stream.activeFlow = NewFlow(
 			uuid.NewString(),
@@ -82,7 +87,7 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 	if frame.Flags().EndStream {
 		flow := *stream.activeFlow
 		stream.clearActiveFlow()
-		if len(flow.Response) > 0 {
+		if flow.Response != nil {
 			stream.clearActiveUuid()
 		}
 
@@ -98,13 +103,17 @@ func (stream *Http2Stream) processDataFrame(frame *Http2Frame) *Flow {
 		return nil
 	}
 
+	fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!! Data:")
+	fmt.Println(hex.Dump(frame.Payload()))
+	fmt.Println("Headers:", frame.HeadersText())
+
 	stream.activeFlow.AddData(frame.Payload())
 
 	if frame.Flags().EndStream {
 		// Send the flow back
 		flow := *stream.activeFlow
 		stream.clearActiveFlow()
-		if len(flow.Response) > 0 {
+		if flow.Response != nil {
 			stream.clearActiveUuid()
 		}
 
