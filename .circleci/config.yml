@@ -120,6 +120,7 @@ commands:
           command: |
             GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
             GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
+            GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/grpc_server/
             docker build test/mega_server -t mega_server:${ARCH}
             docker run -d -t mega_server:${ARCH}
       - run:
