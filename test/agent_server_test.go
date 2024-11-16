@@ -1,13 +1,11 @@
 package test
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -302,6 +300,9 @@ func Test_agent_server(t *testing.T) {
 
 			// Verify the result
 			assert.Equal(t, expectedNumFlows*multiplier, len(flows))
+			for _, flow := range flows {
+				fmt.Println("Req:", flow.Request)
+			}
 			tt.verify(t, flows)
 			fmt.Printf("================================================\nCompleted %d/%d\n================================================\n", i, len(tests))
 
@@ -314,61 +315,61 @@ func Test_agent_server(t *testing.T) {
 	}
 }
 
-func checkForDuplicates(flows []*api.Flow) {
-	requestIDsMap := map[string][]string{}
-	for _, flow := range flows {
-		if len(flow.Request) > 0 {
-			requestID := extractRequestID(flow.Request)
-			x := requestIDsMap[requestID]
+// func checkForDuplicates(flows []*api.Flow) {
+// 	requestIDsMap := map[string][]string{}
+// 	for _, flow := range flows {
+// 		if flow.Request != nil {
+// 			requestID := extractRequestID(flow.Request)
+// 			x := requestIDsMap[requestID]
 
-			uuidStr := "req-" + flow.Uuid
-			if x == nil {
-				requestIDsMap[requestID] = []string{uuidStr}
-			} else {
-				requestIDsMap[requestID] = append(requestIDsMap[requestID], uuidStr)
-			}
-		}
+// 			uuidStr := "req-" + flow.Uuid
+// 			if x == nil {
+// 				requestIDsMap[requestID] = []string{uuidStr}
+// 			} else {
+// 				requestIDsMap[requestID] = append(requestIDsMap[requestID], uuidStr)
+// 			}
+// 		}
 
-		if len(flow.Response) > 0 {
-			requestID := extractRequestID(flow.Response)
-			x := requestIDsMap[requestID]
+// 		if len(flow.ResponseRaw) > 0 {
+// 			requestID := extractRequestID(flow.ResponseRaw)
+// 			x := requestIDsMap[requestID]
 
-			uuidStr := "resp-" + flow.Uuid
-			if x == nil {
-				requestIDsMap[requestID] = []string{uuidStr}
-			} else {
-				requestIDsMap[requestID] = append(requestIDsMap[requestID], uuidStr)
-			}
-		}
-	}
+// 			uuidStr := "resp-" + flow.Uuid
+// 			if x == nil {
+// 				requestIDsMap[requestID] = []string{uuidStr}
+// 			} else {
+// 				requestIDsMap[requestID] = append(requestIDsMap[requestID], uuidStr)
+// 			}
+// 		}
+// 	}
 
-	for requestID, uuids := range requestIDsMap {
-		if len(uuids) != 2 {
-			fmt.Println("X-Request-ID:", requestID, "=>", uuids)
-		}
-	}
-}
+// 	for requestID, uuids := range requestIDsMap {
+// 		if len(uuids) != 2 {
+// 			fmt.Println("X-Request-ID:", requestID, "=>", uuids)
+// 		}
+// 	}
+// }
 
-func extractRequestID(data []byte) string {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	requestID := ""
+// func extractRequestID(data []byte) string {
+// 	scanner := bufio.NewScanner(bytes.NewReader(data))
+// 	requestID := ""
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "X-Request-Id:") {
-			// Extract the X-Request-ID
-			requestID = strings.TrimSpace(strings.TrimPrefix(line, "X-Request-Id:"))
-			break
-		} else if strings.HasPrefix(line, "x-request-id:") {
-			// Extract the X-Request-ID
-			requestID = strings.TrimSpace(strings.TrimPrefix(line, "x-request-id:"))
-			break
-		}
-	}
+// 	for scanner.Scan() {
+// 		line := scanner.Text()
+// 		if strings.HasPrefix(line, "X-Request-Id:") {
+// 			// Extract the X-Request-ID
+// 			requestID = strings.TrimSpace(strings.TrimPrefix(line, "X-Request-Id:"))
+// 			break
+// 		} else if strings.HasPrefix(line, "x-request-id:") {
+// 			// Extract the X-Request-ID
+// 			requestID = strings.TrimSpace(strings.TrimPrefix(line, "x-request-id:"))
+// 			break
+// 		}
+// 	}
 
-	// if requestID == "" {
-	// 	fmt.Println("------------ NO requestID:\n", string(data))
-	// }
+// 	// if requestID == "" {
+// 	// 	fmt.Println("------------ NO requestID:\n", string(data))
+// 	// }
 
-	return requestID
-}
+// 	return requestID
+// }

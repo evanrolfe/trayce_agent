@@ -12,15 +12,38 @@ type FlowRequest interface {
 	GetData() []byte
 }
 
+// HTTPRequest
 type HTTPRequest struct {
+	Method      string
+	Host        string
+	Path        string
+	HttpVersion string
+	Headers     map[string][]string
+	Payload     []byte
+
 	data []byte
 }
 
+// TODO: Rename to AddPayload()
 func (req *HTTPRequest) AddData(data []byte) {
 	req.data = append(req.data, data...)
+	req.Payload = append(req.Payload, data...)
 }
 
 func (req *HTTPRequest) GetData() []byte {
+	return req.data
+}
+
+// TODO: GRPCRequest
+type GRPCRequest struct {
+	data []byte
+}
+
+func (req *GRPCRequest) AddData(data []byte) {
+	req.data = append(req.data, data...)
+}
+
+func (req *GRPCRequest) GetData() []byte {
 	return req.data
 }
 
@@ -32,6 +55,7 @@ type FlowResponse interface {
 	GetData() []byte
 }
 
+// HTTPResponse
 type HTTPResponse struct {
 	data []byte
 }
@@ -42,6 +66,19 @@ func (res *HTTPResponse) AddData(data []byte) {
 
 func (res *HTTPResponse) GetData() []byte {
 	return res.data
+}
+
+// TODO: GRPCRequest
+type GRPCResponse struct {
+	data []byte
+}
+
+func (req *GRPCResponse) AddData(data []byte) {
+	req.data = append(req.data, data...)
+}
+
+func (req *GRPCResponse) GetData() []byte {
+	return req.data
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -58,6 +95,19 @@ type Flow struct {
 	Response   FlowResponse
 	PID        int
 	FD         int
+}
+
+func NewFlowEmpty(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int) *Flow {
+	m := &Flow{
+		UUID:       uuid,
+		SourceAddr: localAddr,
+		DestAddr:   remoteAddr,
+		L4Protocol: l4protocol,
+		L7Protocol: l7protocol,
+		PID:        pid,
+		FD:         fd,
+	}
+	return m
 }
 
 func NewFlow(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request []byte) *Flow {

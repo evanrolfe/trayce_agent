@@ -31,24 +31,8 @@ func (fq *FlowQueue) Start(ctx context.Context, inputChan chan sockets.Flow) {
 				return
 			case flow := <-inputChan:
 				fmt.Println("[FlowQueue] received flow", flow.UUID)
+				apiFlow := convertToAPIFlow(flow)
 
-				// Convert socket.Flow to Flow
-				apiFlow := &Flow{
-					Uuid:       flow.UUID,
-					SourceAddr: flow.SourceAddr,
-					DestAddr:   flow.DestAddr,
-					L4Protocol: flow.L4Protocol,
-					L7Protocol: flow.L7Protocol,
-				}
-
-				if flow.Request != nil {
-					apiFlow.Request = flow.Request.GetData()
-				}
-				if flow.Response != nil {
-					apiFlow.Response = flow.Response.GetData()
-				}
-
-				fmt.Println("[FlowQueue] sending flow", flow.UUID)
 				// Queue the Flow
 				fq.flows = append(fq.flows, apiFlow)
 
@@ -108,27 +92,50 @@ func (fq *FlowQueue) clearQueue() {
 	fq.flows = []*Flow{}
 }
 
-// func test() {
-// 	for keepGoing := true; keepGoing; {
-// 		var batch []string
-// 		expire := time.After(maxTimeout)
-// 		for {
-// 			select {
-// 			case value, ok := <-values:
-// 				if !ok {
-// 					keepGoing = false
-// 					goto done
-// 				}
+func convertToAPIFlow(socketFlow sockets.Flow) *Flow {
+	apiFlow := Flow{
+		Uuid:       socketFlow.UUID,
+		SourceAddr: socketFlow.SourceAddr,
+		DestAddr:   socketFlow.DestAddr,
+		L4Protocol: socketFlow.L4Protocol,
+		L7Protocol: socketFlow.L7Protocol,
+	}
 
-// 				batch = append(batch, value)
-// 				if len(batch) == maxItems {
-// 					goto done
-// 				}
+	// Convert request
+	if socketFlow.Request != nil {
+		switch req := socketFlow.Request.(type) {
+		case *sockets.HTTPRequest:
+			apiFlow.Request = &Flow_HttpRequest{
+				HttpRequest: &HTTPRequest{
+					Method:      req.Method,
+					Path:        req.Path,
+					Host:        req.Host,
+					HttpVersion: req.HttpVersion,
+					Headers:     convertToAPIHeaders(req.Headers),
+					Payload:     req.Payload,
+				},
+			}
+		case *sockets.GRPCRequest:
+			fmt.Println("Converting GRPCReq:", req)
+		default:
+			fmt.Println("ERROR: convertToAPIFlow() wrong type for request")
+		}
+	}
 
-// 			case <-expire:
-// 				goto done
-// 			}
-// 		}
+	// Convert response
+	if socketFlow.Response != nil {
+		apiFlow.ResponseRaw = socketFlow.Response.GetData()
+	}
 
-// 	}
-// }
+	return &apiFlow
+}
+
+func convertToAPIHeaders(headers map[string][]string) map[string]*StringList {
+	apiHeaders := map[string]*StringList{}
+
+	for key, values := range headers {
+		apiHeaders[key] = &StringList{Values: values}
+	}
+
+	return apiHeaders
+}

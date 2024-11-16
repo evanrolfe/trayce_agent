@@ -1,7 +1,6 @@
 package sockets_test
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/evanrolfe/trayce_agent/internal/events"
@@ -84,14 +83,18 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
-			Expect(lines[0]).To(Equal("POST / HTTP/2"))
-			Expect(lines[1]).To(Equal("host: 172.17.0.3:4123"))
-			Expect(lines[2]).To(Equal("user-agent: curl/7.81.0"))
-			Expect(lines[3]).To(Equal("accept: */*"))
-			Expect(lines[4]).To(Equal("content-type: application/json"))
-			Expect(lines[5]).To(Equal("content-length: 34"))
-			Expect(lines[7]).To(Equal(`{"key1":"value1", "key2":"value2"}`))
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("POST"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:4123"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/7.81.0"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
+			Expect(req.Headers["content-type"]).To(Equal([]string{"application/json"}))
+			Expect(req.Headers["content-length"]).To(Equal([]string{"34"}))
+			Expect(req.Payload).To(Equal([]byte(`{"key1":"value1", "key2":"value2"}`)))
 		})
 
 		It("returns a response flow", func() {
@@ -175,9 +178,15 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
-			Expect(lines[0]).To(Equal("GET / HTTP/2"))
-			fmt.Print(lines)
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:4123"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/7.81.0"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
 		})
 	})
 
@@ -268,9 +277,15 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
-			Expect(lines[0]).To(Equal("GET / HTTP/2"))
-			fmt.Print(lines)
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:4123"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/7.81.0"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
 		})
 
 		It("returns a response flow", func() {
@@ -367,9 +382,18 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request.GetData()), "\r\n")
-			Expect(lines[0]).To(Equal("POST / HTTP/2"))
-			fmt.Print(lines)
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("POST"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:4123"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/7.81.0"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
+			Expect(req.Headers["content-type"]).To(Equal([]string{"application/x-www-form-urlencoded"}))
+			Expect(req.Headers["content-length"]).To(Equal([]string{"4889"}))
+			Expect(len(req.Payload)).To(Equal(4889))
 		})
 	})
 

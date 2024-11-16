@@ -51,6 +51,8 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 			5,
 			[]byte(frame.HeadersText()),
 		)
+		stream.activeFlow.Request = frame.ConvertToHTTPRequest()
+
 		activeUUID := stream.activeFlow.UUID
 		stream.activeUuid = &activeUUID
 		fmt.Println("[HTTP2Stream] activeUuid =", activeUUID)

@@ -113,6 +113,47 @@ func (f *Http2Frame) Append(raw []byte) {
 	f.raw = append(f.raw, raw...)
 }
 
+func (f *Http2Frame) ConvertToHTTPRequest() *HTTPRequest {
+	req := &HTTPRequest{}
+
+	if !f.Complete() || f.Type() != 1 {
+		fmt.Println("ERROR: cannot convert incomplete or non-header frame to HTTPRequest")
+		return req
+	}
+
+	psuedoHeaders := f.psuedoHeaders()
+	if psuedoHeaders[":method"] == "" || psuedoHeaders[":path"] == "" {
+		fmt.Println("ERROR: cannot convert frame to HTTPRequest, missing :path header")
+		return req
+	}
+
+	headers, err := f.Headers()
+	if err != nil {
+		fmt.Println("ERROR from f.Headers():", err)
+		return &HTTPRequest{}
+	}
+
+	req.HttpVersion = "2"
+	req.Method = psuedoHeaders[":method"]
+	req.Path = psuedoHeaders[":path"]
+	req.Host = psuedoHeaders[":authority"]
+	req.Headers = map[string][]string{}
+
+	for _, header := range headers {
+		if header.IsPseudo() {
+			continue
+		}
+		h := req.Headers[header.Name]
+		if h == nil {
+			req.Headers[header.Name] = []string{header.Value}
+		} else {
+			h = append(h, header.Value)
+		}
+	}
+
+	return req
+}
+
 func (f *Http2Frame) Headers() ([]hpack.HeaderField, error) {
 	if !f.Complete() || f.Type() != 1 {
 		return []hpack.HeaderField{}, fmt.Errorf("cannot parse headers for this frame")
