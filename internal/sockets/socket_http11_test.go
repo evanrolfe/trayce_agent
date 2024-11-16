@@ -81,8 +81,21 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the flow contains the HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request.GetData()).To(Equal(event1Payload))
+			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
+
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("1.1"))
+			Expect(req.Host).To(Equal("localhost:4122"))
+
+			Expect(req.Headers["Accept"]).To(Equal([]string{"*/*"}))
+			Expect(req.Headers["Accept-Encoding"]).To(Equal([]string{"gzip, deflate"}))
+			Expect(req.Headers["Connection"]).To(Equal([]string{"keep-alive"}))
+			Expect(req.Headers["User-Agent"]).To(Equal([]string{"python-requests/2.31.0"}))
 		})
 	})
 
@@ -139,7 +152,14 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the flow contains the HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request.GetData()).To(Equal(event1Payload))
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("1.1"))
+			Expect(req.Host).To(Equal("localhost:4122"))
+
 			Expect(flow.Response).To(BeNil())
 		})
 	})
@@ -212,7 +232,15 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request.GetData()).To(Equal(event1Payload))
+			Expect(flow.Request).ToNot(BeNil())
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("1.1"))
+			Expect(req.Host).To(Equal("localhost:4122"))
+
 			Expect(flow.Response).To(BeNil())
 		})
 
@@ -277,7 +305,15 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request.GetData()).To(Equal(event1Payload))
+			Expect(flow.Request).ToNot(BeNil())
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("1.1"))
+			Expect(req.Host).To(Equal("localhost:4122"))
+
 			Expect(flow.Response).To(BeNil())
 		})
 
@@ -351,7 +387,15 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request.GetData()).To(Equal(event5Payload))
+			Expect(flow.Request).ToNot(BeNil())
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("1.1"))
+			Expect(req.Host).To(Equal("www.pntest.io"))
+
 			Expect(flow.Response).To(BeNil())
 		})
 
@@ -431,7 +475,15 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request.GetData()).To(Equal(event7Payload))
+			Expect(flow.Request).ToNot(BeNil())
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/chunked"))
+			Expect(req.HttpVersion).To(Equal("1.1"))
+			Expect(req.Host).To(Equal("localhost:4123"))
+
 			Expect(flow.Response).To(BeNil())
 		})
 
@@ -502,7 +554,15 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request.GetData()).To(Equal(gzip1Payload))
+			Expect(flow.Request).ToNot(BeNil())
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("1.1"))
+			Expect(req.Host).To(Equal("www.example.com"))
+
 			Expect(flow.Response).To(BeNil())
 		})
 

@@ -119,7 +119,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	if req != nil {
 		socket.requestUuid = uuid.NewString()
 		fmt.Println("[SocketHttp1.1] HTTP request complete")
-		flow := NewFlow(
+		flow := NewFlowRequest(
 			socket.requestUuid,
 			socket.SourceAddr,
 			socket.DestAddr,
@@ -127,7 +127,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 			"http",
 			int(socket.PID),
 			int(socket.FD),
-			socket.dataBuf,
+			convertToHTTPRequest(req),
 		)
 		socket.clearDataBuffer()
 		socket.sendFlowBack(*flow)
@@ -431,4 +431,23 @@ func parseChunkedResponse(response []byte) ([]byte, error) {
 	}
 
 	return append(headers, result.Bytes()...), nil
+}
+
+func convertToHTTPRequest(req *http.Request) *HTTPRequest {
+	// Parse request body
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		fmt.Println("NewFlowRequest() Error reading response body:", err)
+		payload = []byte{}
+	}
+	req.Body.Close()
+
+	return &HTTPRequest{
+		Method:      req.Method,
+		Path:        req.URL.Path,
+		Host:        req.Host,
+		HttpVersion: "1.1",
+		Payload:     payload,
+		Headers:     req.Header,
+	}
 }

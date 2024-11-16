@@ -39,8 +39,7 @@ generate:
 # Generates the code for the grpc test server in mega_server
 generate-test:
 	go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
-	go build -o grpc_server ./cmd/grpc_server/
-	mv grpc_server test/mega_server/go/
+	go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/grpc_server/
 
 # Compile our Go binary using .output/main.bpf.o
 build: generate

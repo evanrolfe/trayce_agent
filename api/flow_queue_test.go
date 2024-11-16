@@ -81,7 +81,7 @@ var _ = Describe("FlowQueue", func() {
 
 			// Send some flows to the FlowQueue
 			for i := 0; i < numFlows; i++ {
-				flow1 := sockets.NewFlow(
+				flow1 := sockets.NewFlowRequest(
 					"1999742d-d2b0-4f3a-a8d7-ae7a546e95c1",
 					"127.0.0.1",
 					"192.168.0.1",
@@ -89,7 +89,12 @@ var _ = Describe("FlowQueue", func() {
 					"http",
 					1,
 					2,
-					[]byte(fmt.Sprintf("GET /%d HTTP/1.1", i)),
+					&sockets.HTTPRequest{
+						Method:      "GET",
+						Path:        "/",
+						Host:        "",
+						HttpVersion: "1.1",
+					},
 				)
 				inputChan <- *flow1
 			}

@@ -41,7 +41,7 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 		fmt.Println("[HTTP2Stream] processHeaderFrame (response)")
 	}
 	if frame.IsRequest() {
-		stream.activeFlow = NewFlow(
+		stream.activeFlow = NewFlowRequest(
 			uuid.NewString(),
 			"0.0.0.0",
 			"127.0.0.1:80",
@@ -49,9 +49,8 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 			"http2",
 			123,
 			5,
-			[]byte(frame.HeadersText()),
+			frame.ConvertToHTTPRequest(),
 		)
-		stream.activeFlow.Request = frame.ConvertToHTTPRequest()
 
 		activeUUID := stream.activeFlow.UUID
 		stream.activeUuid = &activeUUID

@@ -70,7 +70,15 @@ var _ = Describe("SocketMap", func() {
 
 		It("the first flow contains an HTTP request", func() {
 			flow := flows[0]
-			Expect(flow.Request.GetData()).To(Equal(event1Payload))
+			Expect(flow.Request).ToNot(BeNil())
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("1.1"))
+			Expect(req.Host).To(Equal("localhost:4122"))
+
 			Expect(flow.Response).To(BeNil())
 		})
 

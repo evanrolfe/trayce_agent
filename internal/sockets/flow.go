@@ -8,8 +8,7 @@ import (
 // FlowRequest
 // -------------------------------------------------------------------------------------------------
 type FlowRequest interface {
-	AddData(data []byte)
-	GetData() []byte
+	AddPayload(data []byte)
 }
 
 // HTTPRequest
@@ -20,18 +19,22 @@ type HTTPRequest struct {
 	HttpVersion string
 	Headers     map[string][]string
 	Payload     []byte
+}
 
-	data []byte
+func NewHTTPRequest(method, path, host, httpVersion string, payload []byte, headers map[string][]string) HTTPRequest {
+	return HTTPRequest{
+		Method:      method,
+		Path:        path,
+		Host:        host,
+		HttpVersion: httpVersion,
+		Payload:     payload,
+		Headers:     headers,
+	}
 }
 
 // TODO: Rename to AddPayload()
-func (req *HTTPRequest) AddData(data []byte) {
-	req.data = append(req.data, data...)
+func (req *HTTPRequest) AddPayload(data []byte) {
 	req.Payload = append(req.Payload, data...)
-}
-
-func (req *HTTPRequest) GetData() []byte {
-	return req.data
 }
 
 // TODO: GRPCRequest
@@ -39,7 +42,7 @@ type GRPCRequest struct {
 	data []byte
 }
 
-func (req *GRPCRequest) AddData(data []byte) {
+func (req *GRPCRequest) AddPayload(data []byte) {
 	req.data = append(req.data, data...)
 }
 
@@ -70,15 +73,9 @@ func (res *HTTPResponse) GetData() []byte {
 
 // TODO: GRPCRequest
 type GRPCResponse struct {
-	data []byte
 }
 
 func (req *GRPCResponse) AddData(data []byte) {
-	req.data = append(req.data, data...)
-}
-
-func (req *GRPCResponse) GetData() []byte {
-	return req.data
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -97,7 +94,7 @@ type Flow struct {
 	FD         int
 }
 
-func NewFlowEmpty(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int) *Flow {
+func NewFlowRequest(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request *HTTPRequest) *Flow {
 	m := &Flow{
 		UUID:       uuid,
 		SourceAddr: localAddr,
@@ -106,20 +103,7 @@ func NewFlowEmpty(uuid string, localAddr string, remoteAddr string, l4protocol s
 		L7Protocol: l7protocol,
 		PID:        pid,
 		FD:         fd,
-	}
-	return m
-}
-
-func NewFlow(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request []byte) *Flow {
-	m := &Flow{
-		UUID:       uuid,
-		SourceAddr: localAddr,
-		DestAddr:   remoteAddr,
-		L4Protocol: l4protocol,
-		L7Protocol: l7protocol,
-		PID:        pid,
-		FD:         fd,
-		Request:    &HTTPRequest{data: request},
+		Request:    request,
 		Response:   nil,
 	}
 	return m
@@ -165,7 +149,7 @@ func (flow *Flow) AddResponse(response []byte) {
 // AddData adds bytes onto either the request or the response depending on which type the flow is
 func (flow *Flow) AddData(data []byte) {
 	if flow.Request != nil {
-		flow.Request.AddData(data)
+		flow.Request.AddPayload(data)
 	} else if flow.Response != nil {
 		flow.Response.AddData(data)
 	}
@@ -174,7 +158,7 @@ func (flow *Flow) AddData(data []byte) {
 func (flow *Flow) Debug() {
 	if flow.Request != nil {
 		fmt.Println("Request:")
-		fmt.Println(string(flow.Request.GetData()))
+		// TODO: print the debug info
 	}
 
 	if flow.Response != nil {
