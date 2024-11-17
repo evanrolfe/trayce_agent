@@ -71,7 +71,7 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 				"http2",
 				123,
 				5,
-				[]byte(frame.HeadersText()),
+				frame.ConvertToHTTPResponse(),
 			)
 		}
 	}
@@ -99,7 +99,7 @@ func (stream *Http2Stream) processDataFrame(frame *Http2Frame) *Flow {
 		return nil
 	}
 
-	stream.activeFlow.AddData(frame.Payload())
+	stream.activeFlow.AddPayload(frame.Payload())
 
 	if frame.Flags().EndStream {
 		// Send the flow back

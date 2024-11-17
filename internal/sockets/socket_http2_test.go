@@ -1,8 +1,6 @@
 package sockets_test
 
 import (
-	"strings"
-
 	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	. "github.com/onsi/ginkgo/v2"
@@ -109,12 +107,15 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
 
-			lines := strings.Split(string(flow.Response.GetData()), "\r\n")
-			Expect(lines[0]).To(Equal("HTTP/2 200"))
-			Expect(lines[1]).To(Equal("content-type: text/plain"))
-			Expect(lines[2]).To(Equal("content-length: 13"))
-			Expect(lines[3]).To(Equal("date: Mon, 06 May 2024 16:32:41 GMT"))
-			Expect(lines[5]).To(Equal("Hello world.\n"))
+			resp, ok := flow.Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Status).To(Equal(200))
+			Expect(resp.HttpVersion).To(Equal("2"))
+			Expect(resp.Headers["content-type"]).To(Equal([]string{"text/plain"}))
+			Expect(resp.Headers["content-length"]).To(Equal([]string{"13"}))
+			Expect(resp.Headers["date"]).To(Equal([]string{"Mon, 06 May 2024 16:32:41 GMT"}))
+			Expect(resp.Payload).To(Equal([]byte("Hello world.\n")))
 		})
 	})
 
@@ -298,11 +299,16 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).To(BeNil())
-			// Expect(flow.Response).To(BeNil())
+			Expect(flow.Response).ToNot(BeNil())
 
-			// lines := strings.Split(string(flow.Request.GetData()), "\r\n")
-			// Expect(lines[0]).To(Equal("GET / HTTP/2"))
-			// fmt.Print(lines)
+			resp, ok := flow.Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Status).To(Equal(200))
+			Expect(resp.HttpVersion).To(Equal("2"))
+			Expect(resp.Headers["content-type"]).To(Equal([]string{"text/plain"}))
+			Expect(resp.Headers["date"]).To(Equal([]string{"Mon, 03 Jun 2024 08:16:38 GMT"}))
+			Expect(len(resp.Payload)).To(Equal(4891))
 		})
 	})
 

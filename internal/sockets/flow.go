@@ -54,28 +54,27 @@ func (req *GRPCRequest) GetData() []byte {
 // FlowResponse
 // -------------------------------------------------------------------------------------------------
 type FlowResponse interface {
-	AddData(data []byte)
-	GetData() []byte
+	AddPayload(data []byte)
 }
 
 // HTTPResponse
 type HTTPResponse struct {
-	data []byte
+	Status      int
+	StatusMsg   string
+	HttpVersion string
+	Headers     map[string][]string
+	Payload     []byte
 }
 
-func (res *HTTPResponse) AddData(data []byte) {
-	res.data = append(res.data, data...)
-}
-
-func (res *HTTPResponse) GetData() []byte {
-	return res.data
+func (res *HTTPResponse) AddPayload(data []byte) {
+	res.Payload = append(res.Payload, data...)
 }
 
 // TODO: GRPCRequest
 type GRPCResponse struct {
 }
 
-func (req *GRPCResponse) AddData(data []byte) {
+func (req *GRPCResponse) AddPayload(data []byte) {
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -109,7 +108,7 @@ func NewFlowRequest(uuid string, localAddr string, remoteAddr string, l4protocol
 	return m
 }
 
-func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, response []byte) *Flow {
+func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, response *HTTPResponse) *Flow {
 	m := &Flow{
 		UUID:       uuid,
 		SourceAddr: localAddr,
@@ -118,7 +117,8 @@ func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protoco
 		L7Protocol: l7protocol,
 		PID:        pid,
 		FD:         fd,
-		Response:   &HTTPResponse{data: response},
+		Request:    nil,
+		Response:   response,
 	}
 	return m
 }
@@ -143,15 +143,15 @@ func (flow *Flow) Complete() bool {
 }
 
 func (flow *Flow) AddResponse(response []byte) {
-	flow.Response = &HTTPResponse{data: response}
+	flow.Response = &HTTPResponse{}
 }
 
 // AddData adds bytes onto either the request or the response depending on which type the flow is
-func (flow *Flow) AddData(data []byte) {
+func (flow *Flow) AddPayload(data []byte) {
 	if flow.Request != nil {
 		flow.Request.AddPayload(data)
 	} else if flow.Response != nil {
-		flow.Response.AddData(data)
+		flow.Response.AddPayload(data)
 	}
 }
 
@@ -163,11 +163,6 @@ func (flow *Flow) Debug() {
 
 	if flow.Response != nil {
 		fmt.Println("Response:")
-
-		if len(flow.Response.GetData()) >= 512 {
-			fmt.Println(string(flow.Response.GetData()[0:512]))
-		} else {
-			fmt.Println(string(flow.Response.GetData()))
-		}
+		// TODO: print the debug info
 	}
 }

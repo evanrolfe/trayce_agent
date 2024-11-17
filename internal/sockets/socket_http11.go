@@ -140,7 +140,11 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	isFromGo := (event.DataType == 6 || event.DataType == 7)
 
 	// 2. Attempt to parse buffer as an HTTP response
+	// TODO: This code is quite convaluted and could probably be simplified, i.e. by just returning a response struct
+	// with the decompressed body set on it
 	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf, isFromGo)
+	respBody := extractResponseBody(decompressedBuf)
+
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
 		flow := NewFlowResponse(
@@ -151,10 +155,8 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 			"http",
 			int(socket.PID),
 			int(socket.FD),
-			socket.dataBuf,
+			convertToHTTPResponse(resp, respBody),
 		)
-
-		flow.AddResponse(decompressedBuf)
 
 		socket.clearDataBuffer()
 		socket.sendFlowBack(*flow)
@@ -289,7 +291,22 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 	}
 
 	return resp, *bufReturn
+}
 
+func extractResponseBody(respBuf []byte) []byte {
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respBuf)), &http.Request{})
+	if err != nil {
+		fmt.Println("Error parsing response:", err)
+		return []byte{}
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading response body:", err)
+		return []byte{}
+	}
+	resp.Body.Close()
+
+	return body
 }
 
 func decodeGzipResponse(buf []byte) ([]byte, error) {
@@ -437,7 +454,7 @@ func convertToHTTPRequest(req *http.Request) *HTTPRequest {
 	// Parse request body
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
-		fmt.Println("NewFlowRequest() Error reading response body:", err)
+		fmt.Println("convertToHTTPRequest() Error reading response body:", err)
 		payload = []byte{}
 	}
 	req.Body.Close()
@@ -447,7 +464,18 @@ func convertToHTTPRequest(req *http.Request) *HTTPRequest {
 		Path:        req.URL.Path,
 		Host:        req.Host,
 		HttpVersion: "1.1",
-		Payload:     payload,
 		Headers:     req.Header,
+		Payload:     payload,
+	}
+}
+
+func convertToHTTPResponse(resp *http.Response, payload []byte) *HTTPResponse {
+	fmt.Println(";;;;;;;;;;;;;;;;; payload:", string(payload))
+	return &HTTPResponse{
+		Status:      resp.StatusCode,
+		StatusMsg:   resp.Status,
+		HttpVersion: "1.1",
+		Headers:     resp.Header,
+		Payload:     payload,
 	}
 }

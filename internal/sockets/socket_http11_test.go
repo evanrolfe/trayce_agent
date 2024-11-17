@@ -1,9 +1,6 @@
 package sockets_test
 
 import (
-	"encoding/hex"
-	"fmt"
-
 	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	. "github.com/onsi/ginkgo/v2"
@@ -246,7 +243,17 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
-			Expect(flows[1].Response.GetData()).To(Equal(event2Payload))
+			Expect(flows[1].Response).ToNot(BeNil())
+
+			resp, ok := flows[1].Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Status).To(Equal(200))
+			Expect(resp.HttpVersion).To(Equal("1.1"))
+			Expect(resp.Headers["Content-Type"]).To(Equal([]string{"text/plain"}))
+			Expect(resp.Headers["Content-Length"]).To(Equal([]string{"13"}))
+			Expect(resp.Headers["Date"]).To(Equal([]string{"Fri, 15 Sep 2023 07:18:18 GMT"}))
+			Expect(resp.Payload).To(Equal([]byte("Hello world.\n")))
 		})
 	})
 
@@ -319,7 +326,17 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
-			Expect(flows[1].Response.GetData()).To(Equal(event2Payload))
+			Expect(flows[1].Response).ToNot(BeNil())
+
+			resp, ok := flows[1].Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Status).To(Equal(200))
+			Expect(resp.HttpVersion).To(Equal("1.1"))
+			Expect(resp.Headers["Content-Type"]).To(Equal([]string{"text/plain"}))
+			Expect(resp.Headers["Content-Length"]).To(Equal([]string{"13"}))
+			Expect(resp.Headers["Date"]).To(Equal([]string{"Fri, 15 Sep 2023 07:18:18 GMT"}))
+			Expect(resp.Payload).To(Equal([]byte("Hello world.\n")))
 		})
 	})
 
@@ -401,7 +418,16 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 		It("the second flow contains an HTTP request and response", func() {
 			Expect(flows[1].Request).To(BeNil())
-			Expect(len(flows[1].Response.GetData())).To(Equal(1060))
+			Expect(flows[1].Response).ToNot(BeNil())
+
+			resp, ok := flows[1].Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Status).To(Equal(301))
+			Expect(resp.HttpVersion).To(Equal("1.1"))
+			Expect(resp.Headers["Content-Type"]).To(Equal([]string{"text/html"}))
+			Expect(resp.Headers["Date"]).To(Equal([]string{"Sat, 04 Nov 2023 20:05:14 GMT"}))
+			Expect(resp.Payload).To(Equal([]byte{}))
 		})
 	})
 
@@ -570,10 +596,14 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows[1].Request).To(BeNil())
 			Expect(flows[1].Response).ToNot(BeNil())
 
-			fmt.Println("=====================>\n", hex.Dump(flows[1].Response.GetData()))
-			// Expect(flows[1].Response).To(Equal(event7Payload)) // without the trailing zeroes
+			resp, ok := flows[1].Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
 
-			// fmt.Println(string(flows[1].Response))
+			Expect(resp.Status).To(Equal(200))
+			Expect(resp.HttpVersion).To(Equal("1.1"))
+			Expect(resp.Headers["Content-Type"]).To(Equal([]string{"text/html; charset=UTF-8"}))
+			Expect(resp.Headers["Date"]).To(Equal([]string{"Mon, 12 Aug 2024 07:23:28 GMT"}))
+			Expect(resp.Payload).To(Equal([]byte{60, 33, 100, 111, 99, 116, 121, 112, 101, 32, 104, 116, 109, 108, 62, 10, 60, 104, 116, 109, 108, 62, 10, 60, 104, 101, 97, 100, 62, 10, 32, 32, 32, 32, 60, 116, 105, 116, 108, 101, 62, 69, 120, 97, 109, 112, 108, 101, 32, 68, 111, 109, 97, 105, 110, 60, 47, 116, 105, 116, 108, 101, 62, 10, 10, 32, 32, 32, 32, 60, 109, 101, 116, 97, 32, 99, 104, 97, 114, 115, 101, 116, 61, 34, 117, 116, 102, 45, 56, 34, 32, 47, 62, 10, 32, 32, 32, 32, 60, 109, 101, 116, 97, 32, 104, 116, 116, 112, 45, 101, 113, 117, 105, 118, 61, 34, 67, 111, 110, 116, 101, 110, 116, 45, 116, 121, 112, 101, 34, 32, 99, 111, 110, 116, 101, 110, 116, 61, 34, 116, 101, 120, 116, 47, 104, 116, 109, 108, 59, 32, 99, 104, 97, 114, 115, 101, 116, 61, 117, 116, 102, 45, 56, 34, 32, 47, 62, 10, 32, 32, 32, 32, 60, 109, 101, 116, 97, 32, 110, 97, 109, 101, 61, 34, 118, 105, 101, 119, 112, 111, 114, 116, 34, 32, 99, 111, 110, 116, 101, 110, 116, 61, 34, 119, 105, 100, 116, 104, 61, 100, 101, 118, 105, 99, 101, 45, 119, 105, 100, 116, 104, 44, 32, 105, 110, 105, 116, 105, 97, 108, 45, 115, 99, 97, 108, 101, 61, 49, 34, 32, 47, 62, 10, 32, 32, 32, 32, 60, 115, 116, 121, 108, 101, 32, 116, 121, 112, 101, 61, 34, 116, 101, 120, 116, 47, 99, 115, 115, 34, 62, 10, 32, 32, 32, 32, 98, 111, 100, 121, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 98, 97, 99, 107, 103, 114, 111, 117, 110, 100, 45, 99, 111, 108, 111, 114, 58, 32, 35, 102, 48, 102, 48, 102, 50, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 109, 97, 114, 103, 105, 110, 58, 32, 48, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 112, 97, 100, 100, 105, 110, 103, 58, 32, 48, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 102, 111, 110, 116, 45, 102, 97, 109, 105, 108, 121, 58, 32, 45, 97, 112, 112, 108, 101, 45, 115, 121, 115, 116, 101, 109, 44, 32, 115, 121, 115, 116, 101, 109, 45, 117, 105, 44, 32, 66, 108, 105, 110, 107, 77, 97, 99, 83, 121, 115, 116, 101, 109, 70, 111, 110, 116, 44, 32, 34, 83, 101, 103, 111, 101, 32, 85, 73, 34, 44, 32, 34, 79, 112, 101, 110, 32, 83, 97, 110, 115, 34, 44, 32, 34, 72, 101, 108, 118, 101, 116, 105, 99, 97, 32, 78, 101, 117, 101, 34, 44, 32, 72, 101, 108, 118, 101, 116, 105, 99, 97, 44, 32, 65, 114, 105, 97, 108, 44, 32, 115, 97, 110, 115, 45, 115, 101, 114, 105, 102, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 10, 32, 32, 32, 32, 125, 10, 32, 32, 32, 32, 100, 105, 118, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 119, 105, 100, 116, 104, 58, 32, 54, 48, 48, 112, 120, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 109, 97, 114, 103, 105, 110, 58, 32, 53, 101, 109, 32, 97, 117, 116, 111, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 112, 97, 100, 100, 105, 110, 103, 58, 32, 50, 101, 109, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 98, 97, 99, 107, 103, 114, 111, 117, 110, 100, 45, 99, 111, 108, 111, 114, 58, 32, 35, 102, 100, 102, 100, 102, 102, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 98, 111, 114, 100, 101, 114, 45, 114, 97, 100, 105, 117, 115, 58}))
 		})
 	})
 })

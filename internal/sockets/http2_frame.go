@@ -3,6 +3,7 @@ package sockets
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
 
 	"golang.org/x/net/http2/hpack"
 )
@@ -130,7 +131,7 @@ func (f *Http2Frame) ConvertToHTTPRequest() *HTTPRequest {
 	headers, err := f.Headers()
 	if err != nil {
 		fmt.Println("ERROR from f.Headers():", err)
-		return &HTTPRequest{}
+		return req
 	}
 
 	req.HttpVersion = "2"
@@ -152,6 +153,47 @@ func (f *Http2Frame) ConvertToHTTPRequest() *HTTPRequest {
 	}
 
 	return req
+}
+
+func (f *Http2Frame) ConvertToHTTPResponse() *HTTPResponse {
+	resp := &HTTPResponse{}
+
+	if !f.Complete() || f.Type() != 1 {
+		fmt.Println("ERROR: cannot convert incomplete or non-header frame to HTTPResponse")
+		return resp
+	}
+
+	psuedoHeaders := f.psuedoHeaders()
+	if psuedoHeaders[":status"] == "" {
+		fmt.Println("ERROR: cannot convert frame to HTTPResponse, missing :status header")
+		return resp
+	}
+	status, err := strconv.Atoi(psuedoHeaders[":status"])
+
+	headers, err := f.Headers()
+	if err != nil {
+		fmt.Println("ERROR from f.Headers():", err)
+		return resp
+	}
+
+	resp.Status = status
+	resp.HttpVersion = "2"
+	resp.Headers = map[string][]string{}
+	resp.Payload = []byte{}
+
+	for _, header := range headers {
+		if header.IsPseudo() {
+			continue
+		}
+		h := resp.Headers[header.Name]
+		if h == nil {
+			resp.Headers[header.Name] = []string{header.Value}
+		} else {
+			h = append(h, header.Value)
+		}
+	}
+
+	return resp
 }
 
 func (f *Http2Frame) Headers() ([]hpack.HeaderField, error) {
