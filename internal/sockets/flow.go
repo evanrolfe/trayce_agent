@@ -2,6 +2,7 @@ package sockets
 
 import (
 	"fmt"
+	"strings"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -32,9 +33,17 @@ func NewHTTPRequest(method, path, host, httpVersion string, payload []byte, head
 	}
 }
 
-// TODO: Rename to AddPayload()
 func (req *HTTPRequest) AddPayload(data []byte) {
 	req.Payload = append(req.Payload, data...)
+}
+
+func (req *HTTPRequest) IsGRPC() bool {
+	contentTypes, exists := req.Headers["content-type"]
+	if !exists {
+		return false
+	}
+
+	return strings.Contains(contentTypes[0], "application/grpc")
 }
 
 // TODO: GRPCRequest
@@ -68,6 +77,15 @@ type HTTPResponse struct {
 
 func (res *HTTPResponse) AddPayload(data []byte) {
 	res.Payload = append(res.Payload, data...)
+}
+
+func (res *HTTPResponse) IsGRPC() bool {
+	contentTypes, exists := res.Headers["content-type"]
+	if !exists {
+		return false
+	}
+
+	return strings.Contains(contentTypes[0], "application/grpc")
 }
 
 // TODO: GRPCRequest
@@ -146,7 +164,7 @@ func (flow *Flow) AddResponse(response []byte) {
 	flow.Response = &HTTPResponse{}
 }
 
-// AddData adds bytes onto either the request or the response depending on which type the flow is
+// AddPayload adds bytes onto either the request or the response depending on which type the flow is
 func (flow *Flow) AddPayload(data []byte) {
 	if flow.Request != nil {
 		flow.Request.AddPayload(data)

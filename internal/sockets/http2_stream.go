@@ -41,15 +41,21 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 		fmt.Println("[HTTP2Stream] processHeaderFrame (response)")
 	}
 	if frame.IsRequest() {
+		httpReq := frame.ConvertToHTTPRequest()
+		l7Protocol := "http2"
+		if httpReq.IsGRPC() {
+			l7Protocol = "grpc"
+		}
+
 		stream.activeFlow = NewFlowRequest(
 			uuid.NewString(),
 			"0.0.0.0",
 			"127.0.0.1:80",
 			"tcp",
-			"http2",
+			l7Protocol,
 			123,
 			5,
-			frame.ConvertToHTTPRequest(),
+			httpReq,
 		)
 
 		activeUUID := stream.activeFlow.UUID
@@ -60,6 +66,13 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 			fmt.Println("ERROR: no active request UUID for this response")
 			return nil
 		}
+
+		httpResp := frame.ConvertToHTTPResponse()
+		l7Protocol := "http2"
+		if httpResp.IsGRPC() {
+			l7Protocol = "grpc"
+		}
+
 		// GRPC sends a header frame AFTER the data frames have been sent, this is the trailer frame and we ignore it
 		// so if there is already an active flow then dont try and create a new one
 		if stream.activeFlow == nil {
@@ -68,10 +81,10 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 				"0.0.0.0",
 				"127.0.0.1:80",
 				"tcp",
-				"http2",
+				l7Protocol,
 				123,
 				5,
-				frame.ConvertToHTTPResponse(),
+				httpResp,
 			)
 		}
 	}

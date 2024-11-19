@@ -520,4 +520,104 @@ var _ = Describe("SocketHTTP2", func() {
 			// fmt.Print(lines)
 		})
 	})
+
+	Context("Receiving a Connect & Data events (GRPC messages)", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		grpcEvent1Bytes, _ := hexDumpToBytes(grpcEvent1)
+		grpcEvent2Bytes, _ := hexDumpToBytes(grpcEvent2)
+		grpcEvent3Bytes, _ := hexDumpToBytes(grpcEvent3)
+		grpcEvent4Bytes, _ := hexDumpToBytes(grpcEvent4)
+
+		requestPayloads := [][]byte{grpcEvent1Bytes, grpcEvent2Bytes}
+		responsePayloads := [][]byte{grpcEvent3Bytes, grpcEvent4Bytes}
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
+				PID:  123,
+				TID:  123,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
+			})
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			// Process request payloads
+			for _, payload := range requestPayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 6, // go_tls_read
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+			// Process response payloads
+			for _, payload := range responsePayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 7, // go_tls_write
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+		})
+
+		It("returns a request flow", func() {
+			Expect(flows).To(HaveLen(2))
+			flow := flows[0]
+
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("grpc"))
+
+			Expect(flow.Request).ToNot(BeNil())
+			Expect(flow.Response).To(BeNil())
+
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("POST"))
+			Expect(req.Path).To(Equal("/api.TrayceAgent/SendContainersObserved"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:50051"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"grpc-go/1.65.0"}))
+			Expect(req.Headers["te"]).To(Equal([]string{"trailers"}))
+			Expect(req.Headers["content-type"]).To(Equal([]string{"application/grpc"}))
+			Expect(req.Payload).To(Equal([]byte{0, 0, 0, 0, 43, 10, 41, 10, 4, 49, 50, 51, 52, 18, 6, 117, 98, 117, 110, 116, 117, 26, 10, 49, 55, 50, 46, 48, 46, 49, 46, 49, 57, 34, 4, 101, 118, 97, 110, 42, 7, 114, 117, 110, 110, 105, 110, 103}))
+		})
+
+		It("returns a response flow", func() {
+			Expect(flows).To(HaveLen(2))
+			flow := flows[1]
+
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("grpc"))
+
+			Expect(flow.Request).To(BeNil())
+			Expect(flow.Response).ToNot(BeNil())
+
+			resp, ok := flow.Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Status).To(Equal(200))
+			Expect(resp.HttpVersion).To(Equal("2"))
+			Expect(resp.Headers["content-type"]).To(Equal([]string{"application/grpc"}))
+			Expect(resp.Payload).To(Equal([]byte{0, 0, 0, 0, 10, 10, 8, 115, 117, 99, 99, 101, 115, 115, 32}))
+		})
+	})
 })
