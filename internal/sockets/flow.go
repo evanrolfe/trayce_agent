@@ -2,102 +2,18 @@ package sockets
 
 import (
 	"fmt"
-	"strings"
 )
 
-// -------------------------------------------------------------------------------------------------
-// FlowRequest
-// -------------------------------------------------------------------------------------------------
 type FlowRequest interface {
 	AddPayload(data []byte)
+	String() string
 }
 
-// HTTPRequest
-type HTTPRequest struct {
-	Method      string
-	Host        string
-	Path        string
-	HttpVersion string
-	Headers     map[string][]string
-	Payload     []byte
-}
-
-func NewHTTPRequest(method, path, host, httpVersion string, payload []byte, headers map[string][]string) HTTPRequest {
-	return HTTPRequest{
-		Method:      method,
-		Path:        path,
-		Host:        host,
-		HttpVersion: httpVersion,
-		Payload:     payload,
-		Headers:     headers,
-	}
-}
-
-func (req *HTTPRequest) AddPayload(data []byte) {
-	req.Payload = append(req.Payload, data...)
-}
-
-func (req *HTTPRequest) IsGRPC() bool {
-	contentTypes, exists := req.Headers["content-type"]
-	if !exists {
-		return false
-	}
-
-	return strings.Contains(contentTypes[0], "application/grpc")
-}
-
-// TODO: GRPCRequest
-type GRPCRequest struct {
-	data []byte
-}
-
-func (req *GRPCRequest) AddPayload(data []byte) {
-	req.data = append(req.data, data...)
-}
-
-func (req *GRPCRequest) GetData() []byte {
-	return req.data
-}
-
-// -------------------------------------------------------------------------------------------------
-// FlowResponse
-// -------------------------------------------------------------------------------------------------
 type FlowResponse interface {
 	AddPayload(data []byte)
+	String() string
 }
 
-// HTTPResponse
-type HTTPResponse struct {
-	Status      int
-	StatusMsg   string
-	HttpVersion string
-	Headers     map[string][]string
-	Payload     []byte
-}
-
-func (res *HTTPResponse) AddPayload(data []byte) {
-	res.Payload = append(res.Payload, data...)
-}
-
-func (res *HTTPResponse) IsGRPC() bool {
-	contentTypes, exists := res.Headers["content-type"]
-	if !exists {
-		return false
-	}
-
-	return strings.Contains(contentTypes[0], "application/grpc")
-}
-
-// TODO: GRPCRequest
-type GRPCResponse struct {
-}
-
-func (req *GRPCResponse) AddPayload(data []byte) {
-}
-
-// -------------------------------------------------------------------------------------------------
-// Flow
-// -------------------------------------------------------------------------------------------------
 // Flow represents an exchange of data over a socket in the form of request + response.
 type Flow struct {
 	UUID       string
@@ -175,12 +91,10 @@ func (flow *Flow) AddPayload(data []byte) {
 
 func (flow *Flow) Debug() {
 	if flow.Request != nil {
-		fmt.Println("Request:")
-		// TODO: print the debug info
+		fmt.Println(flow.Request.String())
 	}
 
 	if flow.Response != nil {
-		fmt.Println("Response:")
-		// TODO: print the debug info
+		fmt.Println(flow.Response.String())
 	}
 }
