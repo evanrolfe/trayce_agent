@@ -470,10 +470,16 @@ func convertToHTTPRequest(req *http.Request) *HTTPRequest {
 }
 
 func convertToHTTPResponse(resp *http.Response, payload []byte) *HTTPResponse {
-	fmt.Println(";;;;;;;;;;;;;;;;; payload:", string(payload))
+	// Extract the message (i.e. "Not Found" from "404 Not Found")
+	spaceIndex := strings.Index(resp.Status, " ")
+	statusMsg := ""
+	if spaceIndex != -1 {
+		statusMsg = resp.Status[spaceIndex+1:]
+	}
+
 	return &HTTPResponse{
 		Status:      resp.StatusCode,
-		StatusMsg:   resp.Status,
+		StatusMsg:   statusMsg,
 		HttpVersion: "1.1",
 		Headers:     resp.Header,
 		Payload:     payload,
