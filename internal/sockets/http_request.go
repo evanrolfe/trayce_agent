@@ -29,15 +29,6 @@ func (req *HTTPRequest) AddPayload(data []byte) {
 	req.Payload = append(req.Payload, data...)
 }
 
-func (req *HTTPRequest) IsGRPC() bool {
-	contentTypes, exists := req.Headers["content-type"]
-	if !exists {
-		return false
-	}
-
-	return strings.Contains(contentTypes[0], "application/grpc")
-}
-
 func (req *HTTPRequest) String() string {
 	str := fmt.Sprintf("%s %s HTTP/%s\n", req.Method, req.Path, req.HttpVersion)
 

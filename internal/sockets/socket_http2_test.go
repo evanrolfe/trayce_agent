@@ -588,13 +588,10 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			req, ok := flow.Request.(*sockets.HTTPRequest)
+			req, ok := flow.Request.(*sockets.GRPCRequest)
 			Expect(ok).To(BeTrue())
 
-			Expect(req.Method).To(Equal("POST"))
 			Expect(req.Path).To(Equal("/api.TrayceAgent/SendContainersObserved"))
-			Expect(req.HttpVersion).To(Equal("2"))
-			Expect(req.Host).To(Equal("172.17.0.3:50051"))
 			Expect(req.Headers["user-agent"]).To(Equal([]string{"grpc-go/1.65.0"}))
 			Expect(req.Headers["te"]).To(Equal([]string{"trailers"}))
 			Expect(req.Headers["content-type"]).To(Equal([]string{"application/grpc"}))
@@ -611,11 +608,9 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
 
-			resp, ok := flow.Response.(*sockets.HTTPResponse)
+			resp, ok := flow.Response.(*sockets.GRPCResponse)
 			Expect(ok).To(BeTrue())
 
-			Expect(resp.Status).To(Equal(200))
-			Expect(resp.HttpVersion).To(Equal("2"))
 			Expect(resp.Headers["content-type"]).To(Equal([]string{"application/grpc"}))
 			Expect(resp.Payload).To(Equal([]byte{0, 0, 0, 0, 10, 10, 8, 115, 117, 99, 99, 101, 115, 115, 32}))
 		})

@@ -116,8 +116,13 @@ func convertToAPIFlow(socketFlow sockets.Flow) *Flow {
 				},
 			}
 		case *sockets.GRPCRequest:
-			// TODO:
-			fmt.Println("TODO!!! Convert GRPCReq:", req)
+			apiFlow.Request = &Flow_GrpcRequest{
+				GrpcRequest: &GRPCRequest{
+					Path:    req.Path,
+					Headers: convertToAPIHeaders(req.Headers),
+					Payload: req.Payload,
+				},
+			}
 		default:
 			fmt.Println("ERROR: convertToAPIFlow() wrong type for request")
 		}
@@ -137,8 +142,12 @@ func convertToAPIFlow(socketFlow sockets.Flow) *Flow {
 				},
 			}
 		case *sockets.GRPCResponse:
-			// TODO:
-			fmt.Println("TODO!!! Convert GRPCReq:", resp)
+			apiFlow.Response = &Flow_GrpcResponse{
+				GrpcResponse: &GRPCResponse{
+					Headers: convertToAPIHeaders(resp.Headers),
+					Payload: resp.Payload,
+				},
+			}
 		default:
 			fmt.Println("ERROR: convertToAPIFlow() wrong type for response")
 		}

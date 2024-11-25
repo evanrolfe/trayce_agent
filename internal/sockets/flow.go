@@ -27,7 +27,7 @@ type Flow struct {
 	FD         int
 }
 
-func NewFlowRequest(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request *HTTPRequest) *Flow {
+func NewFlowRequest(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, request FlowRequest) *Flow {
 	m := &Flow{
 		UUID:       uuid,
 		SourceAddr: localAddr,
@@ -42,7 +42,7 @@ func NewFlowRequest(uuid string, localAddr string, remoteAddr string, l4protocol
 	return m
 }
 
-func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, response *HTTPResponse) *Flow {
+func NewFlowResponse(uuid string, localAddr string, remoteAddr string, l4protocol string, l7protocol string, pid int, fd int, response FlowResponse) *Flow {
 	m := &Flow{
 		UUID:       uuid,
 		SourceAddr: localAddr,
