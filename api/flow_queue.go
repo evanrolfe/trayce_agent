@@ -116,11 +116,15 @@ func convertToAPIFlow(socketFlow sockets.Flow) *Flow {
 				},
 			}
 		case *sockets.GRPCRequest:
+			payload := req.Payload[5:] // strip off the first 5 bytes as that is the http2 message length
+			if payload[0] != 0x00 {
+				fmt.Println("WARNING: Compressed GRPC payload received") // TODO: need to figure out how to handle this
+			}
 			apiFlow.Request = &Flow_GrpcRequest{
 				GrpcRequest: &GRPCRequest{
 					Path:    req.Path,
 					Headers: convertToAPIHeaders(req.Headers),
-					Payload: req.Payload,
+					Payload: payload,
 				},
 			}
 		default:
@@ -142,10 +146,14 @@ func convertToAPIFlow(socketFlow sockets.Flow) *Flow {
 				},
 			}
 		case *sockets.GRPCResponse:
+			payload := resp.Payload[5:]
+			if payload[0] != 0x00 {
+				fmt.Println("WARNING: Compressed GRPC payload received")
+			}
 			apiFlow.Response = &Flow_GrpcResponse{
 				GrpcResponse: &GRPCResponse{
 					Headers: convertToAPIHeaders(resp.Headers),
-					Payload: resp.Payload,
+					Payload: payload,
 				},
 			}
 		default:
