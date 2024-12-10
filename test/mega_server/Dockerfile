@@ -5,7 +5,9 @@ WORKDIR /app
 
 # Build dependencies:
 RUN apt update -y
-RUN apt install -y ruby-full python3-pip wget libssl-dev git libyaml-dev default-jre default-jdk nodejs
+RUN apt upgrade -y
+RUN apt-get update --fix-missing
+RUN DEBIAN_FRONTEND=noninteractive apt install -y ruby-full python3-pip wget libssl-dev git libyaml-dev default-jre default-jdk nodejs postgresql postgresql-contrib
 
 # Debugging tools:
 RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
@@ -21,9 +23,22 @@ RUN export ARCH=$(dpkg --print-architecture) \
   && tar -C /usr/local -xf /tmp/go.tar.gz
 ENV PATH "$PATH:/usr/local/go/bin:/root/go/bin"
 
-RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$'" >> ~/.bashrc
+# Configure PostgreSQL for remote access
+RUN sed -i "s/^#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/14/main/postgresql.conf && \
+    echo "host all all 0.0.0.0/0 md5" >> /etc/postgresql/14/main/pg_hba.conf
 
 ADD . /app
+
+# Expose PostgreSQL port
+EXPOSE 5432
+
+# Start PostgreSQL and run SQL commands in a single RUN
+RUN service postgresql start && \
+    su - postgres -c "psql -c \"ALTER USER postgres PASSWORD 'postgres';\"" && \
+    su - postgres -c "psql -f /app/postgres/init.sql"
+
+RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$'" >> ~/.bashrc
+
 RUN cd go && GOARCH=$(dpkg --print-architecture) go build -o mock_server -buildvcs=false -gcflags "all=-N -l" .
 RUN cd ror && bundle install
 
