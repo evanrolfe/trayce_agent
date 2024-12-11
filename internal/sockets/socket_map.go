@@ -60,7 +60,7 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 
 	green := "\033[92m"
 	reset := "\033[0m"
-	fmt.Println(string(green), "[DataEvent]", string(reset), event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, ", cgroup:", event.CGroupName())
+	fmt.Println(string(green), "[DataEvent]", string(reset), event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD:", event.FD, ", cgroup:", event.CGroupName())
 	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
 
 	var socket SocketI

@@ -156,7 +156,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 				event := events.CloseEvent{}
 				event.Decode(payload)
 
-				fmt.Println(string(red), "[CloseEvent]", string(reset), " PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
+				fmt.Printf("%s[CloseEvent]%s PID: %d, TID: %d, FD: %d\n", red, reset, event.PID, event.TID, event.FD)
 				outputChan <- &event
 
 				// DebugEvent
@@ -314,11 +314,12 @@ func (stream *Stream) attachKProbes() {
 		"sys_accept4":     []string{"probe_accept4", "probe_ret_accept4"},
 		"sys_connect":     []string{"probe_connect", "probe_ret_connect"},
 		"sys_getsockname": []string{"probe_getsockname", "probe_ret_getsockname"},
-		"sys_close":       []string{"probe_close", "probe_ret_close"},
-		"sys_sendto":      []string{"probe_sendto", "probe_ret_sendto"},
-		"sys_recvfrom":    []string{"probe_recvfrom", "probe_ret_recvfrom"},
-		"sys_write":       []string{"probe_write", "probe_ret_write"},
-		"sys_read":        []string{"probe_read", "probe_ret_read"},
+		// TODO: Remove all the related to this kprobe once we're sure we dont need it
+		// "sys_close":       []string{"probe_close", "probe_ret_close"},
+		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
+		"sys_recvfrom": []string{"probe_recvfrom", "probe_ret_recvfrom"},
+		"sys_write":    []string{"probe_write", "probe_ret_write"},
+		"sys_read":     []string{"probe_read", "probe_ret_read"},
 	}
 	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
 	// security_socket_sendmsg & security_socket_recvmsg

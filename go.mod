@@ -9,6 +9,7 @@ require (
 	github.com/aquasecurity/libbpfgo/helpers v0.4.5
 	github.com/docker/docker v27.1.2+incompatible
 	github.com/google/uuid v1.6.0
+	github.com/lib/pq v1.10.9
 	github.com/onsi/ginkgo/v2 v2.12.0
 	github.com/onsi/gomega v1.27.10
 	github.com/stretchr/testify v1.9.0
