@@ -45,6 +45,7 @@ type ContainersI interface {
 type ProbeManagerI interface {
 	AttachToKProbe(funcName string, probeFuncName string) error
 	AttachToKRetProbe(funcName string, probeFuncName string) error
+	AttachTracepoint(funcName string, category string, probeFuncName string) error
 	ReceiveEvents(mapName string, eventsChan chan []byte) error
 	GetMap(mapName string) (*libbpfgo.BPFMap, error)
 	AttachToUProbe(container docker.Container, funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
@@ -85,7 +86,7 @@ func (stream *Stream) AddCloseCallback(callback func(events.CloseEvent)) {
 }
 
 func (stream *Stream) Start(outputChan chan events.IEvent) {
-	stream.attachKProbes()
+	stream.attachProbes()
 
 	// events.DataEvents ring buffer
 	err := stream.probeManager.ReceiveEvents("data_events", stream.dataEventsChan)
@@ -171,6 +172,12 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 				event.Decode(payload)
 
 				fmt.Printf("%s[GetsocknameEvent]%s PID: %d, TID: %d, FD: %d, %s\n", cyan, reset, event.PID, event.TID, event.FD, event.Addr())
+				outputChan <- &event
+			} else if eventType == 5 {
+				event := events.ForkEvent{}
+				event.Decode(payload)
+
+				fmt.Printf("%s[ForkEvent]%s PID: %d, ChildPID: %d\n", cyan, reset, event.PID, event.ChildPID)
 				outputChan <- &event
 			}
 		}
@@ -308,7 +315,7 @@ func (stream *Stream) Close() {
 	stream.probeManager.Close()
 }
 
-func (stream *Stream) attachKProbes() {
+func (stream *Stream) attachProbes() {
 	kprobes := map[string][]string{
 		"sys_accept":      []string{"probe_accept4", "probe_ret_accept4"},
 		"sys_accept4":     []string{"probe_accept4", "probe_ret_accept4"},
@@ -339,6 +346,12 @@ func (stream *Stream) attachKProbes() {
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	// Attach the process fork tracepoint
+	err := stream.probeManager.AttachTracepoint("trace_sched_process_fork", "sched", "sched_process_fork")
+	if err != nil {
+		panic(err)
 	}
 }
 

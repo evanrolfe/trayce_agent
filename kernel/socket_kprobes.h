@@ -74,8 +74,10 @@ int probe_accept4(struct pt_regs *ctx) {
     bpf_probe_read(&saddr, sizeof(saddr), &PT_REGS_PARM2(ctx2));
 
     // Build the connect_event and save it to the map
+    u32 container_ip = should_intercept();
     struct accept_args_t accept_args = {};
     accept_args.addr = (struct sockaddr_in *)saddr;
+    accept_args.container_ip = container_ip;
     bpf_map_update_elem(&active_accept4_args_map, &current_pid_tgid, &accept_args, BPF_ANY);
 
     return 0;
@@ -122,7 +124,7 @@ int probe_ret_accept4(struct pt_regs *ctx) {
     conn_event.fd = fd;
     conn_event.src_host = src_addr.ip;
     conn_event.src_port = src_addr.port;
-    conn_event.dest_host = 0;
+    conn_event.dest_host = accept_args->container_ip;
     conn_event.dest_port = 0;
     bpf_probe_read_str(&conn_event.cgroup, sizeof(conn_event.cgroup), name);
 
@@ -606,5 +608,31 @@ int probe_ret_read(struct pt_regs *ctx) {
         process_data(ctx, current_pid_tgid, kRead, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
+    return 0;
+}
+
+SEC("tracepoint/sched/sched_process_fork")
+int trace_sched_process_fork(struct trace_event_raw_sched_process_fork *ctx)
+{
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    if (!should_intercept()) {
+        return 0;
+    }
+
+    int parent_pid = ctx->parent_pid;
+    int child_pid = ctx->child_pid;
+
+    // Deep copy the connect_event
+    struct fork_event_t sock_event;
+    __builtin_memset(&sock_event, 0, sizeof(sock_event));
+    sock_event.eventtype = eFork;
+    sock_event.pid = pid;
+    sock_event.child_pid = child_pid;
+
+    bpf_ringbuf_output(&data_events, &sock_event, sizeof(struct fork_event_t), 0);
+    bpf_printk("tracepoint/sched/sched_process_fork: return PID: %d, Child PID: %d", pid, child_pid);
+
     return 0;
 }

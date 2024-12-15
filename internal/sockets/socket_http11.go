@@ -68,6 +68,27 @@ func (socket *SocketHttp11) Key() string {
 	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
 }
 
+func (socket *SocketHttp11) GetPID() uint32 {
+	return socket.PID
+}
+
+func (socket *SocketHttp11) SetPID(pid uint32) {
+	socket.PID = pid
+}
+
+func (socket *SocketHttp11) Clone() SocketI {
+	return &SocketHttp11{
+		SourceAddr:  socket.SourceAddr,
+		DestAddr:    socket.DestAddr,
+		PID:         socket.PID,
+		TID:         socket.TID,
+		FD:          socket.FD,
+		SSL:         socket.SSL,
+		dataBuf:     []byte{},
+		requestUuid: "",
+	}
+}
+
 func (socket *SocketHttp11) Clear() {
 	socket.clearDataBuffer()
 }
@@ -82,9 +103,15 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
 func (socket *SocketHttp11) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	if socket.SourceAddr == ZeroAddr {
+	sourceAddrSplit := strings.Split(socket.SourceAddr, ":")
+	sourcePort := sourceAddrSplit[1]
+
+	destAddrSplit := strings.Split(socket.DestAddr, ":")
+	destPort := destAddrSplit[1]
+
+	if sourcePort == "0" {
 		socket.SourceAddr = event.Addr()
-	} else if socket.DestAddr == ZeroAddr {
+	} else if destPort == "0" {
 		socket.DestAddr = event.Addr()
 	}
 

@@ -47,12 +47,14 @@ func (listener *Listener) Start(outputChan chan sockets.Flow) {
 			listener.sockets.ProcessConnectEvent(*ev)
 		case *events.GetsocknameEvent:
 			listener.sockets.ProcessGetsocknameEvent(*ev)
+		case *events.ForkEvent:
+			listener.sockets.ProcessForkEvent(*ev)
 		case *events.DataEvent:
 			listener.sockets.ProcessDataEvent(*ev)
 		case *events.CloseEvent:
 			listener.sockets.ProcessCloseEvent(*ev)
 		default:
-			fmt.Println("ERROR: Listener.Start() event has to be ConnectEvent, DataEvent or CloseEvent")
+			fmt.Println("ERROR: Listener.Start() event type not handled")
 		}
 	}
 }

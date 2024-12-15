@@ -80,7 +80,7 @@ dev:
 	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it trayce_agent:local bash
 
 megaserver:
-	docker run -it mega_server
+	docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -it mega_server
 
 decision:
 	@timestamp=$$(date +"%Y-%m-%d"); \

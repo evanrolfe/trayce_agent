@@ -7,7 +7,7 @@ import (
 	"github.com/evanrolfe/trayce_agent/internal/events"
 )
 
-type SocketUnknown struct {
+type SocketMysql struct {
 	SourceAddr string
 	DestAddr   string
 	Protocol   string
@@ -15,43 +15,39 @@ type SocketUnknown struct {
 	TID        uint32
 	FD         uint32
 	SSL        bool
-	// Stores
-	activeFrame *Http2Frame
-	activeFlow  *Flow
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
 	// When a request is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
 }
 
-func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
-	socket := SocketUnknown{
-		SourceAddr:  event.SourceAddr(),
-		DestAddr:    event.DestAddr(),
-		PID:         event.PID,
-		TID:         event.TID,
-		FD:          event.FD,
+func NewSocketMysqlFromUnknown(unkownSocket *SocketUnknown) SocketMysql {
+	socket := SocketMysql{
+		SourceAddr:  unkownSocket.SourceAddr,
+		DestAddr:    unkownSocket.DestAddr,
+		PID:         unkownSocket.PID,
+		TID:         unkownSocket.TID,
+		FD:          unkownSocket.FD,
 		SSL:         false,
 		requestUuid: "",
 	}
 
 	return socket
 }
-
-func (socket *SocketUnknown) Key() string {
+func (socket *SocketMysql) Key() string {
 	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
 }
 
-func (socket *SocketUnknown) GetPID() uint32 {
+func (socket *SocketMysql) GetPID() uint32 {
 	return socket.PID
 }
 
-func (socket *SocketUnknown) SetPID(pid uint32) {
+func (socket *SocketMysql) SetPID(pid uint32) {
 	socket.PID = pid
 }
 
-func (socket *SocketUnknown) Clone() SocketI {
-	return &SocketUnknown{
+func (socket *SocketMysql) Clone() SocketI {
+	return &SocketMysql{
 		SourceAddr:  socket.SourceAddr,
 		DestAddr:    socket.DestAddr,
 		PID:         socket.PID,
@@ -62,17 +58,18 @@ func (socket *SocketUnknown) Clone() SocketI {
 	}
 }
 
-func (socket *SocketUnknown) Clear() {
+func (socket *SocketMysql) Clear() {
 }
 
-func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
+func (socket *SocketMysql) AddFlowCallback(callback func(Flow)) {
 	socket.flowCallbacks = append(socket.flowCallbacks, callback)
 }
 
-func (socket *SocketUnknown) ProcessConnectEvent(event *events.ConnectEvent) {
+func (socket *SocketMysql) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
-func (socket *SocketUnknown) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
+func (socket *SocketMysql) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
+	// Technically mysql never sends this event, but we have the code here for completeness i guess
 	sourceAddrSplit := strings.Split(socket.SourceAddr, ":")
 	sourcePort := sourceAddrSplit[1]
 
@@ -86,5 +83,5 @@ func (socket *SocketUnknown) ProcessGetsocknameEvent(event *events.GetsocknameEv
 	}
 }
 
-func (socket *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
+func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 }

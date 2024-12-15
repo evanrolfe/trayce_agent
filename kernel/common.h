@@ -29,7 +29,7 @@ typedef short unsigned int __kernel_sa_family_t;
 
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
-enum event_type { eConnect, eData, eClose, eDebug, eGetsockname };
+enum event_type { eConnect, eData, eClose, eDebug, eGetsockname, eFork };
 enum connect_event_type { kConnect, kAccept };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto, goTlsRead, goTlsWrite };
 enum protocol_type { pUnknown, pHttp };
@@ -89,6 +89,13 @@ struct getsockname_event_t {
     u32 fd;
     u32 host;
     u16 port;
+};
+
+struct fork_event_t {
+    u64 eventtype;
+    u64 timestamp_ns;
+    u32 pid;
+    u32 child_pid;
 };
 
 // OPENSSL struct to offset , via kern/README.md
@@ -152,6 +159,7 @@ struct offsets {
 struct accept_args_t {
     struct sockaddr_in* addr;
     int fd;
+    u32 container_ip;
 };
 
 /***********************************************************

@@ -3,6 +3,7 @@ package sockets
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/evanrolfe/trayce_agent/internal/events"
@@ -66,6 +67,28 @@ func (socket *SocketHttp2) Key() string {
 	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
 }
 
+func (socket *SocketHttp2) GetPID() uint32 {
+	return socket.PID
+}
+
+func (socket *SocketHttp2) SetPID(pid uint32) {
+	socket.PID = pid
+}
+
+func (socket *SocketHttp2) Clone() SocketI {
+	return &SocketHttp2{
+		SourceAddr:  socket.SourceAddr,
+		DestAddr:    socket.DestAddr,
+		PID:         socket.PID,
+		TID:         socket.TID,
+		FD:          socket.FD,
+		SSL:         socket.SSL,
+		streams:     map[uint32]*Http2Stream{},
+		frameBuffer: map[string][]byte{},
+		flowBuf:     []Flow{},
+	}
+}
+
 func (socket *SocketHttp2) Clear() {
 	socket.clearFrameBuffer(events.TypeIngress)
 	socket.clearFrameBuffer(events.TypeEgress)
@@ -80,9 +103,15 @@ func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
 func (socket *SocketHttp2) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	if socket.SourceAddr == ZeroAddr {
+	sourceAddrSplit := strings.Split(socket.SourceAddr, ":")
+	sourcePort := sourceAddrSplit[1]
+
+	destAddrSplit := strings.Split(socket.DestAddr, ":")
+	destPort := destAddrSplit[1]
+
+	if sourcePort == "0" {
 		socket.SourceAddr = event.Addr()
-	} else if socket.DestAddr == ZeroAddr {
+	} else if destPort == "0" {
 		socket.DestAddr = event.Addr()
 	}
 

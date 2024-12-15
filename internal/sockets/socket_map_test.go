@@ -200,4 +200,123 @@ var _ = Describe("SocketMap", func() {
 			Expect(resp.Payload).To(Equal([]byte("Hello world.\n")))
 		})
 	})
+
+	FContext("[Postgres] receiving events from a Postgres connection, query & response", Ordered, func() {
+		event1Payload, _ := hexDumpToBytes(psqlEvent1)
+		event2Payload, _ := hexDumpToBytes(psqlEvent2)
+		event3Payload, _ := hexDumpToBytes(psqlEvent3)
+		event4Payload, _ := hexDumpToBytes(psqlEvent4)
+		event5Payload, _ := hexDumpToBytes(psqlEvent5)
+		event6Payload, _ := hexDumpToBytes(psqlEvent6)
+		event7Payload, _ := hexDumpToBytes(psqlEvent7)
+		event8Payload, _ := hexDumpToBytes(psqlEvent8)
+		event9Payload, _ := hexDumpToBytes(psqlEvent9)
+		event10Payload, _ := hexDumpToBytes(psqlEvent10)
+		event11Payload, _ := hexDumpToBytes(psqlEvent11)
+		event12Payload, _ := hexDumpToBytes(psqlEvent12)
+		event13Payload, _ := hexDumpToBytes(psqlEvent13)
+		event14Payload, _ := hexDumpToBytes(psqlEvent14)
+
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
+
+		processReceive := func(payload []byte) {
+			socketsMap.ProcessDataEvent(events.DataEvent{
+				PID:      222,
+				TID:      222,
+				FD:       5,
+				DataType: 0,
+				Data:     convertSliceToArray(payload),
+				DataLen:  int32(len(payload)),
+			})
+		}
+		processSend := func(payload []byte) {
+			socketsMap.ProcessDataEvent(events.DataEvent{
+				PID:      222,
+				TID:      222,
+				FD:       5,
+				DataType: 1,
+				Data:     convertSliceToArray(payload),
+				DataLen:  int32(len(payload)),
+			})
+		}
+
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			socketsMap.ProcessConnectEvent(events.ConnectEvent{
+				PID:        111,
+				TID:        111,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   0,
+				DestPort:   0,
+			})
+			socketsMap.ProcessGetsocknameEvent(events.GetsocknameEvent{
+				PID:  111,
+				TID:  111,
+				FD:   5,
+				Host: 16777343,
+				Port: 80,
+			})
+			socketsMap.ProcessForkEvent(events.ForkEvent{PID: 111, ChildPID: 222})
+			processReceive(event1Payload)
+			processReceive(event2Payload)
+			processSend(event3Payload)
+			processReceive(event4Payload)
+			processSend(event5Payload)
+			processReceive(event6Payload)
+			processSend(event7Payload)
+			processReceive(event8Payload)
+			processSend(event9Payload)
+			processReceive(event10Payload)
+			processSend(event11Payload)
+			processReceive(event12Payload)
+			processSend(event13Payload)
+			processReceive(event14Payload)
+		})
+
+		It("returns two flows", func() {
+			Expect(flows).To(HaveLen(2))
+
+			for _, flow := range flows {
+				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("psql"))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
+			}
+		})
+
+		// It("the first flow contains an HTTP request", func() {
+		// 	flow := flows[0]
+		// 	Expect(flow.Request).ToNot(BeNil())
+		// 	req, ok := flow.Request.(*sockets.HTTPRequest)
+		// 	Expect(ok).To(BeTrue())
+
+		// 	Expect(req.Method).To(Equal("GET"))
+		// 	Expect(req.Path).To(Equal("/"))
+		// 	Expect(req.HttpVersion).To(Equal("1.1"))
+		// 	Expect(req.Host).To(Equal("localhost:4122"))
+
+		// 	Expect(flow.Response).To(BeNil())
+		// })
+
+		// It("the second flow contains an HTTP request and response", func() {
+		// 	Expect(flows[1].Request).To(BeNil())
+		// 	resp, ok := flows[1].Response.(*sockets.HTTPResponse)
+		// 	Expect(ok).To(BeTrue())
+
+		// 	Expect(resp.Status).To(Equal(200))
+		// 	Expect(resp.HttpVersion).To(Equal("1.1"))
+		// 	Expect(resp.Headers["Content-Type"]).To(Equal([]string{"text/plain"}))
+		// 	Expect(resp.Headers["Content-Length"]).To(Equal([]string{"13"}))
+		// 	Expect(resp.Headers["Date"]).To(Equal([]string{"Fri, 15 Sep 2023 07:18:18 GMT"}))
+		// 	Expect(resp.Payload).To(Equal([]byte("Hello world.\n")))
+		// })
+	})
+
 })

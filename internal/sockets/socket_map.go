@@ -54,6 +54,21 @@ func (m *SocketMap) ProcessGetsocknameEvent(event events.GetsocknameEvent) {
 	socket.ProcessGetsocknameEvent(&event)
 }
 
+func (m *SocketMap) ProcessForkEvent(event events.ForkEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// When a process is forked, all open connections are copied over to the the child process, so we need to do
+	// the same thing here in the socket map
+	for _, socket := range m.sockets {
+		if socket.GetPID() == event.PID {
+			newSocket := socket.Clone()
+			newSocket.SetPID(event.ChildPID)
+			m.sockets[newSocket.Key()] = newSocket
+		}
+	}
+}
+
 func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -61,7 +76,7 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	green := "\033[92m"
 	reset := "\033[0m"
 	fmt.Println(string(green), "[DataEvent]", string(reset), event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD:", event.FD, ", cgroup:", event.CGroupName())
-	fmt.Print(hex.Dump(event.PayloadTrimmed(256)))
+	fmt.Print(hex.Dump(event.Payload()))
 
 	var socket SocketI
 	socket, exists := m.getSocket(event.Key())
@@ -85,6 +100,14 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 			socket = &newSocket
 		case HTTP2:
 			newSocket := NewSocketHttp2FromUnknown(unkownSocket)
+			m.setSocket(&newSocket)
+			socket = &newSocket
+		case PSQL:
+			newSocket := NewSocketPsqlFromUnknown(unkownSocket)
+			m.setSocket(&newSocket)
+			socket = &newSocket
+		case MySQL:
+			newSocket := NewSocketMysqlFromUnknown(unkownSocket)
 			m.setSocket(&newSocket)
 			socket = &newSocket
 		}

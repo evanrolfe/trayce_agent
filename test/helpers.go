@@ -3,8 +3,10 @@ package test
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -15,7 +17,9 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/evanrolfe/trayce_agent/api"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -142,6 +146,10 @@ func makeRequest(i int, url string, ishttp2 bool, wg *sync.WaitGroup) {
 
 	if url[0:4] == "grpc" {
 		makeGrpcRequest(url[7:])
+	} else if url[0:4] == "psql" {
+		makePostgresRequest(url[7:])
+	} else if url[0:5] == "mysql" {
+		makeMysqlRequest(url[8:])
 	} else if url[0:4] == "http" {
 		var client *http.Client
 		if ishttp2 {
@@ -209,4 +217,92 @@ func makeGrpcRequest(addr string) {
 	}
 
 	fmt.Println("grpc reply:", reply.Status)
+}
+
+func makePostgresRequest(addr string) {
+	connStr := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", addr)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		fmt.Println("Error failed: to connect to database:", err)
+	}
+	defer db.Close()
+
+	// Verify connection
+	err = db.Ping()
+	if err != nil {
+		fmt.Println("Error: failed to connect to database:", err)
+	}
+
+	rows, err := db.Query("SELECT id, name, quantity, price, created_at FROM things")
+	if err != nil {
+		fmt.Println("Error: Failed to run query:", err)
+	}
+	defer rows.Close()
+}
+
+// func makePostgresRequestPrepared(addr string) {
+// 	connStr := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", addr)
+// 	db, err := sql.Open("postgres", connStr)
+// 	if err != nil {
+// 		fmt.Println("Error failed: to connect to database:", err)
+// 	}
+// 	defer db.Close()
+
+// 	// Verify connection
+// 	err = db.Ping()
+// 	if err != nil {
+// 		fmt.Println("Error: failed to connect to database:", err)
+// 	}
+
+// 	stmt, err := db.Prepare("SELECT id, name, quantity, price, created_at FROM things WHERE id > $1")
+// 	if err != nil {
+// 		fmt.Printf("Failed to prepare statement: %v\n", err)
+// 	}
+// 	defer stmt.Close()
+
+// 	rows, err := stmt.Query(1)
+// 	if err != nil {
+// 		fmt.Println("Error: Failed to run query:", err)
+// 	}
+// 	defer rows.Close()
+// }
+
+func makeMysqlRequest(addr string) {
+	// MySQL connection details
+	dsn := fmt.Sprintf("root:root@tcp(%s)/my_database", addr)
+
+	// Connect to the database
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatalf("Error connecting to the database: %v", err)
+	}
+	defer db.Close()
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Error pinging the database: %v", err)
+	}
+
+	fmt.Println("\n\n\n\nSuccessfully connected to the database!")
+
+	// Query the database
+	query := "SELECT id, name, quantity, price, created_at FROM things"
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Fatalf("Error executing query: %v", err)
+	}
+	defer rows.Close()
+
+	// Count rows
+	rowCount := 0
+	for rows.Next() {
+		rowCount++
+	}
+
+	// Check for errors during iteration
+	if err = rows.Err(); err != nil {
+		log.Fatalf("Error iterating over rows: %v", err)
+	}
+
+	fmt.Printf("Number of rows returned: %d\n", rowCount)
 }

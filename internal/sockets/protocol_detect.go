@@ -5,6 +5,8 @@ import "bytes"
 const (
 	HTTP    = "http"
 	HTTP2   = "http2"
+	PSQL    = "psql"
+	MySQL   = "mysql"
 	Unknown = "unknown"
 )
 
@@ -42,6 +44,18 @@ func detectProtocol(raw []byte) string {
 	// HTTP2
 	if len(raw) >= 24 && bytes.Equal(raw[0:24], http2MagicString) {
 		return HTTP2
+	}
+
+	// Postgres
+	// 96 is an arbitrary number to try and ensure it has both the protocol version & user key in the payload
+	// It would be wise to detect protocol on the socket's buffer rather than an individual event
+	if len(raw) >= 96 {
+		protocolSeq := []byte{0x00, 0x03, 0x00, 0x00} // assumes version 3.0
+		userKeySeq := []byte{0x75, 0x73, 0x65, 0x72}  // check if the "user" key exists in the payload
+
+		if bytes.Contains(raw, protocolSeq) && bytes.Contains(raw, userKeySeq) {
+			return PSQL
+		}
 	}
 
 	return Unknown

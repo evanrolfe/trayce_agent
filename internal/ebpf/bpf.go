@@ -157,6 +157,21 @@ func (bpf *BPF) AttachGoUProbe(funcName string, exitFuncName string, probeFuncNa
 	return uprobes, nil
 }
 
+func (bpf *BPF) AttachTracepoint(funcName string, category string, probeFuncName string) (*libbpfgo.BPFLink, error) {
+	// Attach Entry Probe
+	probeEntry, err := bpf.bpfModule.GetProgram(funcName)
+	if err != nil {
+		return nil, err
+	}
+
+	bpfLink, err := probeEntry.AttachTracepoint(category, probeFuncName)
+	if err != nil {
+		return nil, err
+	}
+
+	return bpfLink, nil
+}
+
 func (bpf *BPF) DestroyProbe(probe *libbpfgo.BPFLink) error {
 	return probe.Destroy()
 }

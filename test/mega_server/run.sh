@@ -10,9 +10,11 @@ echo "| Python server (https):      http://$current_ip:3002/                    
 echo "| Ruby server (http):         http://$current_ip:3003/                       |"
 echo "| Ruby server (https):        http://$current_ip:3004/                       |"
 echo "| Postgres:                   $current_ip:5432                               |"
+echo "| MySQL:                      $current_ip:3306                               |"
 echo "*---------------------------------------------------------------------------*\n\n"
 
 service postgresql start &
+service mysql start &
 cd /app/ror/ && ./run.sh &
 cd /app/flask/ && ./run.sh &
 cd /app/node && ./run.sh &
