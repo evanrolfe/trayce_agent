@@ -201,7 +201,7 @@ var _ = Describe("SocketMap", func() {
 		})
 	})
 
-	FContext("[Postgres] receiving events from a Postgres connection, query & response", Ordered, func() {
+	Context("[Postgres] receiving events from a Postgres connection, query & response", Ordered, func() {
 		event1Payload, _ := hexDumpToBytes(psqlEvent1)
 		event2Payload, _ := hexDumpToBytes(psqlEvent2)
 		event3Payload, _ := hexDumpToBytes(psqlEvent3)
@@ -216,6 +216,7 @@ var _ = Describe("SocketMap", func() {
 		event12Payload, _ := hexDumpToBytes(psqlEvent12)
 		event13Payload, _ := hexDumpToBytes(psqlEvent13)
 		event14Payload, _ := hexDumpToBytes(psqlEvent14)
+		event15Payload, _ := hexDumpToBytes(psqlEvent15)
 
 		var socketsMap *sockets.SocketMap
 		var flows []*sockets.Flow
@@ -259,8 +260,8 @@ var _ = Describe("SocketMap", func() {
 				PID:  111,
 				TID:  111,
 				FD:   5,
-				Host: 16777343,
-				Port: 80,
+				Host: 33558957,
+				Port: 5432,
 			})
 			socketsMap.ProcessForkEvent(events.ForkEvent{PID: 111, ChildPID: 222})
 			processReceive(event1Payload)
@@ -277,16 +278,18 @@ var _ = Describe("SocketMap", func() {
 			processReceive(event12Payload)
 			processSend(event13Payload)
 			processReceive(event14Payload)
+			processSend(event15Payload)
 		})
 
 		It("returns two flows", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
-				// Expect(flow.RemoteAddr).To(Equal("127.0.0.1:80"))
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("173.17.0.2:5432"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("psql"))
-				Expect(flow.PID).To(Equal(123))
+				Expect(flow.PID).To(Equal(222))
 				Expect(flow.FD).To(Equal(5))
 			}
 		})
@@ -318,5 +321,4 @@ var _ = Describe("SocketMap", func() {
 		// 	Expect(resp.Payload).To(Equal([]byte("Hello world.\n")))
 		// })
 	})
-
 })

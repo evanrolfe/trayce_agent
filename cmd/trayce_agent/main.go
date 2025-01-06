@@ -78,6 +78,15 @@ func main() {
 		fmt.Println("Linux kernel version", kernelVersion, "is not supported, please upgrade to >= 5.0.0")
 	}
 
+	// Ensure the tracepoints are mounted (i.e. sched_process_fork)
+	if !isMounted("/sys/kernel/debug/tracing") {
+		err := syscall.Mount("debugfs", "/sys/kernel/debug", "debugfs", 0, "")
+		if err != nil {
+			fmt.Println("Failing to mount debugfs:", err)
+			return
+		}
+	}
+
 	// Extract bundled files
 	bpfBytes := internal.MustAsset(bpfFilePath)
 	btfBytes := internal.MustAsset(btfFilePath)
@@ -247,4 +256,14 @@ func convertContainersGUIToAPI(containers []docker.ContainerGUI) api.Containers 
 	}
 
 	return api.Containers{Containers: apiContainers}
+}
+
+func isMounted(mountPoint string) bool {
+	info, err := os.Stat(mountPoint)
+	if err != nil {
+		fmt.Printf("Error checking mount point: %v\n", err)
+		return false
+	}
+	// Check if the mount point is a directory
+	return info.IsDir()
 }

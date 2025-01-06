@@ -1,100 +1,346 @@
 package sockets
 
 import (
-	"encoding/hex"
+	"bytes"
+	"encoding/binary"
 	"fmt"
-	"strings"
 
 	"github.com/evanrolfe/trayce_agent/internal/events"
+	"github.com/google/uuid"
 )
 
 type SocketPsql struct {
-	SourceAddr string
-	DestAddr   string
-	Protocol   string
-	PID        uint32
-	TID        uint32
-	FD         uint32
-	SSL        bool
-	// If a flow is observed, then these are called
-	flowCallbacks []func(Flow)
-	// When a request is observed, this value is set, when the response comes, we send this value back with the response
+	Common SocketCommon
+	// bufEgress is a buffer for egress traffic data
+	bufEgress []byte
+	// bufEgress is a buffer for ingress traffic data
+	bufIngress []byte
+	// bufQueryFlow is a Flow that has be been buffered, to wait until more info is received to complete it (i.e. a prepared query waiting for the args to come in a Bind message)
+	bufQueryFlow *Flow
+	// bufQueryFlow is a Flow that has be been buffered, to wait until more info is received to complete it (i.e. waiting for all rows to be sent)
+	bufRespFlow *Flow
+	// When a query is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
 }
 
-func NewSocketPsqlFromUnknown(unkownSocket *SocketUnknown) SocketPsql {
+func NewSocketPsql(event *events.ConnectEvent) SocketPsql {
 	socket := SocketPsql{
-		SourceAddr:  unkownSocket.SourceAddr,
-		DestAddr:    unkownSocket.DestAddr,
-		PID:         unkownSocket.PID,
-		TID:         unkownSocket.TID,
-		FD:          unkownSocket.FD,
-		SSL:         false,
-		requestUuid: "",
+		Common: SocketCommon{
+			SourceAddr: event.SourceAddr(),
+			DestAddr:   event.DestAddr(),
+			PID:        event.PID,
+			TID:        event.TID,
+			FD:         event.FD,
+			SSL:        false,
+		},
+		bufEgress:    []byte{},
+		bufIngress:   []byte{},
+		bufQueryFlow: nil,
 	}
 
 	return socket
 }
+
+func NewSocketPsqlFromUnknown(unkownSocket *SocketUnknown) SocketPsql {
+	socket := SocketPsql{
+		Common: SocketCommon{
+			SourceAddr: unkownSocket.SourceAddr,
+			DestAddr:   unkownSocket.DestAddr,
+			PID:        unkownSocket.PID,
+			TID:        unkownSocket.TID,
+			FD:         unkownSocket.FD,
+			SSL:        false,
+		},
+		bufEgress:    []byte{},
+		bufIngress:   []byte{},
+		bufQueryFlow: nil,
+	}
+
+	return socket
+}
+
 func (socket *SocketPsql) Key() string {
-	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
+	return socket.Common.Key()
 }
 
 func (socket *SocketPsql) GetPID() uint32 {
-	return socket.PID
+	return socket.Common.GetPID()
 }
 
 func (socket *SocketPsql) SetPID(pid uint32) {
-	socket.PID = pid
+	socket.Common.SetPID(pid)
 }
 
 func (socket *SocketPsql) Clone() SocketI {
 	return &SocketPsql{
-		SourceAddr:  socket.SourceAddr,
-		DestAddr:    socket.DestAddr,
-		PID:         socket.PID,
-		TID:         socket.TID,
-		FD:          socket.FD,
-		SSL:         socket.SSL,
-		requestUuid: "",
+		Common: socket.Common.Clone(),
 	}
 }
 
-func (socket *SocketPsql) Clear() {
+func (socket *SocketPsql) AddFlowCallback(callback func(Flow)) {
+	socket.Common.AddFlowCallback(callback)
 }
 
-func (socket *SocketPsql) AddFlowCallback(callback func(Flow)) {
-	socket.flowCallbacks = append(socket.flowCallbacks, callback)
+func (socket *SocketPsql) Clear() {
 }
 
 func (socket *SocketPsql) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
 func (socket *SocketPsql) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	sourceAddrSplit := strings.Split(socket.SourceAddr, ":")
-	sourcePort := sourceAddrSplit[1]
-
-	destAddrSplit := strings.Split(socket.DestAddr, ":")
-	destPort := destAddrSplit[1]
-
-	if sourcePort == "0" {
-		socket.SourceAddr = event.Addr()
-	} else if destPort == "0" {
-		socket.DestAddr = event.Addr()
-	}
+	socket.Common.ProcessGetsocknameEvent(event)
 }
 
 func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 	payload := event.Payload()
-	if payload[0] == 0x51 {
-		fmt.Println("================> QUERY:\n", hex.Dump(event.Payload()))
-		msg := PsqlMessage{}
-		msg.Decode(payload)
+	messages := ExtractMessages(payload)
 
-		fmt.Printf("Type: 0x%X, Length: %d\nQuery:", msg.Type, msg.Length)
-		fmt.Println(string(msg.Payload))
-		if string(msg.Payload) == ";" {
-			// This is a query with just ";" so we ignore it
-			return
+	for _, msg := range messages {
+		switch msg.Type {
+		case TypeQuery:
+			if bytes.Equal(msg.Payload, []byte{0x3b, 0x00}) {
+				// This is a query with just ";" so we ignore it
+				return
+			}
+			socket.requestUuid = uuid.NewString()
+			sqlQuery := NewPSQLQuery(string(msg.Payload))
+			flow := NewFlowRequest(
+				socket.requestUuid,
+				socket.Common.SourceAddr,
+				socket.Common.DestAddr,
+				"tcp",
+				"psql",
+				int(socket.Common.PID),
+				int(socket.Common.FD),
+				&sqlQuery,
+			)
+			socket.Common.sendFlowBack(*flow)
+		case TypeParse:
+			socket.requestUuid = uuid.NewString()
+			sqlQuery := NewPSQLQuery(string(msg.Payload[2:]))
+			flow := NewFlowRequest(
+				socket.requestUuid,
+				socket.Common.SourceAddr,
+				socket.Common.DestAddr,
+				"tcp",
+				"psql",
+				int(socket.Common.PID),
+				int(socket.Common.FD),
+				&sqlQuery,
+			)
+			// Buffer the flow until we receive the arguments of this prepared query in a postgres bind message
+			socket.bufQueryFlow = flow
+		case TypeBind:
+			if socket.bufQueryFlow == nil {
+				fmt.Println("[Error] [SocketPsql] bind message received but there is no buffered flow!")
+				return
+			}
+
+			query, ok := socket.bufQueryFlow.Request.(*PSQLQuery)
+			if !ok {
+				fmt.Println("[Error] [SocketPsql] could not convert FlowRequest to SQLQuery")
+				return
+			}
+			query.AddPayload(msg.Payload)
+			socket.Common.sendFlowBack(*socket.bufQueryFlow)
+			socket.clearBufQueryFlow()
+		case TypeRowDesc:
+			sqlResp, err := PSQLResponseFromRowDescription(msg.Payload)
+			if err != nil {
+				fmt.Println("[Error] [SocketPsql] extractColumnNames():", err)
+				return
+			}
+			flow := NewFlowResponse(
+				socket.requestUuid,
+				socket.Common.SourceAddr,
+				socket.Common.DestAddr,
+				"tcp",
+				"psql",
+				int(socket.Common.PID),
+				int(socket.Common.FD),
+				&sqlResp,
+			)
+			// Buffer the flow until we receive the all the rows in this response
+			socket.bufRespFlow = flow
+		case TypeDataRow:
+			if socket.bufRespFlow == nil {
+				fmt.Println("[Error] [SocketPsql] data row message received but there is no buffered flow!")
+				return
+			}
+			resp, ok := socket.bufRespFlow.Response.(*PSQLResponse)
+			if !ok {
+				fmt.Println("[Error] [SocketPsql] could not convert FlowResponse to SQLResponse")
+				return
+			}
+			resp.AddPayload(msg.Payload) // TODO: Make this work
+		case TypeCommandComplete:
+			if socket.bufRespFlow == nil {
+				fmt.Println("[Error] [SocketPsql] bind message received but there is no buffered flow!")
+				return
+			}
+			socket.Common.sendFlowBack(*socket.bufRespFlow)
+			socket.clearBufRespFlow()
 		}
 	}
+}
+
+func (socket *SocketPsql) clearBufQueryFlow() {
+	socket.bufQueryFlow = nil
+}
+
+func (socket *SocketPsql) clearBufRespFlow() {
+	socket.bufRespFlow = nil
+}
+
+// extractMessages parses a PostgreSQL message stream and extracts individual messages
+func ExtractMessages(data []byte) []PsqlMessage {
+	var messages []PsqlMessage
+	reader := bytes.NewReader(data)
+
+	for {
+		// Check if we have enough bytes for at least message type + length
+		if reader.Len() < 5 {
+			// Not enough bytes to read another message
+			break
+		}
+
+		// Read the message type
+		var msgType byte
+		if err := binary.Read(reader, binary.BigEndian, &msgType); err != nil {
+			// Can't read further
+			break
+		}
+
+		// Read the message length (4 bytes)
+		var length int32
+		if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
+			// Can't read further
+			break
+		}
+
+		// Calculate the payload size
+		payloadSize := int(length) - 4
+		if payloadSize < 0 || payloadSize > reader.Len() {
+			// The length is invalid or incomplete payload
+			// Stop parsing here since we can't form a valid message
+			break
+		}
+
+		// Read the payload
+		payload := make([]byte, payloadSize)
+		if _, err := reader.Read(payload); err != nil {
+			// Incomplete payload
+			break
+		}
+
+		// Reconstruct the full message: type + length + payload
+		msgRaw := make([]byte, 1+4+payloadSize)
+		msgRaw[0] = msgType
+		binary.BigEndian.PutUint32(msgRaw[1:5], uint32(length))
+		copy(msgRaw[5:], payload)
+
+		// Append this message to our slice
+		msg := PsqlMessage{}
+		msg.Decode(msgRaw)
+		messages = append(messages, msg)
+	}
+
+	return messages
+}
+
+// extractBindArgsFromPayload parses the Bind message payload (without the first 5 bytes for type+length).
+func extractBindArgsFromPayload(msg []byte) ([]string, error) {
+	buf := bytes.NewBuffer(msg)
+
+	// Read portalName (null-terminated string)
+	portalName, err := readNullTerminatedString(buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read portal name: %w", err)
+	}
+	_ = portalName // not needed
+
+	// Read statementName (null-terminated string)
+	statementName, err := readNullTerminatedString(buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read statement name: %w", err)
+	}
+	_ = statementName // not needed
+
+	// Read number of parameter format codes (int16)
+	var paramFormatCount int16
+	if err := binary.Read(buf, binary.BigEndian, &paramFormatCount); err != nil {
+		return nil, fmt.Errorf("failed to read param format count: %w", err)
+	}
+
+	// Read param format codes
+	paramFormats := make([]int16, paramFormatCount)
+	for i := 0; i < int(paramFormatCount); i++ {
+		if err := binary.Read(buf, binary.BigEndian, &paramFormats[i]); err != nil {
+			return nil, fmt.Errorf("failed to read param format code: %w", err)
+		}
+	}
+
+	// Read the number of parameters (int16)
+	var paramCount int16
+	if err := binary.Read(buf, binary.BigEndian, &paramCount); err != nil {
+		return nil, fmt.Errorf("failed to read param count: %w", err)
+	}
+
+	params := make([]string, 0, paramCount)
+
+	// Read each parameter
+	for i := 0; i < int(paramCount); i++ {
+		var paramLen int32
+		if err := binary.Read(buf, binary.BigEndian, &paramLen); err != nil {
+			return nil, fmt.Errorf("failed to read param length: %w", err)
+		}
+
+		if paramLen == -1 {
+			// NULL parameter
+			params = append(params, "")
+			continue
+		}
+
+		if int(paramLen) > buf.Len() {
+			return nil, fmt.Errorf("not enough data for parameter value")
+		}
+
+		paramValue := make([]byte, paramLen)
+		if _, err := buf.Read(paramValue); err != nil {
+			return nil, fmt.Errorf("failed to read param value: %w", err)
+		}
+
+		// Convert the parameter bytes to string
+		params = append(params, string(paramValue))
+	}
+
+	// Read number of result format codes
+	var resultFormatCount int16
+	if err := binary.Read(buf, binary.BigEndian, &resultFormatCount); err != nil {
+		return nil, fmt.Errorf("failed to read result format count: %w", err)
+	}
+
+	// Read result format codes if any
+	for i := 0; i < int(resultFormatCount); i++ {
+		var code int16
+		if err := binary.Read(buf, binary.BigEndian, &code); err != nil {
+			return nil, fmt.Errorf("failed to read result format code: %w", err)
+		}
+	}
+
+	return params, nil
+}
+
+func readNullTerminatedString(buf *bytes.Buffer) (string, error) {
+	strBytes, err := buf.ReadBytes(0)
+	if err != nil {
+		return "", err
+	}
+
+	// Remove the trailing null byte
+	if len(strBytes) > 0 {
+		strBytes = strBytes[:len(strBytes)-1]
+	}
+
+	return string(strBytes), nil
 }

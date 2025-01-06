@@ -17,14 +17,15 @@ message Flow {
     string dest_addr = 3;
     string l4_protocol = 4;
     string l7_protocol = 5;
-	bytes response_raw = 7;
 	oneof request {
-		HTTPRequest http_request = 8;
-		GRPCRequest grpc_request = 9;
+		HTTPRequest http_request = 6;
+		GRPCRequest grpc_request = 7;
+		SQLQuery sql_query = 8;
 	}
 	oneof response {
-		HTTPResponse http_response = 10;
-		GRPCResponse grpc_response = 11;
+		HTTPResponse http_response = 9;
+		GRPCResponse grpc_response = 10;
+		SQLResponse sql_response = 11;
 	}
 }
 
@@ -62,6 +63,16 @@ message GRPCRequest {
 message GRPCResponse {
     map<string, StringList> headers = 1;
     bytes payload = 2;
+}
+
+message SQLQuery {
+    string query = 1;
+    StringList params = 2;
+}
+
+message SQLResponse {
+    StringList columns = 1;
+    repeated StringList rows = 2;
 }
 
 message Reply {

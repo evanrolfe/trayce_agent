@@ -49,14 +49,6 @@ func AssertFlows(t *testing.T, flows []*api.Flow) {
 			// assert.Regexp(t, regexp.MustCompile(reqRegex), string(flow.RequestRaw))
 			assert.Equal(t, "tcp", flow.L4Protocol)
 			assert.Equal(t, "http", flow.L7Protocol)
-
-		} else if len(flow.ResponseRaw) > 0 {
-			assert.GreaterOrEqual(t, len(flow.ResponseRaw), 15)
-			if len(flow.ResponseRaw) >= 15 {
-				assert.Equal(t, "HTTP/1.1 200 OK", string(flow.ResponseRaw[0:15]))
-				assert.Equal(t, "tcp", flow.L4Protocol)
-				assert.Equal(t, "http", flow.L7Protocol)
-			}
 		}
 	}
 }
@@ -71,10 +63,6 @@ func AssertFlowsHttp2(t *testing.T, flows []*api.Flow) {
 		if flow.Request != nil {
 			// TODO:
 			// assert.Regexp(t, regexp.MustCompile(reqRegexHttp2), string(flow.RequestRaw))
-			assert.Equal(t, "tcp", flow.L4Protocol)
-			assert.Equal(t, "http2", flow.L7Protocol)
-		} else if len(flow.ResponseRaw) > 0 {
-			assert.Equal(t, "HTTP/2 200", string(flow.ResponseRaw[0:10]))
 			assert.Equal(t, "tcp", flow.L4Protocol)
 			assert.Equal(t, "http2", flow.L7Protocol)
 		}
@@ -147,7 +135,7 @@ func makeRequest(i int, url string, ishttp2 bool, wg *sync.WaitGroup) {
 	if url[0:4] == "grpc" {
 		makeGrpcRequest(url[7:])
 	} else if url[0:4] == "psql" {
-		makePostgresRequest(url[7:])
+		makePostgresRequestPrepared(url[7:])
 	} else if url[0:5] == "mysql" {
 		makeMysqlRequest(url[8:])
 	} else if url[0:4] == "http" {
@@ -240,32 +228,32 @@ func makePostgresRequest(addr string) {
 	defer rows.Close()
 }
 
-// func makePostgresRequestPrepared(addr string) {
-// 	connStr := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", addr)
-// 	db, err := sql.Open("postgres", connStr)
-// 	if err != nil {
-// 		fmt.Println("Error failed: to connect to database:", err)
-// 	}
-// 	defer db.Close()
+func makePostgresRequestPrepared(addr string) {
+	connStr := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", addr)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		fmt.Println("Error failed: to connect to database:", err)
+	}
+	defer db.Close()
 
-// 	// Verify connection
-// 	err = db.Ping()
-// 	if err != nil {
-// 		fmt.Println("Error: failed to connect to database:", err)
-// 	}
+	// Verify connection
+	err = db.Ping()
+	if err != nil {
+		fmt.Println("Error: failed to connect to database:", err)
+	}
 
-// 	stmt, err := db.Prepare("SELECT id, name, quantity, price, created_at FROM things WHERE id > $1")
-// 	if err != nil {
-// 		fmt.Printf("Failed to prepare statement: %v\n", err)
-// 	}
-// 	defer stmt.Close()
+	stmt, err := db.Prepare("SELECT id, name, quantity, price, created_at FROM things WHERE id <> $1 AND name <> $2")
+	if err != nil {
+		fmt.Printf("Failed to prepare statement: %v\n", err)
+	}
+	defer stmt.Close()
 
-// 	rows, err := stmt.Query(1)
-// 	if err != nil {
-// 		fmt.Println("Error: Failed to run query:", err)
-// 	}
-// 	defer rows.Close()
-// }
+	rows, err := stmt.Query(123, "hello world")
+	if err != nil {
+		fmt.Println("Error: Failed to run query:", err)
+	}
+	defer rows.Close()
+}
 
 func makeMysqlRequest(addr string) {
 	// MySQL connection details

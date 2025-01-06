@@ -17,31 +17,24 @@ import (
 )
 
 type SocketHttp11 struct {
-	SourceAddr string
-	DestAddr   string
-	Protocol   string
-	PID        uint32
-	TID        uint32
-	FD         uint32
-	SSL        bool
+	Common SocketCommon
+
 	// Stores the bytes being received from DataEvent until they form a full HTTP request or response
 	dataBuf []byte
-	// If a flow is observed, then these are called
-	flowCallbacks []func(Flow)
-	// The flows are buffered until a GetsocknameEvent is received which sets the source/dest address on the flows
-	flowBuf []Flow
 	// When a request is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
 }
 
 func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 	socket := SocketHttp11{
-		SourceAddr:  event.SourceAddr(),
-		DestAddr:    event.DestAddr(),
-		PID:         event.PID,
-		TID:         event.TID,
-		FD:          event.FD,
-		SSL:         false,
+		Common: SocketCommon{
+			SourceAddr: event.SourceAddr(),
+			DestAddr:   event.DestAddr(),
+			PID:        event.PID,
+			TID:        event.TID,
+			FD:         event.FD,
+			SSL:        false,
+		},
 		dataBuf:     []byte{},
 		requestUuid: "",
 	}
@@ -51,12 +44,14 @@ func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 
 func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 	socket := SocketHttp11{
-		SourceAddr:  unkownSocket.SourceAddr,
-		DestAddr:    unkownSocket.DestAddr,
-		PID:         unkownSocket.PID,
-		TID:         unkownSocket.TID,
-		FD:          unkownSocket.FD,
-		SSL:         false,
+		Common: SocketCommon{
+			SourceAddr: unkownSocket.SourceAddr,
+			DestAddr:   unkownSocket.DestAddr,
+			PID:        unkownSocket.PID,
+			TID:        unkownSocket.TID,
+			FD:         unkownSocket.FD,
+			SSL:        false,
+		},
 		dataBuf:     []byte{},
 		requestUuid: "",
 	}
@@ -65,36 +60,31 @@ func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 }
 
 func (socket *SocketHttp11) Key() string {
-	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
+	return socket.Common.Key()
 }
 
 func (socket *SocketHttp11) GetPID() uint32 {
-	return socket.PID
+	return socket.Common.GetPID()
 }
 
 func (socket *SocketHttp11) SetPID(pid uint32) {
-	socket.PID = pid
+	socket.Common.SetPID(pid)
 }
 
 func (socket *SocketHttp11) Clone() SocketI {
 	return &SocketHttp11{
-		SourceAddr:  socket.SourceAddr,
-		DestAddr:    socket.DestAddr,
-		PID:         socket.PID,
-		TID:         socket.TID,
-		FD:          socket.FD,
-		SSL:         socket.SSL,
+		Common:      socket.Common.Clone(),
 		dataBuf:     []byte{},
 		requestUuid: "",
 	}
 }
 
-func (socket *SocketHttp11) Clear() {
-	socket.clearDataBuffer()
+func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
+	socket.Common.AddFlowCallback(callback)
 }
 
-func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
-	socket.flowCallbacks = append(socket.flowCallbacks, callback)
+func (socket *SocketHttp11) Clear() {
+	socket.clearDataBuffer()
 }
 
 // ProcessConnectEvent is called when the connect event arrives after the data event
@@ -103,33 +93,21 @@ func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
 }
 
 func (socket *SocketHttp11) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	sourceAddrSplit := strings.Split(socket.SourceAddr, ":")
-	sourcePort := sourceAddrSplit[1]
-
-	destAddrSplit := strings.Split(socket.DestAddr, ":")
-	destPort := destAddrSplit[1]
-
-	if sourcePort == "0" {
-		socket.SourceAddr = event.Addr()
-	} else if destPort == "0" {
-		socket.DestAddr = event.Addr()
-	}
-
-	socket.releaseFlows()
+	socket.Common.ProcessGetsocknameEvent(event)
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf), " ssl?", event.SSL())
 	// fmt.Println(hex.Dump(event.Payload()))
 
-	if socket.SSL && !event.SSL() {
+	if socket.Common.SSL && !event.SSL() {
 		// If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
 		return
 	}
 
-	if event.SSL() && !socket.SSL {
+	if event.SSL() && !socket.Common.SSL {
 		fmt.Println("[SocketHttp1.1] upgrading to SSL")
-		socket.SSL = true
+		socket.Common.SSL = true
 	}
 
 	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe
@@ -148,16 +126,16 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 		fmt.Println("[SocketHttp1.1] HTTP request complete")
 		flow := NewFlowRequest(
 			socket.requestUuid,
-			socket.SourceAddr,
-			socket.DestAddr,
+			socket.Common.SourceAddr,
+			socket.Common.DestAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
-			int(socket.PID),
-			int(socket.FD),
+			int(socket.Common.PID),
+			int(socket.Common.FD),
 			convertToHTTPRequest(req),
 		)
 		socket.clearDataBuffer()
-		socket.sendFlowBack(*flow)
+		socket.Common.sendFlowBack(*flow)
 		return
 	}
 
@@ -176,46 +154,17 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
 		flow := NewFlowResponse(
 			socket.requestUuid,
-			socket.SourceAddr,
-			socket.DestAddr,
+			socket.Common.SourceAddr,
+			socket.Common.DestAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
-			int(socket.PID),
-			int(socket.FD),
+			int(socket.Common.PID),
+			int(socket.Common.FD),
 			convertToHTTPResponse(resp, respBody),
 		)
 
 		socket.clearDataBuffer()
-		socket.sendFlowBack(*flow)
-	}
-}
-
-func (socket *SocketHttp11) releaseFlows() {
-	for _, flow := range socket.flowBuf {
-		socket.sendFlowBack(flow)
-	}
-
-	socket.flowBuf = []Flow{}
-}
-
-func (socket *SocketHttp11) sendFlowBack(flow Flow) {
-	blackOnYellow := "\033[30;43m"
-	reset := "\033[0m"
-
-	if socket.DestAddr == ZeroAddr || socket.SourceAddr == ZeroAddr {
-		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
-		socket.flowBuf = append(socket.flowBuf, flow)
-		return
-	}
-
-	flow.SourceAddr = socket.SourceAddr
-	flow.DestAddr = socket.DestAddr
-
-	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
-	flow.Debug()
-
-	for _, callback := range socket.flowCallbacks {
-		callback(flow)
+		socket.Common.sendFlowBack(*flow)
 	}
 }
 
