@@ -310,13 +310,13 @@ func Test_agent_server(t *testing.T) {
 			// if err != nil {
 			// 	fmt.Println("Error writing to file:", err)
 			// }
-			fmt.Println(stdoutBuf.String())
+			// fmt.Println(stdoutBuf.String())
 
 			// Verify the result
 			assert.Equal(t, expectedNumFlows*multiplier, len(flows))
-			for _, flow := range flows {
-				fmt.Println("Req:", flow.Request)
-			}
+			// for _, flow := range flows {
+			// 	fmt.Println("Req:", flow.Request)
+			// }
 			tt.verify(t, flows)
 			fmt.Printf("================================================\nCompleted %d/%d\n================================================\n", i, len(tests))
 
