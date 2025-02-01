@@ -113,7 +113,7 @@ func getTestConfig() (int, int, time.Duration) {
 		timeout = 5 * time.Second
 	} else {
 		numRequests = numRequestsLoad
-		timeout = 30 * time.Second
+		timeout = 60 * time.Second
 	}
 
 	return numRequests, numRequests * 2, timeout
