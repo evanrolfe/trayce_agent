@@ -104,7 +104,8 @@ func (socket *SocketCommon) sendFlowBack(flow Flow) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
 
-	if socket.hasZeroPortDest() || socket.hasZeroPortSource() {
+	// dont check the source port because it causes issues with python requests and we dont really care about the source port anwyay
+	if socket.hasZeroPortDest() {
 		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
 		socket.flowBuf = append(socket.flowBuf, flow)
 		return
