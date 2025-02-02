@@ -89,8 +89,15 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	// Otherwise if a protocol is detected then convert it to the protocol socket
 	unkownSocket, isUnknown := socket.(*SocketUnknown)
 	if isUnknown {
-		protocol := detectProtocol(event.Payload())
+		prevDataevent := unkownSocket.GetPrevDataEvent()
+		prevData := []byte{}
+		if prevDataevent != nil {
+			prevData = prevDataevent.Payload()
+		}
+		protocol := detectProtocol(event.Payload(), prevData)
 		fmt.Println("[SocketMap] detected protocol:", protocol)
+		unkownSocket.SetPrevDataEvent(&event)
+
 		switch protocol {
 		case Unknown:
 			return
@@ -110,6 +117,8 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 			newSocket := NewSocketMysqlFromUnknown(unkownSocket)
 			m.setSocket(&newSocket)
 			socket = &newSocket
+			// still need the previous event for mysql only
+			socket.ProcessDataEvent(prevDataevent)
 		}
 	}
 

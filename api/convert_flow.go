@@ -48,6 +48,13 @@ func convertToAPIFlow(socketFlow sockets.Flow) *Flow {
 					Params: &StringList{Values: req.Params},
 				},
 			}
+		case *sockets.MysqlQuery:
+			apiFlow.Request = &Flow_SqlQuery{
+				SqlQuery: &SQLQuery{
+					Query:  req.Query,
+					Params: &StringList{Values: req.Params},
+				},
+			}
 		default:
 			fmt.Println("ERROR: convertToAPIFlow() wrong type for request")
 		}

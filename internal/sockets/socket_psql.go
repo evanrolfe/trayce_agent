@@ -11,10 +11,6 @@ import (
 
 type SocketPsql struct {
 	Common SocketCommon
-	// bufEgress is a buffer for egress traffic data
-	bufEgress []byte
-	// bufEgress is a buffer for ingress traffic data
-	bufIngress []byte
 	// bufQueryFlow is a Flow that has be been buffered, to wait until more info is received to complete it (i.e. a prepared query waiting for the args to come in a Bind message)
 	bufQueryFlow *Flow
 	// bufQueryFlow is a Flow that has be been buffered, to wait until more info is received to complete it (i.e. waiting for all rows to be sent)
@@ -33,8 +29,6 @@ func NewSocketPsql(event *events.ConnectEvent) SocketPsql {
 			FD:         event.FD,
 			SSL:        false,
 		},
-		bufEgress:    []byte{},
-		bufIngress:   []byte{},
 		bufQueryFlow: nil,
 	}
 
@@ -51,8 +45,6 @@ func NewSocketPsqlFromUnknown(unkownSocket *SocketUnknown) SocketPsql {
 			FD:         unkownSocket.FD,
 			SSL:        false,
 		},
-		bufEgress:    []byte{},
-		bufIngress:   []byte{},
 		bufQueryFlow: nil,
 	}
 
@@ -114,7 +106,7 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				int(socket.Common.FD),
 				&sqlQuery,
 			)
-			socket.Common.sendFlowBack(*flow)
+			socket.Common.sendFlowBack(*flow, true)
 		case TypeParse:
 			socket.requestUuid = uuid.NewString()
 			sqlQuery := NewPSQLQuery(string(msg.Payload[2:]))
@@ -142,7 +134,7 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				return
 			}
 			query.AddPayload(msg.Payload)
-			socket.Common.sendFlowBack(*socket.bufQueryFlow)
+			socket.Common.sendFlowBack(*socket.bufQueryFlow, true)
 			socket.clearBufQueryFlow()
 		case TypeRowDesc:
 			sqlResp, err := PSQLResponseFromRowDescription(msg.Payload)
@@ -178,7 +170,7 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				fmt.Println("[Error] [SocketPsql] bind message received but there is no buffered flow!")
 				return
 			}
-			socket.Common.sendFlowBack(*socket.bufRespFlow)
+			socket.Common.sendFlowBack(*socket.bufRespFlow, true)
 			socket.clearBufRespFlow()
 		}
 	}

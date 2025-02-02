@@ -91,7 +91,7 @@ func (socket *SocketCommon) ProcessGetsocknameEvent(event *events.GetsocknameEve
 // releaseFlows releases the flows which have been buffered
 func (socket *SocketCommon) releaseFlows() {
 	for _, flow := range socket.flowBuf {
-		socket.sendFlowBack(flow)
+		socket.sendFlowBack(flow, true)
 	}
 
 	socket.flowBuf = []Flow{}
@@ -100,12 +100,13 @@ func (socket *SocketCommon) releaseFlows() {
 // sendFlowBack calls all the callbacks with this flow, unless the flow has a zero address (meaning that we are yet to have received
 // a getsockname event which sets the missing source/dest address). In this case it buffers the flow so they can be released
 // once the getsockname event is finally received.
-func (socket *SocketCommon) sendFlowBack(flow Flow) {
+func (socket *SocketCommon) sendFlowBack(flow Flow, bufferOnZeroPort bool) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
 
 	// dont check the source port because it causes issues with python requests and we dont really care about the source port anwyay
-	if socket.hasZeroPortDest() {
+	// also dont check mysql sockets cause they never send a getsockname event at all so we just accept the port will always be 0 for mysql
+	if socket.hasZeroPortDest() && bufferOnZeroPort {
 		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
 		socket.flowBuf = append(socket.flowBuf, flow)
 		return

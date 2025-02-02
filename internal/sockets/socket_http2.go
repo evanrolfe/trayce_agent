@@ -131,7 +131,7 @@ func (socket *SocketHttp2) processFrame(frame *Http2Frame) {
 	stream := socket.findOrCreateStream(frame.StreamID())
 	flow := stream.ProcessFrame(frame)
 	if flow != nil {
-		socket.Common.sendFlowBack(*flow)
+		socket.Common.sendFlowBack(*flow, true)
 	}
 }
 

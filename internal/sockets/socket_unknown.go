@@ -22,6 +22,8 @@ type SocketUnknown struct {
 	flowCallbacks []func(Flow)
 	// When a request is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
+	// This is the previous data processed for this unknown socket, used in detectProtocol
+	prevDataEvent *events.DataEvent
 }
 
 func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
@@ -87,4 +89,12 @@ func (socket *SocketUnknown) ProcessGetsocknameEvent(event *events.GetsocknameEv
 }
 
 func (socket *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
+}
+
+func (socket *SocketUnknown) SetPrevDataEvent(event *events.DataEvent) {
+	socket.prevDataEvent = event
+}
+
+func (socket *SocketUnknown) GetPrevDataEvent() *events.DataEvent {
+	return socket.prevDataEvent
 }

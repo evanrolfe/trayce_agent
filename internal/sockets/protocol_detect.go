@@ -1,6 +1,8 @@
 package sockets
 
-import "bytes"
+import (
+	"bytes"
+)
 
 const (
 	HTTP    = "http"
@@ -14,7 +16,7 @@ var (
 	http2MagicString = []byte{0x50, 0x52, 0x49, 0x20, 0x2A, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2F, 0x32, 0x2E, 0x30, 0x0D, 0x0A, 0x0D, 0x0A, 0x53, 0x4D, 0x0D, 0x0A, 0x0D, 0x0A}
 )
 
-func detectProtocol(raw []byte) string {
+func detectProtocol(raw []byte, prevRaw []byte) string {
 	// HTTP1.1
 	if len(raw) >= 3 && string(raw[0:3]) == "GET" {
 		return HTTP
@@ -55,6 +57,16 @@ func detectProtocol(raw []byte) string {
 
 		if bytes.Contains(raw, protocolSeq) && bytes.Contains(raw, userKeySeq) {
 			return PSQL
+		}
+	}
+
+	// Mysql
+	if len(prevRaw) == 4 {
+		// The first 3 bytes represent the payload length in little-endian order.
+		headerLen := int(prevRaw[0]) | int(prevRaw[1])<<8 | int(prevRaw[2])<<16
+
+		if len(raw) == headerLen {
+			return MySQL
 		}
 	}
 

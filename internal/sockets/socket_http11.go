@@ -135,7 +135,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 			convertToHTTPRequest(req),
 		)
 		socket.clearDataBuffer()
-		socket.Common.sendFlowBack(*flow)
+		socket.Common.sendFlowBack(*flow, true)
 		return
 	}
 
@@ -164,7 +164,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 		)
 
 		socket.clearDataBuffer()
-		socket.Common.sendFlowBack(*flow)
+		socket.Common.sendFlowBack(*flow, true)
 	}
 }
 
