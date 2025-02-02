@@ -322,85 +322,85 @@ var _ = Describe("SocketMap", func() {
 		// })
 	})
 
-	// Context("[Mysql] receiving events from a Mysql connection, query & response", Ordered, func() {
-	// 	event1Payload, _ := hexDumpToBytes(mysqlQueryEvent1)
-	// 	event2Payload, _ := hexDumpToBytes(mysqlQueryEvent2)
-	// 	event3Payload, _ := hexDumpToBytes(mysqlQueryEvent3)
-	// 	event4Payload, _ := hexDumpToBytes(mysqlQueryEvent4)
-	// 	event5Payload, _ := hexDumpToBytes(mysqlQueryEvent5)
-	// 	event6Payload, _ := hexDumpToBytes(mysqlQueryEvent6)
-	// 	event7Payload, _ := hexDumpToBytes(mysqlQueryEvent7)
-	// 	event8Payload, _ := hexDumpToBytes(mysqlQueryEvent8)
-	// 	event9Payload, _ := hexDumpToBytes(mysqlQueryEvent9)
-	// 	event10Payload, _ := hexDumpToBytes(mysqlQueryEvent10)
-	// 	event11Payload, _ := hexDumpToBytes(mysqlQueryEvent11)
-	// 	event12Payload, _ := hexDumpToBytes(mysqlQueryEvent12)
-	// 	event13Payload, _ := hexDumpToBytes(mysqlQueryEvent13)
+	Context("[Mysql] receiving events from a Mysql connection, query & response", Ordered, func() {
+		event1Payload, _ := hexDumpToBytes(mysqlQueryEvent1)
+		event2Payload, _ := hexDumpToBytes(mysqlQueryEvent2)
+		event3Payload, _ := hexDumpToBytes(mysqlQueryEvent3)
+		event4Payload, _ := hexDumpToBytes(mysqlQueryEvent4)
+		event5Payload, _ := hexDumpToBytes(mysqlQueryEvent5)
+		event6Payload, _ := hexDumpToBytes(mysqlQueryEvent6)
+		event7Payload, _ := hexDumpToBytes(mysqlQueryEvent7)
+		event8Payload, _ := hexDumpToBytes(mysqlQueryEvent8)
+		event9Payload, _ := hexDumpToBytes(mysqlQueryEvent9)
+		event10Payload, _ := hexDumpToBytes(mysqlQueryEvent10)
+		event11Payload, _ := hexDumpToBytes(mysqlQueryEvent11)
+		event12Payload, _ := hexDumpToBytes(mysqlQueryEvent12)
+		event13Payload, _ := hexDumpToBytes(mysqlQueryEvent13)
 
-	// 	var socketsMap *sockets.SocketMap
-	// 	var flows []*sockets.Flow
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
 
-	// 	processReceive := func(payload []byte) {
-	// 		socketsMap.ProcessDataEvent(events.DataEvent{
-	// 			PID:      222,
-	// 			TID:      222,
-	// 			FD:       5,
-	// 			DataType: 0,
-	// 			Data:     convertSliceToArray(payload),
-	// 			DataLen:  int32(len(payload)),
-	// 		})
-	// 	}
-	// 	processSend := func(payload []byte) {
-	// 		socketsMap.ProcessDataEvent(events.DataEvent{
-	// 			PID:      222,
-	// 			TID:      222,
-	// 			FD:       5,
-	// 			DataType: 1,
-	// 			Data:     convertSliceToArray(payload),
-	// 			DataLen:  int32(len(payload)),
-	// 		})
-	// 	}
+		processReceive := func(payload []byte) {
+			socketsMap.ProcessDataEvent(events.DataEvent{
+				PID:      222,
+				TID:      222,
+				FD:       5,
+				DataType: 0,
+				Data:     convertSliceToArray(payload),
+				DataLen:  int32(len(payload)),
+			})
+		}
+		processSend := func(payload []byte) {
+			socketsMap.ProcessDataEvent(events.DataEvent{
+				PID:      222,
+				TID:      222,
+				FD:       5,
+				DataType: 1,
+				Data:     convertSliceToArray(payload),
+				DataLen:  int32(len(payload)),
+			})
+		}
 
-	// 	BeforeAll(func() {
-	// 		socketsMap = sockets.NewSocketMap()
-	// 		socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
-	// 			flows = append(flows, &flowFromCb)
-	// 		})
-	// 		socketsMap.ProcessConnectEvent(events.ConnectEvent{
-	// 			PID:        222,
-	// 			TID:        222,
-	// 			FD:         5,
-	// 			SourceHost: 33558956,
-	// 			SourcePort: 1234,
-	// 			DestHost:   33558957,
-	// 			DestPort:   3306,
-	// 		})
-	// 		processSend(event1Payload)
-	// 		processReceive(event2Payload)
-	// 		processSend(event3Payload)
-	// 		processReceive(event4Payload)
-	// 		processReceive(event5Payload)
-	// 		processSend(event6Payload)
-	// 		processReceive(event7Payload)
-	// 		processReceive(event8Payload)
-	// 		processSend(event9Payload)
-	// 		processReceive(event10Payload)
-	// 		processReceive(event11Payload)
-	// 		processSend(event12Payload)
-	// 		processReceive(event13Payload)
-	// 	})
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			socketsMap.ProcessConnectEvent(events.ConnectEvent{
+				PID:        222,
+				TID:        222,
+				FD:         5,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   33558957,
+				DestPort:   3306,
+			})
+			processSend(event1Payload)
+			processReceive(event2Payload)
+			processSend(event3Payload)
+			processReceive(event4Payload)
+			processReceive(event5Payload)
+			processSend(event6Payload)
+			processReceive(event7Payload)
+			processReceive(event8Payload)
+			processSend(event9Payload)
+			processReceive(event10Payload)
+			processReceive(event11Payload)
+			processSend(event12Payload)
+			processReceive(event13Payload)
+		})
 
-	// 	It("returns two flows", func() {
-	// 		Expect(flows).To(HaveLen(2))
+		It("returns two flows", func() {
+			Expect(flows).To(HaveLen(2))
 
-	// 		for _, flow := range flows {
-	// 			Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
-	// 			Expect(flow.DestAddr).To(Equal("173.17.0.2:0"))
-	// 			Expect(flow.L4Protocol).To(Equal("tcp"))
-	// 			Expect(flow.L7Protocol).To(Equal("mysql"))
-	// 			Expect(flow.PID).To(Equal(222))
-	// 			Expect(flow.FD).To(Equal(5))
-	// 		}
-	// 	})
-	// })
+			for _, flow := range flows {
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("173.17.0.2:3306"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("mysql"))
+				Expect(flow.PID).To(Equal(222))
+				Expect(flow.FD).To(Equal(5))
+			}
+		})
+	})
 })

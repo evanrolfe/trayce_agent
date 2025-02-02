@@ -11,6 +11,8 @@ type SocketMysql struct {
 	bufEgress []byte
 	// bufEgress is a buffer for ingress traffic data
 	bufIngress []byte
+	// bufResp is a MysqlResponse that has be been buffered, to wait until more info is received to complete it (i.e. waiting for all rows to be sent)
+	bufResp *MysqlResponse
 	// When a query is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
 }
@@ -65,19 +67,35 @@ func (socket *SocketMysql) ProcessGetsocknameEvent(event *events.GetsocknameEven
 func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 	if event.Type() == events.TypeIngress {
 		socket.bufIngress = append(socket.bufIngress, event.Payload()...)
+
+		// Check ingress messages & process them
+		ingressMessages := ExtractMySQLMessages(socket.bufIngress)
+		if len(ingressMessages) > 0 {
+			socket.clearIngress()
+		}
+		socket.proceseMessages(ingressMessages)
+
 	} else if event.Type() == events.TypeEgress {
 		socket.bufEgress = append(socket.bufEgress, event.Payload()...)
-	}
 
-	// Check ingress messages
-	ingressMessages := ExtractMySQLMessages(socket.bufIngress)
-	if len(ingressMessages) > 0 {
-		socket.clearIngress()
+		// Check ingress messages & process them
+		egressMessages := ExtractMySQLMessages(socket.bufEgress)
+		if len(egressMessages) > 0 {
+			socket.clearEgress()
+		}
+		// fmt.Println("==============================================")
+		// for i, msg := range egressMessages {
+		// 	fmt.Println("Message", i, "type:", msg.Type)
+		// 	fmt.Println(hex.Dump(msg.Payload))
+		// }
+		// fmt.Println("==============================================")
+		socket.proceseMessages(egressMessages)
 	}
+}
 
-	for _, msg := range ingressMessages {
-		switch msg.Type {
-		case TypeMysqlQuery:
+func (socket *SocketMysql) proceseMessages(messages []MysqlMessage) {
+	for _, msg := range messages {
+		if msg.Type == TypeMysqlQuery && socket.requestUuid == "" {
 			socket.requestUuid = uuid.NewString()
 			sqlQuery := NewMysqlQuery(string(msg.Payload))
 			flow := NewFlowRequest(
@@ -92,7 +110,41 @@ func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 			)
 			// don't buffer on zero port because mysql never calls getsockname so the port will always be zero, we just accept that
 			socket.Common.sendFlowBack(*flow, false)
-		}
+		} else if socket.requestUuid != "" { // msg.Type == TypeMysqlQuery &&
+			if socket.bufResp == nil {
+				resp := NewMysqlResponse()
+				socket.bufResp = &resp
+			}
+			// fmt.Println("Message response type:", msg.Type)
+			// fmt.Println(hex.Dump(msg.Payload))
+
+			if msg.Type == TypeMysqlQuery { // this is a column being sent
+				socket.bufResp.AddColumnPayload(msg.Payload)
+			} else if msg.Type == TypeMysqlRow {
+				socket.bufResp.AddRowPayload(msg.Payload)
+
+			} else if msg.Type == TypeMysqlEOF {
+				socket.bufResp.AddEOF()
+			}
+
+			if socket.bufResp.Complete() {
+				flow := NewFlowResponse(
+					socket.requestUuid,
+					socket.Common.SourceAddr,
+					socket.Common.DestAddr,
+					"tcp",
+					"mysql",
+					int(socket.Common.PID),
+					int(socket.Common.FD),
+					socket.bufResp,
+				)
+				socket.Common.sendFlowBack(*flow, false)
+				socket.clearBufResponse()
+			}
+		} // else if msg.Type == TypeMysqlRow && socket.requestUuid != "" {
+		// 	fmt.Println("Message query row type:", msg.Type)
+		// 	fmt.Println(hex.Dump(msg.Payload))
+		// }
 	}
 }
 
@@ -102,6 +154,11 @@ func (socket *SocketMysql) clearIngress() {
 
 func (socket *SocketMysql) clearEgress() {
 	socket.bufEgress = []byte{}
+}
+
+func (socket *SocketMysql) clearBufResponse() {
+	socket.bufResp = nil
+	socket.requestUuid = ""
 }
 
 // ExtractMySQLMessages parses the provided data and returns a slice of payloads.

@@ -1,7 +1,9 @@
 package sockets
 
 const (
+	TypeMysqlRow   = 0x01
 	TypeMysqlQuery = 0x03 // COM_QUERY - Execute an SQL query
+	TypeMysqlEOF   = 0xFE
 )
 
 // ForkEvent is sent from ebpf when a process is forked to create a child process
