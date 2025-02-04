@@ -91,6 +91,13 @@ func convertToAPIFlow(socketFlow sockets.Flow) *Flow {
 					Rows:    convertToAPIRows(resp.Rows),
 				},
 			}
+		case *sockets.MysqlResponse:
+			apiFlow.Response = &Flow_SqlResponse{
+				SqlResponse: &SQLResponse{
+					Columns: convertToAPIColumns(resp.Columns),
+					Rows:    convertToAPIRows(resp.Rows),
+				},
+			}
 		default:
 			fmt.Println("ERROR: convertToAPIFlow() wrong type for response")
 		}
