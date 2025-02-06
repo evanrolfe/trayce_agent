@@ -8,9 +8,11 @@ import (
 	_ "github.com/go-sql-driver/mysql" // MySQL driver
 )
 
+const host = "172.18.0.3:3306"
+
 func main() {
 	// MySQL connection details
-	dsn := "root:root@tcp(172.17.0.3:3306)/my_database"
+	dsn := fmt.Sprintf("root:root@tcp(%s)/my_database", host)
 
 	// Connect to the database
 	db, err := sql.Open("mysql", dsn)

@@ -4,6 +4,8 @@ import (
 	"bytes"
 )
 
+// See: https://github.com/pixie-io/pixie/blob/main/src/stirling/source_connectors/socket_tracer/bcc_bpf/protocol_inference.h
+
 const (
 	HTTP    = "http"
 	HTTP2   = "http2"
@@ -49,9 +51,9 @@ func detectProtocol(raw []byte, prevRaw []byte) string {
 	}
 
 	// Postgres
-	// 96 is an arbitrary number to try and ensure it has both the protocol version & user key in the payload
+	// 16 is an arbitrary number to try and ensure it has both the protocol version & user key in the payload
 	// It would be wise to detect protocol on the socket's buffer rather than an individual event
-	if len(raw) >= 96 {
+	if len(raw) >= 16 {
 		protocolSeq := []byte{0x00, 0x03, 0x00, 0x00} // assumes version 3.0
 		userKeySeq := []byte{0x75, 0x73, 0x65, 0x72}  // check if the "user" key exists in the payload
 

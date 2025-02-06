@@ -68,7 +68,6 @@ func (q *PSQLResponse) String() string {
 // payload is the DataRow contents excluding the initial message type byte and length bytes.
 func (q *PSQLResponse) extractRowValues(payload []byte) ([]string, error) {
 	buf := bytes.NewReader(payload)
-
 	// Read the number of columns (int16)
 	var colCount int16
 	if err := binary.Read(buf, binary.BigEndian, &colCount); err != nil {
@@ -109,8 +108,11 @@ func (q *PSQLResponse) extractRowValues(payload []byte) ([]string, error) {
 		case 'i':
 			// Integer type
 			// Already text-based, just ensure it's a valid integer
-			valInt := binary.BigEndian.Uint32(valBytes)
-			valStr = fmt.Sprintf("%d", valInt)
+			if len(values) == 4 {
+				// TODO: This should differentiate between binary based  and text based columns
+				valInt := binary.BigEndian.Uint32(valBytes)
+				valStr = fmt.Sprintf("%d", valInt)
+			}
 
 		case 'f':
 			// Float type

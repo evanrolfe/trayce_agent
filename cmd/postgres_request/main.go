@@ -9,6 +9,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const host = "172.18.0.2:5432"
+
 type Thing struct {
 	ID        int
 	Name      string
@@ -20,7 +22,7 @@ type Thing struct {
 func main() {
 	// Update this connection string to match your PostgreSQL environment
 	// For example: "postgres://username:password@localhost:5432/mydb?sslmode=disable"
-	connStr := "postgres://postgres:postgres@172.17.0.3:5432/postgres?sslmode=disable"
+	connStr := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", host)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v\n", err)
@@ -41,7 +43,7 @@ func main() {
 	defer stmt.Close()
 
 	// Execute the prepared statement with the parameter
-	rows, err := stmt.Query(1)
+	rows, err := stmt.Query(2)
 	if err != nil {
 		log.Fatalf("Failed to execute query: %v\n", err)
 	}

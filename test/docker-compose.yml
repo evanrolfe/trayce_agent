@@ -1,0 +1,28 @@
+services:
+  mega_server:
+    build:
+      context: ./mega_server
+    container_name: megaserver
+    volumes:
+      - ./mega_server:/app
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
+    ports:
+      - "3001:3001"
+      - "3002:3002"
+      - "3003:3003"
+      - "3004:3004"
+
+# psql -h localhost -U postgres -W megadb
+  postgres:
+    image: postgres
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=megadb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./mega_server/postgres:/docker-entrypoint-initdb.d
+    command: ["postgres", "-c", "log_statement=all", "-c", "log_min_duration_statement=0"]

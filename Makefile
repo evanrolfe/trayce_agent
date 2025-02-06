@@ -77,10 +77,10 @@ clean:
 	rm -f internal/bundle.go
 
 dev:
-	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it trayce_agent:local bash
+	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network test_default -it trayce_agent:local bash
 
 megaserver:
-	docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -it mega_server
+	docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --network test_default -it mega_server
 
 decision:
 	@timestamp=$$(date +"%Y-%m-%d"); \

@@ -95,6 +95,11 @@ func (flow *Flow) Debug() {
 	}
 
 	if flow.Response != nil {
-		fmt.Println(flow.Response.String())
+		resp := flow.Response.String()
+		if len(resp) > 512 {
+			fmt.Println(resp[0:512])
+		} else {
+			fmt.Println(resp)
+		}
 	}
 }

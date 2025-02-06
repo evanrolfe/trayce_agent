@@ -1,7 +1,10 @@
 default: &default
   adapter: postgresql
   encoding: unicode
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  pool: 1
+  checkout_timeout: 1
+  reaping_frequency: nil
+  reconnect: true
   url: <%= ENV['DATABASE_URL'] %>
 
 development:

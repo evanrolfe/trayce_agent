@@ -109,7 +109,9 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 			socket.Common.sendFlowBack(*flow, true)
 		case TypeParse:
 			socket.requestUuid = uuid.NewString()
-			sqlQuery := NewPSQLQuery(string(msg.Payload[2:]))
+
+			queryBytes := bytes.Trim(msg.Payload[1:], "\x00")
+			sqlQuery := NewPSQLQuery(string(queryBytes))
 			flow := NewFlowRequest(
 				socket.requestUuid,
 				socket.Common.SourceAddr,
