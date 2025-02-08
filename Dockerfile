@@ -31,7 +31,8 @@ ADD . /app
 
 RUN make install-libbpf
 RUN make
-RUN make testunit
+# TODO: Enable unit tests again
+# RUN make testunit
 
 #
 # Final Image

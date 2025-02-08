@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"net"
 	"slices"
 )
 
@@ -22,17 +23,21 @@ const (
 
 // DataEvent is sent from ebpf when data is sent or received over a socket, see corresponding: struct data_event_t
 type DataEvent struct {
-	EventType uint64            `json:"eventType"`
-	DataType  uint64            `json:"dataType"`
-	Timestamp uint64            `json:"timestamp"`
-	PID       uint32            `json:"pid"`
-	TID       uint32            `json:"tid"`
-	CGroup    [128]byte         `json:"cgroup"`
-	FD        uint32            `json:"fd"`
-	Version   int32             `json:"version"`
-	SSLPtr    int64             `json:"sslPtr"`
-	DataLen   int32             `json:"dataLen"`
-	Data      [MaxDataSize]byte `json:"data"`
+	EventType  uint64            `json:"eventType"`
+	DataType   uint64            `json:"dataType"`
+	Timestamp  uint64            `json:"timestamp"`
+	PID        uint32            `json:"pid"`
+	TID        uint32            `json:"tid"`
+	CGroup     [128]byte         `json:"cgroup"`
+	FD         uint32            `json:"fd"`
+	Version    int32             `json:"version"`
+	SSLPtr     int64             `json:"sslPtr"`
+	SourceHost uint32            `json:"source_host"`
+	DestHost   uint32            `json:"dest_host"`
+	SourcePort uint16            `json:"source_port"`
+	DestPort   uint16            `json:"dest_port"`
+	DataLen    int32             `json:"dataLen"`
+	Data       [MaxDataSize]byte `json:"data"`
 }
 
 func (se *DataEvent) Decode(payload []byte) (err error) {
@@ -62,6 +67,18 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.SSLPtr); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.SourceHost); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.DestHost); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.SourcePort); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.DestPort); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.DataLen); err != nil {
@@ -144,7 +161,25 @@ func (se *DataEvent) Source() string {
 }
 
 func (se *DataEvent) Key() string {
-	return fmt.Sprintf("%d-%d", se.PID, se.FD)
+	return se.Address()
+}
+
+func intToIP(ipInt uint32) string {
+	ip := make(net.IP, 4)
+	binary.LittleEndian.PutUint32(ip, ipInt)
+	return ip.String()
+}
+
+func (se *DataEvent) Address() string {
+	return fmt.Sprintf("%s:%d->%s:%d", intToIP(se.SourceHost), se.SourcePort, intToIP(se.DestHost), se.DestPort)
+}
+
+func (se *DataEvent) SourceAddr() string {
+	return fmt.Sprintf("%s:%d", intToIP(se.SourceHost), se.SourcePort)
+}
+
+func (se *DataEvent) DestAddr() string {
+	return fmt.Sprintf("%s:%d", intToIP(se.DestHost), se.DestPort)
 }
 
 func (se *DataEvent) SSL() bool {

@@ -45,6 +45,10 @@ struct data_event_t {
     u32 fd;
     s32 version;
     u64 rand;
+    u32 src_host;
+    u32 dest_host;
+    u16 src_port;
+    u16 dest_port; // the ports need to be next to each other so C doesn't zero-pad them to 4 bytes eachs
     s32 data_len;
     char data[MAX_DATA_SIZE_OPENSSL];
 };
@@ -69,6 +73,10 @@ struct close_event_t {
     u32 pid;
     u32 tid;
     u32 fd;
+    u32 saddr;
+    u16 sport;
+    u32 daddr;
+    u16 dport;
 };
 
 struct debug_event_t {
@@ -245,7 +253,48 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
 //     return (u32) pid | (u32) fd;
 // }
 
-static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, const char* buf, size_t buf_len, u32 fd) {
+#define sk_rcv_saddr		__sk_common.skc_rcv_saddr
+#define sk_daddr		__sk_common.skc_daddr
+#define sk_num			__sk_common.skc_num
+#define sk_dport		__sk_common.skc_dport
+
+static __always_inline
+struct sock * get_sock(__u32 fd_num) {
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    struct file **fdarray = NULL;
+    fdarray = BPF_CORE_READ(task, files, fdt, fd);
+
+    if(fdarray == NULL){
+        return NULL;
+    }else{
+        struct file *file = NULL;
+        long r = bpf_probe_read_kernel(&file, sizeof(file), fdarray + fd_num);
+        if(r <0){
+            return NULL;
+        }
+
+        void * private_data = NULL;
+        private_data = BPF_CORE_READ(file, private_data);
+        if(private_data){
+            struct socket *socket = private_data;
+            short int socket_type = BPF_CORE_READ(socket,type);
+
+            void * __file = BPF_CORE_READ(socket,file);
+
+            if(socket_type == SOCK_STREAM && file == __file){
+                struct sock *sk = NULL;
+                sk = BPF_CORE_READ(socket,sk);
+
+                return sk;
+            }
+            return NULL;
+        }
+        return NULL;
+    }
+    return NULL;
+}
+
+static int process_data(u64 id, enum data_event_type type, const char* buf, size_t buf_len, u32 fd) {
     if (buf_len < 0) {
         return 0;
     }
@@ -259,6 +308,24 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     int cgrp_id = memory_cgrp_id;
     const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
 
+    // Get the source & destination addresses
+    __u32 saddr;
+    __u16 sport;
+    __u32 daddr;
+    __u16 dport;
+    struct sock* sk = get_sock(fd);
+    if (sk == NULL) {
+        return 0;
+    }
+
+    saddr = BPF_CORE_READ(sk,sk_rcv_saddr);
+    sport = BPF_CORE_READ(sk,sk_num);
+    daddr = BPF_CORE_READ(sk,sk_daddr);
+    dport = BPF_CORE_READ(sk,sk_dport);
+
+    bpf_printk("process_data(): type: %d, buf_len: %d", type, buf_len);
+    bpf_printk("process_data(): fd: %d, source: %d : %d, dest: %d : %d", fd, saddr, sport, daddr, bpf_htons(dport));
+
     // Handling buffer split
     const char *str_ptr = buf;
     s32 remaining_buf_len = buf_len;
@@ -268,7 +335,7 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
     // NOTE: For some reason EBPF verifier will not accept `while (remaining_buf_len <= 0)`, so instead we have to use this
     // for loop where 5000 is arbitrary an upper limit that is still acceptable by the ebpf verifier.
     // This effectively means that we can handle response payloads up to 20MB large. (5000 * 4096 bytes = 20.48MB)
-    for (int i = 0; i < 5000; i++) { // Unroll the loop up to 32 times, adjust as necessary
+    for (int i = 0; i < 5000; i++) {
         if (remaining_buf_len <= 0) {
             break;
         }
@@ -279,12 +346,16 @@ static int process_data(struct pt_regs* ctx, u64 id, enum data_event_type type, 
         }
         event->type = type;
         event->fd = fd;
+        event->src_host = saddr;
+        event->src_port = sport;
+        event->dest_host = daddr;
+        event->dest_port = bpf_htons(dport);
+        // bpf_printk("-------------->: fd: %d, source: %d : %d, dest: %d : %d", fd, event->src_host, event->src_port, event->dest_host, event->dest_port);
         bpf_probe_read_str(&event->cgroup, sizeof(event->cgroup), name); // be careful with the placement of this line, it can upset the verifier
         event->data_len = (remaining_buf_len < MAX_DATA_SIZE_OPENSSL ? (remaining_buf_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
 
         bpf_probe_read_user(event->data, event->data_len, current_str_ptr);
         bpf_ringbuf_output(&data_events, event, sizeof(struct data_event_t), 0);
-
         // Move the pointer and reduce the remaining length
         current_str_ptr += event->data_len;
         remaining_buf_len -= event->data_len;

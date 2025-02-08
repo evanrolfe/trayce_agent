@@ -308,15 +308,32 @@ int probe_close(struct pt_regs *ctx) {
     u64 current_pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = current_pid_tgid >> 32;
 
-    if (!should_intercept()) {
+    if (!should_intercept())
         return 0;
-    }
 
     struct pt_regs *ctx2 = (struct pt_regs *)PT_REGS_PARM1(ctx);
 
     // Get the socket file descriptor
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
+
+    // Get the source & destination addresses
+    __u32 saddr;
+    __u16 sport;
+    __u32 daddr;
+    __u16 dport;
+    struct sock* sk = get_sock(fd);
+    if (sk == NULL) {
+        return 0;
+    }
+
+    saddr = BPF_CORE_READ(sk,sk_rcv_saddr);
+    sport = BPF_CORE_READ(sk,sk_num);
+    daddr = BPF_CORE_READ(sk,sk_daddr);
+    dport = BPF_CORE_READ(sk,sk_dport);
+
+    bpf_printk("!!!!!!!!!! CLOSE Event(): fd: %d, source: %d : %d, dest: %d : %d", fd, saddr, sport, daddr, bpf_htons(dport));
+
 
     // Build the connect_event and save it to the map
     struct close_event_t close_event;
@@ -326,6 +343,10 @@ int probe_close(struct pt_regs *ctx) {
     close_event.pid = pid;
     close_event.tid = current_pid_tgid;
     close_event.fd = fd;
+    close_event.saddr = saddr;
+    close_event.sport = sport;
+    close_event.daddr = daddr;
+    close_event.dport = dport;
 
     bpf_map_update_elem(&active_close_args_map, &current_pid_tgid, &close_event, BPF_ANY);
 
@@ -350,7 +371,7 @@ int probe_ret_close(struct pt_regs *ctx) {
     }
 
     bpf_ringbuf_output(&data_events, close_event, sizeof(struct close_event_t), 0);
-    bpf_printk("kprobe/close FD: %d", close_event->fd);
+    bpf_printk("kprobe/close fd: %d", close_event->fd);
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);
 
     return 0;
@@ -414,7 +435,7 @@ int probe_ret_sendto(struct pt_regs *ctx) {
         size_t buf_len = (size_t)PT_REGS_RC(ctx);
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kSendto, buf, buf_len, fd);
+        process_data(current_pid_tgid, kSendto, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_sendto_args_map, &current_pid_tgid);
 
@@ -479,7 +500,7 @@ int probe_ret_recvfrom(struct pt_regs *ctx) {
         size_t buf_len = (size_t)PT_REGS_RC(ctx);
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kRecvfrom, buf, buf_len, fd);
+        process_data(current_pid_tgid, kRecvfrom, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_recvfrom_args_map, &current_pid_tgid);
     return 0;
@@ -519,7 +540,7 @@ int probe_write(struct pt_regs *ctx) {
     active_buf_t.buf_len = buf_len;
     bpf_map_update_elem(&active_write_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
 
-    bpf_printk("kprobe/write: entry PID: %d FD: %d, ID: %d", pid, fd, current_pid_tgid);
+    // bpf_printk("kprobe/write: entry PID: %d FD: %d, ID: %d", pid, fd, current_pid_tgid);
 
     return 0;
 }
@@ -543,7 +564,7 @@ int probe_ret_write(struct pt_regs *ctx) {
         size_t buf_len = (size_t)PT_REGS_RC(ctx);
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kWrite, buf, buf_len, fd);
+        process_data(current_pid_tgid, kWrite, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_write_args_map, &current_pid_tgid);
 
@@ -581,7 +602,7 @@ int probe_read(struct pt_regs *ctx) {
     active_buf_t.buf = buf;
     active_buf_t.buf_len = buf_len;
     bpf_map_update_elem(&active_read_args_map, &current_pid_tgid, &active_buf_t, BPF_ANY);
-    bpf_printk("kprobe/read: entry FD: %d, ID: %d", fd, current_pid_tgid);
+    // bpf_printk("kprobe/read: entry FD: %d, ID: %d", fd, current_pid_tgid);
 
     return 0;
 }
@@ -605,7 +626,7 @@ int probe_ret_read(struct pt_regs *ctx) {
         size_t buf_len = (size_t)PT_REGS_RC(ctx);
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kRead, buf, buf_len, fd);
+        process_data(current_pid_tgid, kRead, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_read_args_map, &current_pid_tgid);
     return 0;
@@ -635,4 +656,205 @@ int trace_sched_process_fork(struct trace_event_raw_sched_process_fork *ctx)
     bpf_printk("tracepoint/sched/sched_process_fork: return PID: %d, Child PID: %d", pid, child_pid);
 
     return 0;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Tracepoints
+// -------------------------------------------------------------------------------------------------
+struct data_transfer {
+    __u64 id;
+    __u64 fd;
+    char* buf;
+    __u64 size;
+    __u64 start_ns;
+};
+
+struct trace_event_raw_sys_enter_recvfrom {
+    struct trace_entry ent;
+    __s32 __syscall_nr;
+    __u64 fd;
+    void * ubuf;
+    __u64 size;
+    __u64 flags;
+    struct sockaddr * addr;
+    __u64 addr_len;
+};
+
+struct trace_event_raw_sys_exit_recvfrom {
+    __u64 unused;
+    __s32 id;
+    __s64 ret;
+};
+
+struct trace_event_raw_sys_enter_sendto {
+	struct trace_entry ent;
+    __s32 __syscall_nr;
+    __u64 fd;
+    void * buff;
+    __u64 len; // size_t ??
+    __u64 flags;
+    struct sockaddr * addr;
+    __u64 addr_len;
+};
+
+struct trace_event_raw_sys_exit_sendto {
+    __u64 unused;
+    __s32 id;
+    __s64 ret;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, __u64); // pid_tgid
+    __uint(value_size, sizeof(struct data_transfer));
+    __uint(max_entries, 1024*128);
+} active_reads SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, __u64); // pid_tgid
+    __uint(value_size, sizeof(struct data_transfer));
+    __uint(max_entries, 1024*128);
+} active_writes SEC(".maps");
+
+static __always_inline
+int process_enter_of_syscalls_read_recvfrom(void *ctx, struct data_transfer * params) {
+    __u64 id = bpf_get_current_pid_tgid();
+    __u32 pid = id >> 32;
+
+    // The struct needs to be cloned to keep the ebpf-verifier happy
+    struct data_transfer data = {};
+    data.id = params->id;
+    data.fd = params->fd;
+    data.buf = params->buf;
+    data.size = params->size;
+    data.start_ns = params->start_ns;
+
+    long res = bpf_map_update_elem(&active_reads, &(params->id), &data, BPF_ANY);
+    if(res < 0)
+        bpf_printk("write to active reads failed");
+
+    return 0;
+}
+
+static __always_inline
+int process_enter_of_syscalls_write_sendto(void* ctx, struct data_transfer * params){
+    __u64 id = bpf_get_current_pid_tgid();
+    __u32 pid = id >> 32;
+
+    // The struct needs to be cloned to keep the ebpf-verifier happy
+    struct data_transfer data = {};
+    data.id = params->id;
+    data.fd = params->fd;
+    data.buf = params->buf;
+    data.size = params->size;
+    data.start_ns = params->start_ns;
+
+    long res = bpf_map_update_elem(&active_writes, &(params->id), &data, BPF_ANY);
+    if(res < 0)
+        bpf_printk("write to active reads failed");
+
+    return 0;
+}
+
+static __always_inline
+int process_exit_of_syscalls_read_recvfrom(void* ctx, __u64 id, __u32 pid, __s64 ret, __u8 is_tls) {
+    if (ret < 0) { // read failed
+        struct data_transfer *data = bpf_map_lookup_elem(&active_reads, &id);
+        if (!data)
+            return 0;
+
+        bpf_map_delete_elem(&active_reads, &id);
+        return 0;
+    }
+
+    struct data_transfer *data = bpf_map_lookup_elem(&active_reads, &id);
+    if (!data)
+        return 0;
+
+    bpf_printk("recvfrom exit fd: %d, buf_len: %d", data->fd, data->size);
+    return process_data(id, kRecvfrom, data->buf, data->size, data->fd);
+}
+
+static __always_inline
+int process_exit_of_syscalls_write_sendto(void* ctx, __u64 id, __u32 pid, __s64 ret, __u8 is_tls) {
+    if (ret < 0) { // write failed
+        struct data_transfer *data = bpf_map_lookup_elem(&active_writes, &id);
+        if (data == NULL)
+            return 0;
+
+        bpf_map_delete_elem(&active_writes, &id);
+        return 0;
+    }
+
+    struct data_transfer *data = bpf_map_lookup_elem(&active_writes, &id);
+    if (!data)
+        return 0;
+
+    bpf_printk("sendto: fd: %d, buf_len: %d", data->fd, data->size);
+
+    return process_data(id, kSendto, data->buf, data->size, data->fd);
+}
+
+SEC("tracepoint/syscalls/sys_enter_recvfrom")
+int trace_syscalls_sys_enter_recvfrom(struct trace_event_raw_sys_enter_sendto* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+    u64 time = bpf_ktime_get_ns();
+
+    if (!should_intercept())
+        return 0;
+
+    struct data_transfer data = {
+        .id = current_pid_tgid,
+        .fd = ctx->fd,
+        .buf = ctx->buff,
+        .size = ctx->len,
+        .start_ns = time
+    };
+    bpf_printk("recvfrom enter size: %d", ctx->len);
+
+    return process_enter_of_syscalls_read_recvfrom(ctx, &data);
+}
+
+SEC("tracepoint/syscalls/sys_enter_sendto")
+int trace_syscalls_sys_enter_sendto(struct trace_event_raw_sys_enter_sendto* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+    u64 time = bpf_ktime_get_ns();
+
+    if (!should_intercept())
+        return 0;
+
+    struct data_transfer data = {
+        .id = current_pid_tgid,
+        .fd = ctx->fd,
+        .buf = ctx->buff,
+        .size = ctx->len,
+        .start_ns = time
+    };
+
+    return process_enter_of_syscalls_write_sendto(ctx, &data);
+}
+
+SEC("tracepoint/syscalls/sys_exit_recvfrom")
+int trace_syscalls_sys_exit_recvfrom(struct trace_event_raw_sys_exit_recvfrom* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    if (!should_intercept())
+        return 0;
+
+    return process_exit_of_syscalls_read_recvfrom(ctx, current_pid_tgid, pid, ctx->ret, 0);
+}
+
+SEC("tracepoint/syscalls/sys_exit_sendto")
+int trace_syscalls_sys_exit_sendto(struct trace_event_raw_sys_exit_sendto* ctx) {
+    u64 current_pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = current_pid_tgid >> 32;
+
+    if (!should_intercept())
+        return 0;
+
+    return process_exit_of_syscalls_write_sendto(ctx, current_pid_tgid, pid, ctx->ret, 0);
 }

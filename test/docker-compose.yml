@@ -1,3 +1,8 @@
+networks:
+  trayce_network:
+    driver: bridge
+    name: trayce_network
+
 services:
   mega_server:
     build:
@@ -5,13 +10,15 @@ services:
     container_name: megaserver
     volumes:
       - ./mega_server:/app
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
+    # environment:
+    #   - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
     ports:
       - "3001:3001"
       - "3002:3002"
       - "3003:3003"
       - "3004:3004"
+    networks:
+      - trayce_network
 
 # psql -h localhost -U postgres -W megadb
   postgres:
@@ -26,3 +33,5 @@ services:
     volumes:
       - ./mega_server/postgres:/docker-entrypoint-initdb.d
     command: ["postgres", "-c", "log_statement=all", "-c", "log_min_duration_statement=0"]
+    networks:
+      - trayce_network

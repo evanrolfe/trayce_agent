@@ -41,8 +41,7 @@ func makeRequest(url string) {
 	}
 	fmt.Printf("Response status code: %d\n", res.StatusCode)
 
-	body, _ := io.ReadAll(res.Body)
-	fmt.Println("Response body:", string(body))
+	io.ReadAll(res.Body)
 }
 
 func StartMockServer(httpPort int, httpsPort int, keyDir string) {

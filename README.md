@@ -30,10 +30,9 @@ make
 (You must have a GRPC server running at 192.168.0.20:50051, you can do that by starting the GUI).
 
 ### Test
-First ensure the mega server is server is running:
+First ensure the test containers are running:
 ```
-docker build -t mega_server test/mega_server
-make megaserver
+cd test && docker compose up
 ```
 
 Run tests from within the build container (from the "Develop" step):

@@ -77,10 +77,7 @@ clean:
 	rm -f internal/bundle.go
 
 dev:
-	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network test_default -it trayce_agent:local bash
-
-megaserver:
-	docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --network test_default -it mega_server
+	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -it trayce_agent:local bash
 
 decision:
 	@timestamp=$$(date +"%Y-%m-%d"); \

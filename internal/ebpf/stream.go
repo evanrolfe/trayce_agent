@@ -147,7 +147,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 					panic(err)
 				}
 				if event.IsBlank() {
-					fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
+					// fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
 					continue
 				}
 
@@ -317,10 +317,10 @@ func (stream *Stream) Close() {
 
 func (stream *Stream) attachProbes() {
 	kprobes := map[string][]string{
-		"sys_accept":      []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_accept4":     []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_connect":     []string{"probe_connect", "probe_ret_connect"},
-		"sys_getsockname": []string{"probe_getsockname", "probe_ret_getsockname"},
+		// "sys_accept":      []string{"probe_accept4", "probe_ret_accept4"},
+		// "sys_accept4":     []string{"probe_accept4", "probe_ret_accept4"},
+		// "sys_connect":     []string{"probe_connect", "probe_ret_connect"},
+		// "sys_getsockname": []string{"probe_getsockname", "probe_ret_getsockname"},
 		// TODO: Remove all the related to this kprobe once we're sure we dont need it
 		"sys_close":    []string{"probe_close", "probe_ret_close"},
 		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
@@ -349,10 +349,30 @@ func (stream *Stream) attachProbes() {
 	}
 
 	// Attach the process fork tracepoint
-	err := stream.probeManager.AttachTracepoint("trace_sched_process_fork", "sched", "sched_process_fork")
-	if err != nil {
-		panic(err)
-	}
+	// err := stream.probeManager.AttachTracepoint("trace_sched_process_fork", "sched", "sched_process_fork")
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// err = stream.probeManager.AttachTracepoint("trace_syscalls_sys_enter_recvfrom", "syscalls", "sys_enter_recvfrom")
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// err = stream.probeManager.AttachTracepoint("trace_syscalls_sys_exit_recvfrom", "syscalls", "sys_exit_recvfrom")
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// err = stream.probeManager.AttachTracepoint("trace_syscalls_sys_enter_sendto", "syscalls", "sys_enter_sendto")
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// err = stream.probeManager.AttachTracepoint("trace_syscalls_sys_exit_sendto", "syscalls", "sys_exit_sendto")
+	// if err != nil {
+	// 	panic(err)
+	// }
 }
 
 func (stream *Stream) attachUprobesLibSSL(container docker.Container) {

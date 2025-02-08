@@ -27,20 +27,7 @@ func (m *SocketMap) AddFlowCallback(callback func(Flow)) {
 }
 
 func (m *SocketMap) ProcessConnectEvent(event events.ConnectEvent) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
 
-	socket, exists := m.getSocket(event.Key())
-
-	if !exists {
-		fmt.Println("[SocketMap] Connect - creating socket for:", event.Key())
-		// TODO: This should first create an SocketUnknown, then change it to SocketHttp11 once we can detect the protocol
-		socket := NewSocketUnknown(&event)
-		m.setSocket(&socket)
-	} else {
-		fmt.Println("[SocketMap] Connect - found socket for:", event.Key())
-		socket.ProcessConnectEvent(&event)
-	}
 }
 
 func (m *SocketMap) ProcessGetsocknameEvent(event events.GetsocknameEvent) {
@@ -75,14 +62,16 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 
 	green := "\033[92m"
 	reset := "\033[0m"
-	fmt.Println(string(green), "[DataEvent]", string(reset), event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD:", event.FD, ", cgroup:", event.CGroupName())
-	fmt.Print(hex.Dump(event.PayloadTrimmed(128)))
+	fmt.Println(string(green), "[DataEvent]", string(reset), event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD:", event.FD, ", cgroup:", event.CGroupName(), "\n", event.Address())
+	fmt.Print(hex.Dump(event.Payload()))
 
 	var socket SocketI
 	socket, exists := m.getSocket(event.Key())
 	if !exists {
-		fmt.Println("[SocketMap] DataEvent no socket found, dropping.")
-		return
+		fmt.Println("[SocketMap] DataEvent no socket found, creating new one...", event.Key())
+		s := NewSocketUnknownFromData(&event)
+		socket = &s
+		m.setSocket(event.Key(), socket)
 	}
 
 	// If the socket is unknown, try to detect the protocol, if no protocol is detected then drop the event.
@@ -103,19 +92,19 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 			return
 		case HTTP:
 			newSocket := NewSocketHttp11FromUnknown(unkownSocket)
-			m.setSocket(&newSocket)
+			m.setSocket(event.Key(), &newSocket)
 			socket = &newSocket
 		case HTTP2:
 			newSocket := NewSocketHttp2FromUnknown(unkownSocket)
-			m.setSocket(&newSocket)
+			m.setSocket(event.Key(), &newSocket)
 			socket = &newSocket
 		case PSQL:
 			newSocket := NewSocketPsqlFromUnknown(unkownSocket)
-			m.setSocket(&newSocket)
+			m.setSocket(event.Key(), &newSocket)
 			socket = &newSocket
 		case MySQL:
 			newSocket := NewSocketMysqlFromUnknown(unkownSocket)
-			m.setSocket(&newSocket)
+			m.setSocket(event.Key(), &newSocket)
 			socket = &newSocket
 			// still need the previous event for mysql only
 			socket.ProcessDataEvent(prevDataevent)
@@ -148,12 +137,12 @@ func (m *SocketMap) getSocket(key string) (SocketI, bool) {
 	return socket, exists
 }
 
-func (m *SocketMap) setSocket(socket SocketI) {
+func (m *SocketMap) setSocket(key string, socket SocketI) {
 	socket.AddFlowCallback(func(flow Flow) {
 		for _, callback := range m.flowCallbacks {
 			callback(flow)
 		}
 	})
 
-	m.sockets[socket.Key()] = socket
+	m.sockets[key] = socket
 }

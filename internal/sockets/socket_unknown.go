@@ -40,8 +40,22 @@ func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 	return socket
 }
 
+func NewSocketUnknownFromData(event *events.DataEvent) SocketUnknown {
+	socket := SocketUnknown{
+		SourceAddr:  event.SourceAddr(),
+		DestAddr:    event.DestAddr(),
+		PID:         event.PID,
+		TID:         event.TID,
+		FD:          event.FD,
+		SSL:         false,
+		requestUuid: "",
+	}
+
+	return socket
+}
+
 func (socket *SocketUnknown) Key() string {
-	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
+	return fmt.Sprintf("%s->%s", socket.SourceAddr, socket.DestAddr)
 }
 
 func (socket *SocketUnknown) GetPID() uint32 {

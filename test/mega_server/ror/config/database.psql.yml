@@ -1,0 +1,18 @@
+# default: &default
+#   adapter: postgresql
+#   encoding: unicode
+#   pool: 1
+#   checkout_timeout: 1
+#   reaping_frequency: nil
+#   reconnect: true
+#   url: <%= ENV['DATABASE_URL'] %>
+#   prepared_statements: false
+
+# development:
+#   <<: *default
+
+# test:
+#   <<: *default
+
+# production:
+#   <<: *default

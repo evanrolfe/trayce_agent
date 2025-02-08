@@ -58,9 +58,7 @@ static __always_inline int gotls_write(struct pt_regs *ctx, bool is_register_abi
     int64_t fd;
     bpf_probe_read(&fd, sizeof(int64_t), fd_ptr + fd_offset);
 
-    process_data(ctx, current_pid_tgid, goTlsWrite, buf, buf_len, fd);
-
-    return 0;
+    return process_data(current_pid_tgid, goTlsWrite, buf, buf_len, fd);
 }
 
 // IMPORTANT: If you dont read the entire response body in Go, i.e. `body, _ := io.ReadAll(resp.Body)`, this this
@@ -140,7 +138,7 @@ static __always_inline int gotls_read_exit(struct pt_regs *ctx, bool is_register
         bpf_probe_read(&buf_len, sizeof(u32), &len_ptr);
         bpf_printk("gotls/read exit: PID: %d buf_len: %d, fd: %d, go id: %d", pid, buf_len, fd, pid_go);
 
-        process_data(ctx, current_pid_tgid, goTlsRead, active_buf_t->buf, buf_len, fd);
+        return process_data(current_pid_tgid, goTlsRead, active_buf_t->buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_go_read_args_map, &pid_go);
 

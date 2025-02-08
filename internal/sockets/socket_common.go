@@ -54,7 +54,7 @@ func (socket *SocketCommon) AddFlowCallback(callback func(Flow)) {
 }
 
 func (socket *SocketCommon) Key() string {
-	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
+	return fmt.Sprintf("%s->%s", socket.SourceAddr, socket.DestAddr)
 }
 
 func (socket *SocketCommon) GetPID() uint32 {
