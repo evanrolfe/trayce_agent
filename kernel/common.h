@@ -29,8 +29,7 @@ typedef short unsigned int __kernel_sa_family_t;
 
 typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
-enum event_type { eConnect, eData, eClose, eDebug, eGetsockname, eFork };
-enum connect_event_type { kConnect, kAccept };
+enum event_type { eData, eClose, eDebug };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto, goTlsRead, goTlsWrite };
 enum protocol_type { pUnknown, pHttp };
 const u32 invalidFD = 0;
@@ -53,20 +52,6 @@ struct data_event_t {
     char data[MAX_DATA_SIZE_OPENSSL];
 };
 
-struct connect_event_t {
-    u64 eventtype;
-    u64 type;
-    u64 timestamp_ns;
-    u32 pid;
-    u32 tid;
-    u32 fd;
-    u32 src_host;
-    u32 dest_host;
-    u16 src_port;
-    u16 dest_port; // the ports need to be next to each other so C doesn't zero-pad them to 4 bytes each
-    char cgroup[CGROUP_LEN];
-};
-
 struct close_event_t {
     u64 eventtype;
     u64 timestamp_ns;
@@ -87,23 +72,6 @@ struct debug_event_t {
     u32 fd;
     s32 data_len;
     char data[300];
-};
-
-struct getsockname_event_t {
-    u64 eventtype;
-    u64 timestamp_ns;
-    u32 pid;
-    u32 tid;
-    u32 fd;
-    u32 host;
-    u16 port;
-};
-
-struct fork_event_t {
-    u64 eventtype;
-    u64 timestamp_ns;
-    u32 pid;
-    u32 child_pid;
 };
 
 // OPENSSL struct to offset , via kern/README.md
@@ -350,7 +318,7 @@ static int process_data(u64 id, enum data_event_type type, const char* buf, size
         event->src_port = sport;
         event->dest_host = daddr;
         event->dest_port = bpf_htons(dport);
-        // bpf_printk("-------------->: fd: %d, source: %d : %d, dest: %d : %d", fd, event->src_host, event->src_port, event->dest_host, event->dest_port);
+
         bpf_probe_read_str(&event->cgroup, sizeof(event->cgroup), name); // be careful with the placement of this line, it can upset the verifier
         event->data_len = (remaining_buf_len < MAX_DATA_SIZE_OPENSSL ? (remaining_buf_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);
 
@@ -484,44 +452,4 @@ static __inline u32 should_intercept() {
     }
 
     return 0;
-}
-
-struct addr_t {
-    u32 ip;
-    u16 port;
-};
-
-// parse_address takes an accept_args and parses the IP and Port. Sometimes the accept_args only contain an IPV6 address
-// even though its actually IPV4. In that case the IPV4 IP is embedded in an IPV6 one i.e. ::ffff:172.17.0.2 (this happens in Go programs)
-// so this function extracts the V4 address.
-static __inline void parse_address(struct addr_t *result, struct accept_args_t* args) {
-    result->ip = 0;
-    result->port = 0;
-
-    struct sockaddr_in sin = {};
-    struct sockaddr_in6 sin6 = {};
-
-    // Read the address based on the sa_family
-    struct sockaddr* saddr = (struct sockaddr *) args->addr;
-    sa_family_t address_family = 0;
-    bpf_probe_read(&address_family, sizeof(address_family), &saddr->sa_family);
-
-    if (address_family == AF_INET) {
-        bpf_probe_read(&sin, sizeof(sin), args->addr);
-        result->ip = sin.sin_addr.s_addr;
-        result->port = sin.sin_port;
-    } else if (address_family == AF_INET6) {
-        bpf_probe_read(&sin6, sizeof(sin6), args->addr);
-        result->port = sin6.sin6_port;
-        u8 ipv6_addr[16];
-        bpf_probe_read(&ipv6_addr, sizeof(ipv6_addr), &sin6.sin6_addr);
-
-        // Check if it's an IPv4-mapped IPv6 address (::ffff:0:0/96 prefix)
-        if (ipv6_addr[0] == 0 && ipv6_addr[1] == 0 && ipv6_addr[2] == 0 && ipv6_addr[3] == 0 &&
-            ipv6_addr[4] == 0 && ipv6_addr[5] == 0 && ipv6_addr[6] == 0 && ipv6_addr[7] == 0 &&
-            ipv6_addr[8] == 0 && ipv6_addr[9] == 0 && ipv6_addr[10] == 0xff && ipv6_addr[11] == 0xff) {
-            // Extract the IPv4 address from the last 4 bytes
-            result->ip = *(u32 *)&ipv6_addr[12];
-        }
-    }
 }

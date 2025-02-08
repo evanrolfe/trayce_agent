@@ -125,8 +125,8 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 		case payload := <-stream.dataEventsChan:
 			eventType := getEventType(payload)
 
-			// events.ConnectEvent
-			if eventType == 1 {
+			if eventType == 0 {
+				// DataEvent
 				event := events.DataEvent{}
 				err = event.Decode(payload)
 				if err != nil {
@@ -140,15 +140,16 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 				outputChan <- &event
 
-			} else if eventType == 2 {
+			} else if eventType == 1 {
+				// CloseEvent
 				event := events.CloseEvent{}
 				event.Decode(payload)
 
 				fmt.Printf("%s[CloseEvent]%s PID: %d, TID: %d, FD: %d\n", red, reset, event.PID, event.TID, event.FD)
 				outputChan <- &event
 
+			} else if eventType == 2 {
 				// DebugEvent
-			} else if eventType == 3 {
 				event := events.DebugEvent{}
 				event.Decode(payload)
 
@@ -292,19 +293,12 @@ func (stream *Stream) Close() {
 
 func (stream *Stream) attachProbes() {
 	kprobes := map[string][]string{
-		// "sys_accept":      []string{"probe_accept4", "probe_ret_accept4"},
-		// "sys_accept4":     []string{"probe_accept4", "probe_ret_accept4"},
-		// "sys_connect":     []string{"probe_connect", "probe_ret_connect"},
-		// "sys_getsockname": []string{"probe_getsockname", "probe_ret_getsockname"},
-		// TODO: Remove all the related to this kprobe once we're sure we dont need it
 		"sys_close":    []string{"probe_close", "probe_ret_close"},
 		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
 		"sys_recvfrom": []string{"probe_recvfrom", "probe_ret_recvfrom"},
 		"sys_write":    []string{"probe_write", "probe_ret_write"},
 		"sys_read":     []string{"probe_read", "probe_ret_read"},
 	}
-	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
-	// security_socket_sendmsg & security_socket_recvmsg
 
 	for sysFunc, probeFuncs := range kprobes {
 		if len(probeFuncs) != 2 {
@@ -322,32 +316,6 @@ func (stream *Stream) attachProbes() {
 			panic(err)
 		}
 	}
-
-	// Attach the process fork tracepoint
-	// err := stream.probeManager.AttachTracepoint("trace_sched_process_fork", "sched", "sched_process_fork")
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// err = stream.probeManager.AttachTracepoint("trace_syscalls_sys_enter_recvfrom", "syscalls", "sys_enter_recvfrom")
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// err = stream.probeManager.AttachTracepoint("trace_syscalls_sys_exit_recvfrom", "syscalls", "sys_exit_recvfrom")
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// err = stream.probeManager.AttachTracepoint("trace_syscalls_sys_enter_sendto", "syscalls", "sys_enter_sendto")
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// err = stream.probeManager.AttachTracepoint("trace_syscalls_sys_exit_sendto", "syscalls", "sys_exit_sendto")
-	// if err != nil {
-	// 	panic(err)
-	// }
 }
 
 func (stream *Stream) attachUprobesLibSSL(container docker.Container) {
@@ -362,9 +330,6 @@ func (stream *Stream) attachUprobesLibSSL(container docker.Container) {
 		"SSL_write":    []string{"probe_entry_SSL_write", "probe_ret_SSL_write"},
 		"SSL_write_ex": []string{"probe_entry_SSL_write_ex", "probe_ret_SSL_write_ex"},
 	}
-	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
-	// security_socket_sendmsg:
-	// security_socket_recvmsg
 
 	for funcName, probeFuncs := range uprobes {
 		if len(probeFuncs) != 2 {
