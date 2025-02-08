@@ -20,37 +20,29 @@ var _ = Describe("SocketMap", func() {
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
-			socketsMap.ProcessConnectEvent(events.ConnectEvent{
+			socketsMap.ProcessDataEvent(events.DataEvent{
 				PID:        123,
 				TID:        123,
 				FD:         5,
+				DataType:   1,
+				Data:       convertSliceToArray(event1Payload),
+				DataLen:    int32(len(event1Payload)),
 				SourceHost: 33558956,
 				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socketsMap.ProcessGetsocknameEvent(events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
+				DestHost:   16777343,
+				DestPort:   80,
 			})
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				PID:      123,
-				TID:      123,
-				FD:       5,
-				DataType: 1,
-				Data:     convertSliceToArray(event1Payload),
-				DataLen:  int32(len(event1Payload)),
-			})
-			socketsMap.ProcessDataEvent(events.DataEvent{
-				PID:      123,
-				TID:      123,
-				FD:       5,
-				DataType: 0,
-				Data:     convertSliceToArray(event2Payload),
-				DataLen:  int32(len(event2Payload)),
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				DataType:   0,
+				Data:       convertSliceToArray(event2Payload),
+				DataLen:    int32(len(event2Payload)),
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   16777343,
+				DestPort:   80,
 			})
 		})
 
@@ -122,31 +114,19 @@ var _ = Describe("SocketMap", func() {
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
-			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socketsMap.ProcessGetsocknameEvent(events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
 
 			for _, payload := range payloads {
 				socketsMap.ProcessDataEvent(events.DataEvent{
-					PID:      123,
-					TID:      123,
-					FD:       5,
-					DataType: 1,
-					Data:     convertSliceToArray(payload),
-					DataLen:  int32(len(payload)),
+					PID:        123,
+					TID:        123,
+					FD:         5,
+					DataType:   1,
+					Data:       convertSliceToArray(payload),
+					DataLen:    int32(len(payload)),
+					SourceHost: 33558956,
+					SourcePort: 1234,
+					DestHost:   16777343,
+					DestPort:   80,
 				})
 			}
 		})
@@ -223,22 +203,30 @@ var _ = Describe("SocketMap", func() {
 
 		processReceive := func(payload []byte) {
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				PID:      222,
-				TID:      222,
-				FD:       5,
-				DataType: 0,
-				Data:     convertSliceToArray(payload),
-				DataLen:  int32(len(payload)),
+				PID:        222,
+				TID:        222,
+				FD:         5,
+				DataType:   0,
+				Data:       convertSliceToArray(payload),
+				DataLen:    int32(len(payload)),
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   16777343,
+				DestPort:   80,
 			})
 		}
 		processSend := func(payload []byte) {
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				PID:      222,
-				TID:      222,
-				FD:       5,
-				DataType: 1,
-				Data:     convertSliceToArray(payload),
-				DataLen:  int32(len(payload)),
+				PID:        222,
+				TID:        222,
+				FD:         5,
+				DataType:   1,
+				Data:       convertSliceToArray(payload),
+				DataLen:    int32(len(payload)),
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   16777343,
+				DestPort:   80,
 			})
 		}
 
@@ -247,22 +235,7 @@ var _ = Describe("SocketMap", func() {
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
-			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				PID:        111,
-				TID:        111,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socketsMap.ProcessGetsocknameEvent(events.GetsocknameEvent{
-				PID:  111,
-				TID:  111,
-				FD:   5,
-				Host: 33558957,
-				Port: 5432,
-			})
+
 			socketsMap.ProcessForkEvent(events.ForkEvent{PID: 111, ChildPID: 222})
 			processReceive(event1Payload)
 			processReceive(event2Payload)
@@ -286,7 +259,7 @@ var _ = Describe("SocketMap", func() {
 
 			for _, flow := range flows {
 				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
-				Expect(flow.DestAddr).To(Equal("173.17.0.2:5432"))
+				Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("psql"))
 				Expect(flow.PID).To(Equal(222))
@@ -342,22 +315,30 @@ var _ = Describe("SocketMap", func() {
 
 		processReceive := func(payload []byte) {
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				PID:      222,
-				TID:      222,
-				FD:       5,
-				DataType: 0,
-				Data:     convertSliceToArray(payload),
-				DataLen:  int32(len(payload)),
+				PID:        222,
+				TID:        222,
+				FD:         5,
+				DataType:   0,
+				Data:       convertSliceToArray(payload),
+				DataLen:    int32(len(payload)),
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   33558957,
+				DestPort:   3306,
 			})
 		}
 		processSend := func(payload []byte) {
 			socketsMap.ProcessDataEvent(events.DataEvent{
-				PID:      222,
-				TID:      222,
-				FD:       5,
-				DataType: 1,
-				Data:     convertSliceToArray(payload),
-				DataLen:  int32(len(payload)),
+				PID:        222,
+				TID:        222,
+				FD:         5,
+				DataType:   1,
+				Data:       convertSliceToArray(payload),
+				DataLen:    int32(len(payload)),
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   33558957,
+				DestPort:   3306,
 			})
 		}
 
@@ -365,15 +346,6 @@ var _ = Describe("SocketMap", func() {
 			socketsMap = sockets.NewSocketMap()
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
-			})
-			socketsMap.ProcessConnectEvent(events.ConnectEvent{
-				PID:        222,
-				TID:        222,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   33558957,
-				DestPort:   3306,
 			})
 			processSend(event1Payload)
 			processReceive(event2Payload)
