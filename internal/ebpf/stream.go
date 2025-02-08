@@ -32,9 +32,8 @@ type Stream struct {
 	dataEventsChan    chan []byte
 	interruptChan     chan int
 
-	connectCallbacks []func(events.ConnectEvent)
-	dataCallbacks    []func(events.DataEvent)
-	closeCallbacks   []func(events.CloseEvent)
+	dataCallbacks  []func(events.DataEvent)
+	closeCallbacks []func(events.CloseEvent)
 }
 
 type ContainersI interface {
@@ -71,10 +70,6 @@ func NewStream(containers ContainersI, probeManager ProbeManagerI) *Stream {
 		goOffsetsMap:      &libbpfgo.BPFMap{},
 		libSSLVersionsMap: &libbpfgo.BPFMap{},
 	}
-}
-
-func (stream *Stream) AddConnectCallback(callback func(events.ConnectEvent)) {
-	stream.connectCallbacks = append(stream.connectCallbacks, callback)
 }
 
 func (stream *Stream) AddDataCallback(callback func(events.DataEvent)) {
@@ -118,7 +113,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 	// colours
 	red := "\033[35m"
-	cyan := "\033[36m"
+	// cyan := "\033[36m"
 	reset := "\033[0m"
 
 	for {
@@ -131,15 +126,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 			eventType := getEventType(payload)
 
 			// events.ConnectEvent
-			if eventType == 0 {
-				event := events.ConnectEvent{}
-				event.Decode(payload)
-
-				fmt.Printf("%s[ConnectEvent]%s PID: %d, TID: %d, FD: %d, source: %s, %s=>%s cgroup: %s\n", cyan, reset, event.PID, event.TID, event.FD, event.TypeStr(), event.SourceAddr(), event.DestAddr(), event.CGroupName())
-				outputChan <- &event
-
-				// events.DataEvent
-			} else if eventType == 1 {
+			if eventType == 1 {
 				event := events.DataEvent{}
 				err = event.Decode(payload)
 				if err != nil {
@@ -167,18 +154,6 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 				fmt.Println("\n[DebugEvent] Received, PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, " - ", string(event.Payload()))
 				fmt.Print(hex.Dump(payload))
-			} else if eventType == 4 {
-				event := events.GetsocknameEvent{}
-				event.Decode(payload)
-
-				fmt.Printf("%s[GetsocknameEvent]%s PID: %d, TID: %d, FD: %d, %s\n", cyan, reset, event.PID, event.TID, event.FD, event.Addr())
-				outputChan <- &event
-			} else if eventType == 5 {
-				event := events.ForkEvent{}
-				event.Decode(payload)
-
-				fmt.Printf("%s[ForkEvent]%s PID: %d, ChildPID: %d\n", cyan, reset, event.PID, event.ChildPID)
-				outputChan <- &event
 			}
 		}
 	}

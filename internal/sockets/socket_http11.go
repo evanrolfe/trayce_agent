@@ -25,14 +25,14 @@ type SocketHttp11 struct {
 	requestUuid string
 }
 
-func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
+func NewSocketHttp11(sourceAddr, destAddr string, pid, tid, fd uint32) SocketHttp11 {
 	socket := SocketHttp11{
 		Common: SocketCommon{
-			SourceAddr: event.SourceAddr(),
-			DestAddr:   event.DestAddr(),
-			PID:        event.PID,
-			TID:        event.TID,
-			FD:         event.FD,
+			SourceAddr: sourceAddr,
+			DestAddr:   destAddr,
+			PID:        pid,
+			TID:        tid,
+			FD:         fd,
 			SSL:        false,
 		},
 		dataBuf:     []byte{},
@@ -85,15 +85,6 @@ func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 
 func (socket *SocketHttp11) Clear() {
 	socket.clearDataBuffer()
-}
-
-// ProcessConnectEvent is called when the connect event arrives after the data event
-func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
-
-}
-
-func (socket *SocketHttp11) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	socket.Common.ProcessGetsocknameEvent(event)
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {

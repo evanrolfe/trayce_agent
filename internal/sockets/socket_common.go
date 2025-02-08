@@ -3,8 +3,6 @@ package sockets
 import (
 	"fmt"
 	"strings"
-
-	"github.com/evanrolfe/trayce_agent/internal/events"
 )
 
 // SocketCommon implements some common functionality and data used by all socket types
@@ -21,19 +19,6 @@ type SocketCommon struct {
 	flowCallbacks []func(Flow)
 	// The flows are buffered until a GetsocknameEvent is received which sets the source/dest address on the flows
 	flowBuf []Flow
-}
-
-func NewSocketCommon(event *events.ConnectEvent) SocketCommon {
-	socket := SocketCommon{
-		SourceAddr: event.SourceAddr(),
-		DestAddr:   event.DestAddr(),
-		PID:        event.PID,
-		TID:        event.TID,
-		FD:         event.FD,
-		SSL:        false,
-	}
-
-	return socket
 }
 
 func NewSocketCommonFromUnknown(unkownSocket *SocketUnknown) SocketCommon {
@@ -74,18 +59,6 @@ func (socket *SocketCommon) Clone() SocketCommon {
 		FD:         socket.FD,
 		SSL:        socket.SSL,
 	}
-}
-
-// ProcessGetsocknameEvent sets the getsockname event which is used to set the missing source/dest address which can't be
-// monitors from ebpf connect/accept events
-func (socket *SocketCommon) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	if socket.hasZeroPortSource() {
-		socket.SourceAddr = event.Addr()
-	} else if socket.hasZeroPortDest() {
-		socket.DestAddr = event.Addr()
-	}
-
-	socket.releaseFlows()
 }
 
 // releaseFlows releases the flows which have been buffered

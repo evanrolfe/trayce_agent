@@ -16,14 +16,14 @@ type SocketHttp2 struct {
 	mu          sync.Mutex
 }
 
-func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
+func NewSocketHttp2(sourceAddr, destAddr string, pid, tid, fd uint32) SocketHttp2 {
 	socket := SocketHttp2{
 		Common: SocketCommon{
-			SourceAddr: event.SourceAddr(),
-			DestAddr:   event.DestAddr(),
-			PID:        event.PID,
-			TID:        event.TID,
-			FD:         event.FD,
+			SourceAddr: sourceAddr,
+			DestAddr:   destAddr,
+			PID:        pid,
+			TID:        tid,
+			FD:         fd,
 			SSL:        false,
 		},
 		streams:     map[uint32]*Http2Stream{},
@@ -81,14 +81,6 @@ func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
 func (socket *SocketHttp2) Clear() {
 	socket.clearFrameBuffer(events.TypeIngress)
 	socket.clearFrameBuffer(events.TypeEgress)
-}
-
-// ProcessConnectEvent is called when the connect event arrives after the data event
-func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
-}
-
-func (socket *SocketHttp2) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	socket.Common.ProcessGetsocknameEvent(event)
 }
 
 // TODO: Have a structure for handling the frame header + payload?

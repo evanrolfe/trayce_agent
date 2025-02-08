@@ -19,27 +19,19 @@ var _ = Describe("SocketPsql", func() {
 		event5Payload, _ := hexDumpToBytes(psqlPrepEvent5)
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketPsql(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
+			socket := sockets.SocketPsql{
+				Common: sockets.SocketCommon{
+					SourceAddr: "172.17.0.2:1234",
+					DestAddr:   "173.17.0.2:5432",
+					PID:        123,
+					TID:        123,
+					FD:         5,
+					SSL:        false,
+				},
+			}
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
-
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  111,
-				TID:  111,
-				FD:   5,
-				Host: 33558957,
-				Port: 5432,
-			})
-
 			socket.ProcessDataEvent(&events.DataEvent{
 				PID:      123,
 				TID:      123,
@@ -112,27 +104,19 @@ var _ = Describe("SocketPsql", func() {
 		event3Payload, _ := hexDumpToBytes(psqlQueryEvent3)
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketPsql(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
+			socket := sockets.SocketPsql{
+				Common: sockets.SocketCommon{
+					SourceAddr: "172.17.0.2:1234",
+					DestAddr:   "173.17.0.2:5432",
+					PID:        123,
+					TID:        123,
+					FD:         5,
+					SSL:        false,
+				},
+			}
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
-
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  111,
-				TID:  111,
-				FD:   5,
-				Host: 33558957,
-				Port: 5432,
-			})
-
 			socket.ProcessDataEvent(&events.DataEvent{
 				PID:      123,
 				TID:      123,

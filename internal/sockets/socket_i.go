@@ -10,8 +10,6 @@ type SocketI interface {
 	SetPID(pid uint32)
 	Clone() SocketI
 	AddFlowCallback(callback func(Flow))
-	ProcessConnectEvent(event *events.ConnectEvent)
 	ProcessDataEvent(event *events.DataEvent)
-	ProcessGetsocknameEvent(event *events.GetsocknameEvent)
 	Clear()
 }

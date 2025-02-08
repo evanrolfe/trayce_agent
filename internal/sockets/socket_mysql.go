@@ -59,11 +59,6 @@ func (socket *SocketMysql) AddFlowCallback(callback func(Flow)) {
 func (socket *SocketMysql) Clear() {
 }
 
-func (socket *SocketMysql) ProcessConnectEvent(event *events.ConnectEvent) {
-}
-
-func (socket *SocketMysql) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {}
-
 func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 	if event.Type() == events.TypeIngress {
 		socket.bufIngress = append(socket.bufIngress, event.Payload()...)

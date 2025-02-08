@@ -26,36 +26,6 @@ func (m *SocketMap) AddFlowCallback(callback func(Flow)) {
 	m.flowCallbacks = append(m.flowCallbacks, callback)
 }
 
-func (m *SocketMap) ProcessConnectEvent(event events.ConnectEvent) {
-
-}
-
-func (m *SocketMap) ProcessGetsocknameEvent(event events.GetsocknameEvent) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	socket, exists := m.getSocket(event.Key())
-	if !exists {
-		return
-	}
-	socket.ProcessGetsocknameEvent(&event)
-}
-
-func (m *SocketMap) ProcessForkEvent(event events.ForkEvent) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// When a process is forked, all open connections are copied over to the the child process, so we need to do
-	// the same thing here in the socket map
-	for _, socket := range m.sockets {
-		if socket.GetPID() == event.PID {
-			newSocket := socket.Clone()
-			newSocket.SetPID(event.ChildPID)
-			m.sockets[newSocket.Key()] = newSocket
-		}
-	}
-}
-
 func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

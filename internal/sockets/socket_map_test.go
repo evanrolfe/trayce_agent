@@ -236,7 +236,6 @@ var _ = Describe("SocketMap", func() {
 				flows = append(flows, &flowFromCb)
 			})
 
-			socketsMap.ProcessForkEvent(events.ForkEvent{PID: 111, ChildPID: 222})
 			processReceive(event1Payload)
 			processReceive(event2Payload)
 			processSend(event3Payload)

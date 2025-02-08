@@ -25,29 +25,14 @@ var _ = Describe("SocketHTTP1.1", func() {
 	gzip1Payload, _ := hexDumpToBytes(gzipEvent1)
 	gzip2Payload, _ := hexDumpToBytes(gzipEvent2)
 
-	Context("Receiving a Connect, Getsockname, Data (request) events", Ordered, func() {
+	Context("Receiving Data (request) events", Ordered, func() {
 		var flows []*sockets.Flow
 		payloads := [][]byte{
 			event1Payload,
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp11("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -96,29 +81,14 @@ var _ = Describe("SocketHTTP1.1", func() {
 		})
 	})
 
-	Context("Receiving a Connect, Data (request), Getsockname, events", Ordered, func() {
+	Context("Receiving Data (request), Getsockname, events", Ordered, func() {
 		var flows []*sockets.Flow
 		payloads := [][]byte{
 			event1Payload,
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp11("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -163,27 +133,12 @@ var _ = Describe("SocketHTTP1.1", func() {
 
 	// In HTTPS we get both the encrypted & decrypted versions of the same event sent, so we have to ensure only the
 	// encrypted one is processed
-	Context("Receiving a Connect, TLS Data (request), Non-TLS Data, TLS Data (response) events", Ordered, func() {
+	Context("Receiving TLS Data (request), Non-TLS Data, TLS Data (response) events", Ordered, func() {
 		var flows []*sockets.Flow
 		randomPayload := []byte{0x00, 0x00, 0x26, 0x01, 0x04, 0x00, 0x00, 0x00, 0x01, 0x88, 0x5f, 0x87, 0x49, 0x7c, 0xa5, 0x8a, 0xe8, 0x19, 0xaa, 0x5c, 0x02, 0x31, 0x33, 0x61, 0x96, 0xd0, 0x7a, 0xbe, 0x94, 0x03, 0x8a, 0x68, 0x1f, 0xa5, 0x04, 0x01, 0x34, 0xa0, 0x5c, 0xb8, 0xc8, 0xae, 0x34, 0x15, 0x31, 0x68, 0xdf}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp11("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -257,7 +212,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		})
 	})
 
-	Context("Receiving a Connect, Data (request), Data (response) events", Ordered, func() {
+	Context("Receiving Data (request), Data (response) events", Ordered, func() {
 		var flows []*sockets.Flow
 		payloads := [][]byte{
 			event1Payload,
@@ -265,22 +220,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 0,
-				SourcePort: 0,
-				DestHost:   33558956,
-				DestPort:   1234,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp11("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -301,8 +241,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
-				Expect(flow.SourceAddr).To(Equal("127.0.0.1:80"))
-				Expect(flow.DestAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
 				Expect(flow.L4Protocol).To(Equal("tcp"))
 				Expect(flow.L7Protocol).To(Equal("http"))
 				Expect(flow.PID).To(Equal(123))
@@ -340,26 +280,11 @@ var _ = Describe("SocketHTTP1.1", func() {
 		})
 	})
 
-	Context("Receiving a Connect, Data (request), Data (response) events (scenario 2)", Ordered, func() {
+	Context("Receiving Data (request), Data (response) events (scenario 2)", Ordered, func() {
 		var flows []*sockets.Flow
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp11("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -431,7 +356,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		})
 	})
 
-	Context("Receiving a Connect, Data (request), Data (response) events (chunked) from Go", Ordered, func() {
+	Context("Receiving Data (request), Data (response) events (chunked) from Go", Ordered, func() {
 		var flows []*sockets.Flow
 		payloads := [][]byte{
 			event8Payload,
@@ -443,22 +368,7 @@ var _ = Describe("SocketHTTP1.1", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp11("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -521,26 +431,11 @@ var _ = Describe("SocketHTTP1.1", func() {
 		})
 	})
 
-	Context("Receiving a Connect, Data (request), Data (response) events (gzip'd)", Ordered, func() {
+	Context("Receiving Data (request), Data (response) events (gzip'd)", Ordered, func() {
 		var flows []*sockets.Flow
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp11(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp11("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})

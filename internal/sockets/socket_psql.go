@@ -19,22 +19,6 @@ type SocketPsql struct {
 	requestUuid string
 }
 
-func NewSocketPsql(event *events.ConnectEvent) SocketPsql {
-	socket := SocketPsql{
-		Common: SocketCommon{
-			SourceAddr: event.SourceAddr(),
-			DestAddr:   event.DestAddr(),
-			PID:        event.PID,
-			TID:        event.TID,
-			FD:         event.FD,
-			SSL:        false,
-		},
-		bufQueryFlow: nil,
-	}
-
-	return socket
-}
-
 func NewSocketPsqlFromUnknown(unkownSocket *SocketUnknown) SocketPsql {
 	socket := SocketPsql{
 		Common: SocketCommon{
@@ -74,13 +58,6 @@ func (socket *SocketPsql) AddFlowCallback(callback func(Flow)) {
 }
 
 func (socket *SocketPsql) Clear() {
-}
-
-func (socket *SocketPsql) ProcessConnectEvent(event *events.ConnectEvent) {
-}
-
-func (socket *SocketPsql) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	socket.Common.ProcessGetsocknameEvent(event)
 }
 
 func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
