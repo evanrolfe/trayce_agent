@@ -19,6 +19,8 @@ const (
 	goTlsWrite  = 7
 	TypeEgress  = "egress"
 	TypeIngress = "ingress"
+	dIngress    = 0
+	dEgress     = 1
 )
 
 // DataEvent is sent from ebpf when data is sent or received over a socket, see corresponding: struct data_event_t
@@ -31,7 +33,7 @@ type DataEvent struct {
 	CGroup     [128]byte         `json:"cgroup"`
 	FD         uint32            `json:"fd"`
 	Version    int32             `json:"version"`
-	SSLPtr     int64             `json:"sslPtr"`
+	Direction  uint32            `json:"direction"`
 	SourceHost uint32            `json:"source_host"`
 	DestHost   uint32            `json:"dest_host"`
 	SourcePort uint16            `json:"source_port"`
@@ -66,7 +68,7 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &se.Version); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.SSLPtr); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &se.Direction); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.SourceHost); err != nil {
@@ -195,6 +197,11 @@ func (se *DataEvent) IsBlank() bool {
 		}
 	}
 	return true
+}
+
+// htons converst host ot network byte order
+func htons(x uint16) uint16 {
+	return (x&0xff)<<8 | (x&0xff00)>>8
 }
 
 // func (se *SSLDataEvent) StringHex() string {

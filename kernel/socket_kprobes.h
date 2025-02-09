@@ -101,6 +101,10 @@ int probe_ret_close(struct pt_regs *ctx) {
         return 0;
     }
 
+    // Delete the socket from socket map
+    u64 key = create_socket_key(close_event->saddr, close_event->sport, close_event->daddr, close_event->dport);
+    bpf_map_delete_elem(&socket_map, &key);
+
     bpf_ringbuf_output(&data_events, close_event, sizeof(struct close_event_t), 0);
     bpf_printk("kprobe/close fd: %d", close_event->fd);
     bpf_map_delete_elem(&active_close_args_map, &current_pid_tgid);

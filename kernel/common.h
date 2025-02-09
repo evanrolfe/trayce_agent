@@ -31,7 +31,7 @@ typedef __kernel_sa_family_t sa_family_t;
 // -----------------------------------------------------------------------------
 enum event_type { eData, eClose, eDebug };
 enum data_event_type { kSSLRead, kSSLWrite, kRead, kWrite, kRecvfrom, kSendto, goTlsRead, goTlsWrite };
-enum protocol_type { pUnknown, pHttp };
+enum direction_type { dIngress, dEgress };
 const u32 invalidFD = 0;
 
 struct data_event_t {
@@ -43,7 +43,7 @@ struct data_event_t {
     char cgroup[CGROUP_LEN];
     u32 fd;
     s32 version;
-    u64 rand;
+    u32 direction;
     u32 src_host;
     u32 dest_host;
     u16 src_port;
@@ -72,6 +72,17 @@ struct debug_event_t {
     u32 fd;
     s32 data_len;
     char data[300];
+};
+
+struct socket_key {
+    u32 saddr;
+    u16 sport;
+    u32 daddr;
+    u16 dport;
+};
+
+struct socket_details {
+    u8 direction;
 };
 
 // OPENSSL struct to offset , via kern/README.md
@@ -131,13 +142,6 @@ struct offsets {
     __u64 go_fd_offset;
 };
 
-// TODO: Rename this to be more generic
-struct accept_args_t {
-    struct sockaddr_in* addr;
-    int fd;
-    u32 container_ip;
-};
-
 /***********************************************************
  * Exported bpf maps
  ***********************************************************/
@@ -178,6 +182,13 @@ struct {
 } ssl_fd_map SEC(".maps");
 
 struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, u64);
+    __type(value, u32);
+    __uint(max_entries, 1024 * 1024);
+} socket_map SEC(".maps");
+
+struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 1024 * 1024 * 128); // Important that its big enough otherwise events will be dropped and cause weird behaviour
 } data_events SEC(".maps");
@@ -194,7 +205,6 @@ struct {
 /***********************************************************
  * Helper Functions
  ***********************************************************/
-
 static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     u32 kZero = 0;
 
@@ -208,9 +218,27 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     event->pid = current_pid_tgid >> 32;
     event->tid = current_pid_tgid & kMask32b;
     event->fd = invalidFD;
-    event->rand = 0;
 
     return event;
+}
+
+static __always_inline __u64 create_socket_key(__u32 saddr, __u16 sport,__u32 daddr, __u16 dport) {
+    // Convert ports to network byte order to ensure consistency
+    sport = bpf_htons(sport);
+    dport = bpf_htons(dport);
+
+    // Combine into a 64-bit key
+    // Lower 32 bits: source addr (32 bits)
+    // Next 16 bits: source port (16 bits)
+    // Next 16 bits: destination port (16 bits)
+    __u64 key = 0;
+    key = ((__u64)dport << 48) |      // Put dport in the top 16 bits
+          ((__u64)sport << 32) |      // Put sport in the next 16 bits
+          (__u64)saddr;               // Put saddr in the bottom 32 bits
+
+    key ^= (__u64)daddr; // XOR with daddr to include it in the key while maintaining uniqueness
+
+    return key;
 }
 
 // >> 32 - PID
@@ -294,6 +322,43 @@ static int process_data(u64 id, enum data_event_type type, const char* buf, size
     bpf_printk("process_data(): type: %d, buf_len: %d", type, buf_len);
     bpf_printk("process_data(): fd: %d, source: %d : %d, dest: %d : %d", fd, saddr, sport, daddr, bpf_htons(dport));
 
+    // Check ingress/egress from the socket map and flip the destination with source if it's ingress
+    u8 direction;
+    u64 key = create_socket_key(saddr, sport, daddr, dport);
+    struct socket_details* socketdetails = bpf_map_lookup_elem(&socket_map, &key);
+    if (socketdetails == NULL) {
+        struct socket_details socketdetailsnew = {};
+        if (type == kSSLRead || type == kRead || type ==  kRecvfrom || type == goTlsRead) {
+            socketdetailsnew.direction = dIngress;
+            direction = dIngress;
+        } else if (type == kSSLWrite || type == kWrite || type == kSendto || type == goTlsWrite) {
+            socketdetailsnew.direction = dEgress;
+            direction = dEgress;
+        }
+
+        socketdetails = &socketdetailsnew;
+        bpf_map_update_elem(&socket_map, &key, &socketdetailsnew, BPF_ANY);
+    } else {
+        direction = socketdetails->direction;
+    }
+
+    // For ingress data we swap destination and source
+    if (socketdetails->direction == dIngress) {
+        saddr = BPF_CORE_READ(sk,sk_daddr);
+        sport = BPF_CORE_READ(sk,sk_dport);
+        daddr = BPF_CORE_READ(sk,sk_rcv_saddr);
+        dport = BPF_CORE_READ(sk,sk_num);
+        dport = bpf_htons(dport);
+    }
+    // For egress we need to re-read from BPF_CORE_READ() in order to satisfy the ebpf-verifier
+    if (socketdetails->direction == dEgress) {
+        saddr = BPF_CORE_READ(sk,sk_rcv_saddr);
+        sport = BPF_CORE_READ(sk,sk_num);
+        daddr = BPF_CORE_READ(sk,sk_daddr);
+        dport = BPF_CORE_READ(sk,sk_dport);
+        sport = bpf_htons(sport);
+    }
+
     // Handling buffer split
     const char *str_ptr = buf;
     s32 remaining_buf_len = buf_len;
@@ -318,6 +383,7 @@ static int process_data(u64 id, enum data_event_type type, const char* buf, size
         event->src_port = sport;
         event->dest_host = daddr;
         event->dest_port = bpf_htons(dport);
+        event->direction = direction; // for some reason the ebpf veriifer won't accept socketdetails->direction
 
         bpf_probe_read_str(&event->cgroup, sizeof(event->cgroup), name); // be careful with the placement of this line, it can upset the verifier
         event->data_len = (remaining_buf_len < MAX_DATA_SIZE_OPENSSL ? (remaining_buf_len & (MAX_DATA_SIZE_OPENSSL - 1)): MAX_DATA_SIZE_OPENSSL);

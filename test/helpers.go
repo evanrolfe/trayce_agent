@@ -110,7 +110,7 @@ func getTestConfig() (int, int, time.Duration) {
 	var timeout time.Duration
 	if testing.Short() {
 		numRequests = 1
-		timeout = 5 * time.Second
+		timeout = 3 * time.Second
 	} else {
 		numRequests = numRequestsLoad
 		timeout = 20 * time.Second
