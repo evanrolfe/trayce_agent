@@ -5,7 +5,6 @@ import (
 )
 
 type SocketI interface {
-	Key() string
 	AddFlowCallback(callback func(Flow))
 	ProcessDataEvent(event *events.DataEvent)
 }

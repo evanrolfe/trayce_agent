@@ -79,6 +79,7 @@ struct socket_key {
     u16 sport;
     u32 daddr;
     u16 dport;
+    u64 cgrouphash;
 };
 
 struct socket_details {
@@ -183,7 +184,7 @@ struct {
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, u64);
+    __type(key, struct socket_key);
     __type(value, u32);
     __uint(max_entries, 1024 * 1024);
 } socket_map SEC(".maps");
@@ -205,6 +206,40 @@ struct {
 /***********************************************************
  * Helper Functions
  ***********************************************************/
+// hash_string implements the djb2 algorithm, see http://www.cse.yorku.ca/~oz/hash.html
+static __inline u64 hash_string(const char *str, int length) {
+    u64 hash = 5381;
+    int c;
+    for (int i = 0; i < length && (c = str[i]) != '\0'; i++) {
+        hash = ((hash << 5) + hash) + c; // hash * 33 + c
+    }
+    return hash;
+}
+
+// should_intercept returns the IP of the container being intercepted, or zero if it is not to be intercepted.
+// It compares the djb2 hash of the cgroup with whats in the map, we use a hash because string comparison and substring operations
+// are tricky in ebpf given the max 512 byte stack size
+static __inline u64 should_intercept() {
+    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
+    if (cur_tsk == NULL) {
+        return -1;
+    }
+    int cgrp_id = memory_cgrp_id;
+    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
+
+    char cgroupname[CGROUP_LEN];
+    bpf_probe_read_str(&cgroupname, sizeof(cgroupname), name);
+
+    u64 hash = hash_string(cgroupname, CGROUP_LEN);
+    u32 *container_ip = bpf_map_lookup_elem(&cgroup_name_hashes, &hash);
+    if (container_ip != NULL) {
+        // return the hash, we dont actualy use the container IP anymore
+        return hash;
+    }
+
+    return 0;
+}
+
 static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     u32 kZero = 0;
 
@@ -220,25 +255,6 @@ static __inline struct data_event_t* create_data_event(u64 current_pid_tgid) {
     event->fd = invalidFD;
 
     return event;
-}
-
-static __always_inline __u64 create_socket_key(__u32 saddr, __u16 sport,__u32 daddr, __u16 dport) {
-    // Convert ports to network byte order to ensure consistency
-    sport = bpf_htons(sport);
-    dport = bpf_htons(dport);
-
-    // Combine into a 64-bit key
-    // Lower 32 bits: source addr (32 bits)
-    // Next 16 bits: source port (16 bits)
-    // Next 16 bits: destination port (16 bits)
-    __u64 key = 0;
-    key = ((__u64)dport << 48) |      // Put dport in the top 16 bits
-          ((__u64)sport << 32) |      // Put sport in the next 16 bits
-          (__u64)saddr;               // Put saddr in the bottom 32 bits
-
-    key ^= (__u64)daddr; // XOR with daddr to include it in the key while maintaining uniqueness
-
-    return key;
 }
 
 // >> 32 - PID
@@ -304,6 +320,11 @@ static int process_data(u64 id, enum data_event_type type, const char* buf, size
     int cgrp_id = memory_cgrp_id;
     const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
 
+    // Hash the cgroup name for use in the socket_key later
+    char cgroupname[CGROUP_LEN];
+    bpf_probe_read_str(&cgroupname, sizeof(cgroupname), name);
+    u64 hash = hash_string(cgroupname, CGROUP_LEN);
+
     // Get the source & destination addresses
     __u32 saddr;
     __u16 sport;
@@ -324,7 +345,13 @@ static int process_data(u64 id, enum data_event_type type, const char* buf, size
 
     // Check ingress/egress from the socket map and flip the destination with source if it's ingress
     u8 direction;
-    u64 key = create_socket_key(saddr, sport, daddr, dport);
+    struct socket_key key = {
+        .saddr = saddr,
+        .sport = sport,
+        .daddr = daddr,
+        .dport = dport,
+        .cgrouphash = hash,
+    };
     struct socket_details* socketdetails = bpf_map_lookup_elem(&socket_map, &key);
     if (socketdetails == NULL) {
         struct socket_details socketdetailsnew = {};
@@ -483,39 +510,6 @@ int trayce_debug(u32 pid, u64 tid, int fd, char *str) {
     debug_event.data_len = 5;
 
     bpf_ringbuf_output(&data_events, &debug_event, sizeof(struct debug_event_t), 0);
-
-    return 0;
-}
-
-// hash_string implements the djb2 algorithm, see http://www.cse.yorku.ca/~oz/hash.html
-static __inline u64 hash_string(const char *str, int length) {
-    u64 hash = 5381;
-    int c;
-    for (int i = 0; i < length && (c = str[i]) != '\0'; i++) {
-        hash = ((hash << 5) + hash) + c; // hash * 33 + c
-    }
-    return hash;
-}
-
-// should_intercept returns the IP of the container being intercepted, or zero if it is not to be intercepted.
-// It compares the djb2 hash of the cgroup with whats in the map, we use a hash because string comparison and substring operations
-// are tricky in ebpf given the max 512 byte stack size
-static __inline u32 should_intercept() {
-    struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
-    if (cur_tsk == NULL) {
-        return -1;
-    }
-    int cgrp_id = memory_cgrp_id;
-    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
-
-    char cgroupname[CGROUP_LEN];
-    bpf_probe_read_str(&cgroupname, sizeof(cgroupname), name);
-
-    u64 hash = hash_string(cgroupname, CGROUP_LEN);
-    u32 *container_ip = bpf_map_lookup_elem(&cgroup_name_hashes, &hash);
-    if (container_ip != NULL) {
-        return *container_ip;
-    }
 
     return 0;
 }

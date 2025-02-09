@@ -94,14 +94,6 @@ func (m *SocketMap) ProcessCloseEvent(event events.CloseEvent) {
 	}
 }
 
-func (m *SocketMap) Debug() {
-	socketLine := ""
-	for _, socket := range m.sockets {
-		socketLine += socket.Key() + ", "
-	}
-	fmt.Println(socketLine)
-}
-
 func (m *SocketMap) getSocket(key string) (SocketI, bool) {
 	socket, exists := m.sockets[key]
 	return socket, exists

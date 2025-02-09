@@ -163,7 +163,7 @@ func (se *DataEvent) Source() string {
 }
 
 func (se *DataEvent) Key() string {
-	return se.Address()
+	return fmt.Sprintf("%s-%s", se.Address(), se.CGroupName())
 }
 
 func intToIP(ipInt uint32) string {

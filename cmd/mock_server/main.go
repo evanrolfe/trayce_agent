@@ -52,6 +52,7 @@ func StartMockServer(httpPort int, httpsPort int, keyDir string) {
 	// http.HandleFunc("/chunked/{\\d+}", serverHandlerChunked)
 	http.HandleFunc("/second_http", serverHandlerSecondHTTP)
 	http.HandleFunc("/second_https", serverHandlerSecondHTTPS)
+	http.HandleFunc("/mega_server2", serverHandlerMegaServer2)
 
 	// HTTP server
 	go func() {
@@ -135,6 +136,19 @@ func serverHandlerSecondHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("X-Request-ID", reqID)
 
 	w.Write([]byte("Hello world (second request made).\n"))
+}
+
+func serverHandlerMegaServer2(w http.ResponseWriter, req *http.Request) {
+	fmt.Println("GET /mega_server2")
+
+	reqID := req.Header.Get("X-Request-ID")
+
+	makeRequest("http://mega_server2:3001/")
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("X-Request-ID", reqID)
+
+	w.Write([]byte("Hello world (second request made to megaserver2).\n"))
+
 }
 
 // GET /second_https
