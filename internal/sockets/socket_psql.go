@@ -39,25 +39,8 @@ func (socket *SocketPsql) Key() string {
 	return socket.Common.Key()
 }
 
-func (socket *SocketPsql) GetPID() uint32 {
-	return socket.Common.GetPID()
-}
-
-func (socket *SocketPsql) SetPID(pid uint32) {
-	socket.Common.SetPID(pid)
-}
-
-func (socket *SocketPsql) Clone() SocketI {
-	return &SocketPsql{
-		Common: socket.Common.Clone(),
-	}
-}
-
 func (socket *SocketPsql) AddFlowCallback(callback func(Flow)) {
 	socket.Common.AddFlowCallback(callback)
-}
-
-func (socket *SocketPsql) Clear() {
 }
 
 func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
@@ -83,7 +66,7 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				int(socket.Common.FD),
 				&sqlQuery,
 			)
-			socket.Common.sendFlowBack(*flow, true)
+			socket.Common.sendFlowBack(*flow)
 		case TypeParse:
 			socket.requestUuid = uuid.NewString()
 
@@ -113,7 +96,7 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				return
 			}
 			query.AddPayload(msg.Payload)
-			socket.Common.sendFlowBack(*socket.bufQueryFlow, true)
+			socket.Common.sendFlowBack(*socket.bufQueryFlow)
 			socket.clearBufQueryFlow()
 		case TypeRowDesc:
 			sqlResp, err := PSQLResponseFromRowDescription(msg.Payload)
@@ -149,7 +132,7 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				fmt.Println("[Error] [SocketPsql] bind message received but there is no buffered flow!")
 				return
 			}
-			socket.Common.sendFlowBack(*socket.bufRespFlow, true)
+			socket.Common.sendFlowBack(*socket.bufRespFlow)
 			socket.clearBufRespFlow()
 		}
 	}

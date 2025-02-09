@@ -63,28 +63,8 @@ func (socket *SocketHttp11) Key() string {
 	return socket.Common.Key()
 }
 
-func (socket *SocketHttp11) GetPID() uint32 {
-	return socket.Common.GetPID()
-}
-
-func (socket *SocketHttp11) SetPID(pid uint32) {
-	socket.Common.SetPID(pid)
-}
-
-func (socket *SocketHttp11) Clone() SocketI {
-	return &SocketHttp11{
-		Common:      socket.Common.Clone(),
-		dataBuf:     []byte{},
-		requestUuid: "",
-	}
-}
-
 func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
 	socket.Common.AddFlowCallback(callback)
-}
-
-func (socket *SocketHttp11) Clear() {
-	socket.clearDataBuffer()
 }
 
 func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
@@ -126,7 +106,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 			convertToHTTPRequest(req),
 		)
 		socket.clearDataBuffer()
-		socket.Common.sendFlowBack(*flow, true)
+		socket.Common.sendFlowBack(*flow)
 		return
 	}
 
@@ -155,7 +135,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 		)
 
 		socket.clearDataBuffer()
-		socket.Common.sendFlowBack(*flow, true)
+		socket.Common.sendFlowBack(*flow)
 	}
 }
 

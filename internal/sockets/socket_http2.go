@@ -58,29 +58,8 @@ func (socket *SocketHttp2) Key() string {
 	return socket.Common.Key()
 }
 
-func (socket *SocketHttp2) GetPID() uint32 {
-	return socket.Common.GetPID()
-}
-
-func (socket *SocketHttp2) SetPID(pid uint32) {
-	socket.Common.SetPID(pid)
-}
-
-func (socket *SocketHttp2) Clone() SocketI {
-	return &SocketHttp2{
-		Common:      socket.Common.Clone(),
-		streams:     map[uint32]*Http2Stream{},
-		frameBuffer: map[string][]byte{},
-	}
-}
-
 func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
 	socket.Common.AddFlowCallback(callback)
-}
-
-func (socket *SocketHttp2) Clear() {
-	socket.clearFrameBuffer(events.TypeIngress)
-	socket.clearFrameBuffer(events.TypeEgress)
 }
 
 // TODO: Have a structure for handling the frame header + payload?
@@ -123,7 +102,7 @@ func (socket *SocketHttp2) processFrame(frame *Http2Frame) {
 	stream := socket.findOrCreateStream(frame.StreamID())
 	flow := stream.ProcessFrame(frame)
 	if flow != nil {
-		socket.Common.sendFlowBack(*flow, true)
+		socket.Common.sendFlowBack(*flow)
 	}
 }
 
@@ -136,8 +115,4 @@ func (socket *SocketHttp2) findOrCreateStream(streamID uint32) *Http2Stream {
 	}
 	fmt.Println("[SocketHTTP2] Found stream", streamID, " socket:", socket.Key())
 	return stream
-}
-
-func (socket *SocketHttp2) clearFrameBuffer(key string) {
-	socket.frameBuffer[key] = []byte{}
 }

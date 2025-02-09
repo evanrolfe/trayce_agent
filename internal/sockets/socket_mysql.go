@@ -38,25 +38,8 @@ func (socket *SocketMysql) Key() string {
 	return socket.Common.Key()
 }
 
-func (socket *SocketMysql) GetPID() uint32 {
-	return socket.Common.GetPID()
-}
-
-func (socket *SocketMysql) SetPID(pid uint32) {
-	socket.Common.SetPID(pid)
-}
-
-func (socket *SocketMysql) Clone() SocketI {
-	return &SocketMysql{
-		Common: socket.Common.Clone(),
-	}
-}
-
 func (socket *SocketMysql) AddFlowCallback(callback func(Flow)) {
 	socket.Common.AddFlowCallback(callback)
-}
-
-func (socket *SocketMysql) Clear() {
 }
 
 func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
@@ -104,7 +87,7 @@ func (socket *SocketMysql) proceseMessages(messages []MysqlMessage) {
 				&sqlQuery,
 			)
 			// don't buffer on zero port because mysql never calls getsockname so the port will always be zero, we just accept that
-			socket.Common.sendFlowBack(*flow, false)
+			socket.Common.sendFlowBack(*flow)
 		} else if socket.requestUuid != "" { // msg.Type == TypeMysqlQuery &&
 			if socket.bufResp == nil {
 				resp := NewMysqlResponse()
@@ -133,7 +116,7 @@ func (socket *SocketMysql) proceseMessages(messages []MysqlMessage) {
 					int(socket.Common.FD),
 					socket.bufResp,
 				)
-				socket.Common.sendFlowBack(*flow, false)
+				socket.Common.sendFlowBack(*flow)
 				socket.clearBufResponse()
 			}
 		} // else if msg.Type == TypeMysqlRow && socket.requestUuid != "" {

@@ -14,9 +14,6 @@ type SocketUnknown struct {
 	TID        uint32
 	FD         uint32
 	SSL        bool
-	// Stores
-	activeFrame *Http2Frame
-	activeFlow  *Flow
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
 	// When a request is observed, this value is set, when the response comes, we send this value back with the response
@@ -41,29 +38,6 @@ func NewSocketUnknownFromData(event *events.DataEvent) SocketUnknown {
 
 func (socket *SocketUnknown) Key() string {
 	return fmt.Sprintf("%s->%s", socket.SourceAddr, socket.DestAddr)
-}
-
-func (socket *SocketUnknown) GetPID() uint32 {
-	return socket.PID
-}
-
-func (socket *SocketUnknown) SetPID(pid uint32) {
-	socket.PID = pid
-}
-
-func (socket *SocketUnknown) Clone() SocketI {
-	return &SocketUnknown{
-		SourceAddr:  socket.SourceAddr,
-		DestAddr:    socket.DestAddr,
-		PID:         socket.PID,
-		TID:         socket.TID,
-		FD:          socket.FD,
-		SSL:         socket.SSL,
-		requestUuid: "",
-	}
-}
-
-func (socket *SocketUnknown) Clear() {
 }
 
 func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
