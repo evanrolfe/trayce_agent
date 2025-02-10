@@ -2,6 +2,7 @@ package sockets
 
 import (
 	"bytes"
+	"slices"
 )
 
 // See: https://github.com/pixie-io/pixie/blob/main/src/stirling/source_connectors/socket_tracer/bcc_bpf/protocol_inference.h
@@ -51,15 +52,11 @@ func detectProtocol(raw []byte, prevRaw []byte) string {
 	}
 
 	// Postgres
-	// 16 is an arbitrary number to try and ensure it has both the protocol version & user key in the payload
-	// It would be wise to detect protocol on the socket's buffer rather than an individual event
-	if len(raw) >= 16 {
-		protocolSeq := []byte{0x00, 0x03, 0x00, 0x00} // assumes version 3.0
-		userKeySeq := []byte{0x75, 0x73, 0x65, 0x72}  // check if the "user" key exists in the payload
-
-		if bytes.Contains(raw, protocolSeq) && bytes.Contains(raw, userKeySeq) {
-			return PSQL
-		}
+	// The connection will likely already have been established by the time we get bytes so we can't realistically check
+	// for the postgres start identifiers like version 3.0: 0x00,0x03,0x00,0x00
+	// Instead we just check the first byte for message identifiers
+	if slices.Contains([]string{"Q", "P", "B", "X"}, string(raw[0])) {
+		return PSQL
 	}
 
 	// Mysql

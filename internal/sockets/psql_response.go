@@ -104,17 +104,18 @@ func (q *PSQLResponse) extractRowValues(payload []byte) ([]string, error) {
 
 		colType := q.Columns[i].Type
 		valStr := string(valBytes)
-		switch colType {
-		case 'i':
+
+		switch string(colType) {
+		case "i":
 			// Integer type
 			// Already text-based, just ensure it's a valid integer
-			if len(values) == 4 {
+			if len(valBytes) == 4 {
 				// TODO: This should differentiate between binary based  and text based columns
 				valInt := binary.BigEndian.Uint32(valBytes)
 				valStr = fmt.Sprintf("%d", valInt)
 			}
 
-		case 'f':
+		case "f":
 			// Float type
 			// Try parsing as float
 			if f, err := strconv.ParseFloat(valStr, 64); err == nil {
@@ -123,10 +124,10 @@ func (q *PSQLResponse) extractRowValues(payload []byte) ([]string, error) {
 				fmt.Println("[ERROR] parsing float value from postgres:", err)
 			}
 
-		case 't':
+		case "t":
 			// Text type, no change needed
 
-		case 'd':
+		case "d":
 			// Datetime/timestamp type
 			// We could attempt to parse to time.Time if desired:
 			// t, err := time.Parse("2006-01-02 15:04:05.999999", valStr)
