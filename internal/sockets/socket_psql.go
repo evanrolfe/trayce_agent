@@ -54,40 +54,19 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				// This is a query with just ";" so we ignore it
 				return
 			}
-			socket.requestUuid = uuid.NewString()
 			sqlQuery := NewPSQLQuery(string(msg.Payload))
-			flow := NewFlowRequest(
-				socket.requestUuid,
-				socket.Common.SourceAddr,
-				socket.Common.DestAddr,
-				"tcp",
-				"psql",
-				int(socket.Common.PID),
-				int(socket.Common.FD),
-				&sqlQuery,
-			)
-			socket.Common.sendFlowBack(*flow)
+			socket.newFlowFromQuery(sqlQuery)
+			socket.Common.sendFlowBack(*socket.bufQueryFlow)
 		case TypeParse:
-			socket.requestUuid = uuid.NewString()
-
 			queryBytes := bytes.Trim(msg.Payload[1:], "\x00")
 			sqlQuery := NewPSQLQuery(string(queryBytes))
-			flow := NewFlowRequest(
-				socket.requestUuid,
-				socket.Common.SourceAddr,
-				socket.Common.DestAddr,
-				"tcp",
-				"psql",
-				int(socket.Common.PID),
-				int(socket.Common.FD),
-				&sqlQuery,
-			)
-			// Buffer the flow until we receive the arguments of this prepared query in a postgres bind message
-			socket.bufQueryFlow = flow
+			socket.newFlowFromQuery(sqlQuery)
 		case TypeBind:
 			if socket.bufQueryFlow == nil {
-				fmt.Println("[Error] [SocketPsql] bind message received but there is no buffered flow!")
-				return
+				// In a Postgres named query, we will just get a Bind message and the name of the query, but not the query itself
+				// so in this case we just create a PSQLQuery with the query name as query
+				sqlQuery := NewPSQLQuery("PREPARED QUERY")
+				socket.newFlowFromQuery(sqlQuery)
 			}
 
 			query, ok := socket.bufQueryFlow.Request.(*PSQLQuery)
@@ -136,6 +115,22 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 			socket.clearBufRespFlow()
 		}
 	}
+}
+
+func (socket *SocketPsql) newFlowFromQuery(sqlQuery PSQLQuery) {
+	socket.requestUuid = uuid.NewString()
+	flow := NewFlowRequest(
+		socket.requestUuid,
+		socket.Common.SourceAddr,
+		socket.Common.DestAddr,
+		"tcp",
+		"psql",
+		int(socket.Common.PID),
+		int(socket.Common.FD),
+		&sqlQuery,
+	)
+	// Buffer the flow until we receive the arguments of this prepared query in a postgres bind message
+	socket.bufQueryFlow = flow
 }
 
 func (socket *SocketPsql) clearBufQueryFlow() {

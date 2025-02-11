@@ -279,4 +279,93 @@ var _ = Describe("SocketPsql", func() {
 			Expect(resp.Rows[2][4]).To(Equal("2025-02-09 14:16:25.616034"))
 		})
 	})
+
+	Context("Receiving a named query and response", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		event1Payload, _ := hexDumpToBytes(psql1NamedQueryEvent1)
+		event2Payload, _ := hexDumpToBytes(psql1NamedQueryEvent2)
+		event3Payload, _ := hexDumpToBytes(psql1NamedQueryEvent3)
+		event4Payload, _ := hexDumpToBytes(psql1NamedQueryEvent4)
+
+		BeforeAll(func() {
+			socket := sockets.SocketPsql{
+				Common: sockets.SocketCommon{
+					SourceAddr: "172.17.0.2:1234",
+					DestAddr:   "173.17.0.2:5432",
+					PID:        123,
+					TID:        123,
+					FD:         5,
+					SSL:        false,
+				},
+			}
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: 1, // kprobe/sendto
+				Data:     convertSliceToArray(event1Payload),
+				DataLen:  int32(len(event1Payload)),
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: 0, // kprobe/recv
+				Data:     convertSliceToArray(event2Payload),
+				DataLen:  int32(len(event2Payload)),
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: 1, // kprobe/sendto
+				Data:     convertSliceToArray(event3Payload),
+				DataLen:  int32(len(event3Payload)),
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: 0, // kprobe/recv
+				Data:     convertSliceToArray(event4Payload),
+				DataLen:  int32(len(event4Payload)),
+			})
+		})
+
+		It("returns a request flow", func() {
+			Expect(len(flows)).To(Equal(2))
+
+			for _, flow := range flows {
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("173.17.0.2:5432"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("psql"))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
+			}
+
+			query := flows[0].Request.(*sockets.PSQLQuery)
+
+			Expect(query.Query).To(ContainSubstring(`PREPARED QUERY`))
+			Expect(query.Params).To(Equal([]string{"4", "1"}))
+		})
+
+		It("returns a response flow", func() {
+			Expect(flows).To(HaveLen(2))
+			resp := flows[1].Response.(*sockets.PSQLResponse)
+
+			Expect(len(resp.Rows)).To(Equal(1))
+
+			Expect(resp.Rows[0][0]).To(Equal("4"))
+			Expect(resp.Rows[0][1]).To(Equal("asdfafdsx"))
+			Expect(resp.Rows[0][2]).To(Equal("1"))
+			Expect(resp.Rows[0][3]).To(Equal("0"))
+			Expect(resp.Rows[0][4]).To(Equal("2025-02-05 09:46:42.686927"))
+		})
+	})
 })
