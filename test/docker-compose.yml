@@ -11,7 +11,8 @@ services:
     volumes:
       - ./mega_server:/app
     # environment:
-    #   - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
+      # - DATABASE_URL=mysql2://mysql:mysql@mysql:3306/megadb
+      # - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
     ports:
       - "3001:3001"
       - "3002:3002"
@@ -44,5 +45,22 @@ services:
     volumes:
       - ./mega_server/postgres:/docker-entrypoint-initdb.d
     command: ["postgres", "-c", "log_statement=all", "-c", "log_min_duration_statement=0"]
+    networks:
+      - trayce_network
+
+  # mysql -h localhost -P 3306 -u mysql -p megadb
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysql
+      - MYSQL_USER=mysql
+      - MYSQL_PASSWORD=mysql
+      - MYSQL_DATABASE=megadb
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mega_server/mysql:/docker-entrypoint-initdb.d
+    command: --general-log=1 --general-log-file=/var/log/mysql/general-log.log
     networks:
       - trayce_network
