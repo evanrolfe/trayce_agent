@@ -76,8 +76,8 @@ func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 	}
 
 	if event.SSL() && !socket.Common.SSL {
-		fmt.Println("[SocketHttp1.1] upgrading to SSL")
-		socket.Common.SSL = true
+		fmt.Println("[SocketHttp2] upgrading to SSL")
+		socket.Common.UpgradeToSSL()
 	}
 
 	// Ignore the http2 magic string (PRI * SM...)

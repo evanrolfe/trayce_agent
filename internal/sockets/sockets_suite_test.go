@@ -1336,4 +1336,67 @@ const (
 	000001c0  00                                                |.|`
 	// recvfrom
 	mysqlQueryEvent13 = `00000000  01 00 00 00                                       |....|`
+
+	// kprobe/read
+	mysqlQuerySSLEvent1 = `00000000  b3 4f a0 ef 11 62 70 a5  68 b7 f4 e5 ad 92 64 43  |.O...bp.h.....dC|
+	00000010  d7 1d 49 e6 c7 11 27 84  52 e7 d0 7e              |..I...'.R..~|`
+	// SSL_read
+	mysqlQuerySSLEvent2 = `00000000  07 00 00 01 |....|`
+	// SSL_read
+	mysqlQuerySSLEvent3 = `00000000  00 00 00 02 00 00 00  |.......|`
+	// kprobe/write
+	mysqlQuerySSLEvent4 = `00000000  17 03 03 00 37 36 5b d2  7f d1 52 0b f8 77 5e df  |....76[...R..w^.|
+	00000010  fc 9d 9d 41 80 6c 55 73  ff d7 f8 18 28 32 f9 56  |...A.lUs....(2.V|
+	00000020  a2 80 25 ce 75 71 da 44  69 95 64 d0 f0 b5 8c 13  |..%.uq.Di.d.....|
+	00000030  99 12 53 9c 71 40 75 2b  6a 30 97 3e              |..S.q@u+j0.>|`
+	// SSL_write
+	mysqlQuerySSLEvent5 = `00000000  22 00 00 00 03 00 01 53  45 4c 45 43 54 20 60 74  |"......SELECT .t|
+	00000010  68 69 6e 67 73 60 2e 2a  20 46 52 4f 4d 20 60 74  |hings..* FROM .t|
+	00000020  68 69 6e 67 73 60                                 |hings.|`
+	// SSL_read
+	mysqlQuerySSLEvent6 = `00000000  01 00 00 01                                       |....|`
+	mysqlQuerySSLEvent7 = `00000000  05                                                |.|`
+	mysqlQuerySSLEvent8 = `00000000  2c 00 00 02                                       |,...|`
+	mysqlQuerySSLEvent9 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 02 69 64 02 69 64 0c  |gs.things.id.id.|
+	00000020  3f 00 0b 00 00 00 03 03  42 00 00 00              |?.......B...|`
+	mysqlQuerySSLEvent10 = `00000000  30 00 00 03                                       |0...|`
+	mysqlQuerySSLEvent11 = `00000000  05                                                |.|`
+	mysqlQuerySSLEvent12 = `00000000  2c 00 00 02                                       |,...|`
+	mysqlQuerySSLEvent13 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 02 69 64 02 69 64 0c  |gs.things.id.id.|
+	00000020  3f 00 0b 00 00 00 03 03  42 00 00 00              |?.......B...|`
+	mysqlQuerySSLEvent14 = `00000000  30 00 00 03                                       |0...|`
+	mysqlQuerySSLEvent15 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 04 6e 61 6d 65 04 6e  |gs.things.name.n|
+	00000020  61 6d 65 0c ff 00 fc ff  03 00 fc 11 10 00 00 00  |ame.............|`
+	mysqlQuerySSLEvent16 = `00000000  38 00 00 04                                       |8...|`
+	mysqlQuerySSLEvent17 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 08 71 75 61 6e 74 69  |gs.things.quanti|
+	00000020  74 79 08 71 75 61 6e 74  69 74 79 0c 3f 00 0b 00  |ty.quantity.?...|
+	00000030  00 00 03 01 00 00 00 00                           |........|`
+	mysqlQuerySSLEvent18 = `00000000  32 00 00 05                                       |2...|`
+	mysqlQuerySSLEvent19 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 05 70 72 69 63 65 05  |gs.things.price.|
+	00000020  70 72 69 63 65 0c 3f 00  0c 00 00 00 f6 01 00 02  |price.?.........|
+	00000030  00 00                                             |..|`
+	mysqlQuerySSLEvent20 = `00000000  3c 00 00 06                                       |<...|`
+	mysqlQuerySSLEvent21 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 0a 63 72 65 61 74 65  |gs.things.create|
+	00000020  64 5f 61 74 0a 63 72 65  61 74 65 64 5f 61 74 0c  |d_at.created_at.|
+	00000030  3f 00 13 00 00 00 07 81  04 00 00 00              |?...........|`
+	mysqlQuerySSLEvent22 = `00000000  25 00 00 07                                       |%...|`
+	mysqlQuerySSLEvent23 = `00000000  01 31 06 57 69 64 67 65  74 01 35 05 31 39 2e 39  |.1.Widget.5.19.9|
+	00000010  39 13 32 30 32 35 2d 30  32 2d 31 31 20 32 30 3a  |9.2025-02-11 20:|
+	00000020  35 34 3a 33 39                                    |54:39|`
+	mysqlQuerySSLEvent24 = `00000000  25 00 00 08                                       |%...|`
+	mysqlQuerySSLEvent25 = `00000000  01 32 06 47 61 64 67 65  74 02 31 30 04 35 2e 34  |.2.Gadget.10.5.4|
+	00000010  39 13 32 30 32 35 2d 30  32 2d 31 31 20 32 30 3a  |9.2025-02-11 20:|
+	00000020  35 34 3a 33 39                                    |54:39|`
+	mysqlQuerySSLEvent26 = `00000000  25 00 00 09                                       |%...|`
+	mysqlQuerySSLEvent27 = `00000000  01 33 06 44 6f 6f 64 61  68 01 33 05 39 39 2e 39  |.3.Doodah.3.99.9|
+	00000010  39 13 32 30 32 35 2d 30  32 2d 31 31 20 32 30 3a  |9.2025-02-11 20:|
+	00000020  35 34 3a 33 39                                    |54:39|`
+	mysqlQuerySSLEvent28 = `00000000  07 00 00 0a                                       |....|`
+	mysqlQuerySSLEvent29 = `00000000  fe 00 00 22 00 00 00                              |..."...|`
 )

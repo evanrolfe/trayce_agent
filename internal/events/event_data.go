@@ -9,18 +9,18 @@ import (
 )
 
 const (
-	kSSLRead    = 0
-	kSSLWrite   = 1
-	kRead       = 2
-	kWrite      = 3
-	kRecvfrom   = 4
-	kSendto     = 5
-	goTlsRead   = 6
-	goTlsWrite  = 7
+	KSSLRead    = 0
+	KSSLWrite   = 1
+	KRead       = 2
+	KWrite      = 3
+	KRecvfrom   = 4
+	KSendto     = 5
+	GoTlsRead   = 6
+	GoTlsWrite  = 7
 	TypeEgress  = "egress"
 	TypeIngress = "ingress"
-	dIngress    = 0
-	dEgress     = 1
+	DIngress    = 0
+	DEgress     = 1
 )
 
 // DataEvent is sent from ebpf when data is sent or received over a socket, see corresponding: struct data_event_t
@@ -117,21 +117,21 @@ func (se *DataEvent) PayloadLen() int {
 
 func (se *DataEvent) Type() string {
 	switch AttachType(se.DataType) {
-	case kSSLRead:
+	case KSSLRead:
 		return TypeIngress
-	case kSSLWrite:
+	case KSSLWrite:
 		return TypeEgress
-	case kRead:
+	case KRead:
 		return TypeIngress
-	case kWrite:
+	case KWrite:
 		return TypeEgress
-	case kRecvfrom:
+	case KRecvfrom:
 		return TypeIngress
-	case kSendto:
+	case KSendto:
 		return TypeEgress
-	case goTlsRead:
+	case GoTlsRead:
 		return TypeIngress
-	case goTlsWrite:
+	case GoTlsWrite:
 		return TypeEgress
 
 	default:
@@ -141,21 +141,21 @@ func (se *DataEvent) Type() string {
 
 func (se *DataEvent) Source() string {
 	switch se.DataType {
-	case kSSLRead:
+	case KSSLRead:
 		return "SSL_read"
-	case kSSLWrite:
+	case KSSLWrite:
 		return "SSL_write"
-	case kRead:
+	case KRead:
 		return "kprobe/read"
-	case kWrite:
+	case KWrite:
 		return "kprobe/write"
-	case kRecvfrom:
+	case KRecvfrom:
 		return "kprobe/recvfrom"
-	case kSendto:
+	case KSendto:
 		return "kprobe/sendto"
-	case goTlsRead:
+	case GoTlsRead:
 		return "uprobe/go_tls_read"
-	case goTlsWrite:
+	case GoTlsWrite:
 		return "uprobe/go_tls_write"
 	default:
 		return "unknown"
@@ -185,7 +185,7 @@ func (se *DataEvent) DestAddr() string {
 }
 
 func (se *DataEvent) SSL() bool {
-	sslTypes := []uint64{kSSLRead, kSSLWrite, goTlsRead, goTlsWrite}
+	sslTypes := []uint64{KSSLRead, KSSLWrite, GoTlsRead, GoTlsWrite}
 	return slices.Contains(sslTypes, se.DataType)
 }
 

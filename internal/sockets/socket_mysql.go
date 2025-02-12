@@ -1,6 +1,8 @@
 package sockets
 
 import (
+	"fmt"
+
 	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/google/uuid"
 )
@@ -43,11 +45,27 @@ func (socket *SocketMysql) AddFlowCallback(callback func(Flow)) {
 }
 
 func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
+	if socket.Common.SSL && !event.SSL() {
+		return // If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
+	}
+
+	if event.SSL() && !socket.Common.SSL {
+		fmt.Println("[SocketMysql] upgrading to SSL")
+		socket.Common.UpgradeToSSL()
+	}
+
 	if event.Type() == events.TypeIngress {
 		socket.bufIngress = append(socket.bufIngress, event.Payload()...)
 
 		// Check ingress messages & process them
 		ingressMessages := ExtractMySQLMessages(socket.bufIngress)
+		// fmt.Println("==============================================")
+		// for i, msg := range ingressMessages {
+		// 	fmt.Println("Message", i, "type:", msg.Type)
+		// 	fmt.Println(hex.Dump(msg.Payload))
+		// }
+		// fmt.Println("==============================================")
+
 		if len(ingressMessages) > 0 {
 			socket.clearIngress()
 		}
@@ -61,12 +79,6 @@ func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 		if len(egressMessages) > 0 {
 			socket.clearEgress()
 		}
-		// fmt.Println("==============================================")
-		// for i, msg := range egressMessages {
-		// 	fmt.Println("Message", i, "type:", msg.Type)
-		// 	fmt.Println(hex.Dump(msg.Payload))
-		// }
-		// fmt.Println("==============================================")
 		socket.proceseMessages(egressMessages)
 	}
 }

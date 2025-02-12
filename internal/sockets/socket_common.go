@@ -39,6 +39,10 @@ func (socket *SocketCommon) Key() string {
 	return fmt.Sprintf("%s->%s", socket.SourceAddr, socket.DestAddr)
 }
 
+func (socket *SocketCommon) UpgradeToSSL() {
+	socket.SSL = true
+}
+
 // sendFlowBack calls all the callbacks with this flow, unless the flow has a zero address (meaning that we are yet to have received
 // a getsockname event which sets the missing source/dest address). In this case it buffers the flow so they can be released
 // once the getsockname event is finally received.

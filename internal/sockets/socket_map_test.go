@@ -374,4 +374,103 @@ var _ = Describe("SocketMap", func() {
 			}
 		})
 	})
+
+	Context("[Mysql] receiving events from a Mysql query & response SSL", Ordered, func() {
+		event1Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent1)
+		event2Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent2)
+		event3Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent3)
+		event4Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent4)
+		event5Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent5)
+		event6Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent6)
+		event7Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent7)
+		event8Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent8)
+		event9Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent9)
+		event10Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent10)
+		event11Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent11)
+		event12Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent12)
+		event13Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent13)
+		event14Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent14)
+		event15Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent15)
+		event16Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent16)
+		event17Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent17)
+		event18Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent18)
+		event19Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent19)
+		event20Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent20)
+		event21Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent21)
+		event22Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent22)
+		event23Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent23)
+		event24Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent24)
+		event25Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent25)
+		event26Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent26)
+		event27Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent27)
+		event28Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent28)
+		event29Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent29)
+
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
+
+		processEvent := func(payload []byte, source uint64) {
+			socketsMap.ProcessDataEvent(events.DataEvent{
+				PID:        222,
+				TID:        222,
+				FD:         5,
+				DataType:   source,
+				Data:       convertSliceToArray(payload),
+				DataLen:    int32(len(payload)),
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   33558957,
+				DestPort:   3306,
+			})
+		}
+
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			processEvent(event1Payload, events.KRead)
+			processEvent(event2Payload, events.KSSLRead)
+			processEvent(event3Payload, events.KSSLRead)
+			processEvent(event4Payload, events.KWrite)
+			processEvent(event5Payload, events.KSSLWrite)
+			processEvent(event6Payload, events.KSSLRead)
+			processEvent(event7Payload, events.KSSLRead)
+			processEvent(event8Payload, events.KSSLRead)
+			processEvent(event9Payload, events.KSSLRead)
+			processEvent(event10Payload, events.KSSLRead)
+			processEvent(event11Payload, events.KSSLRead)
+			processEvent(event12Payload, events.KSSLRead)
+			processEvent(event13Payload, events.KSSLRead)
+			processEvent(event14Payload, events.KSSLRead)
+			processEvent(event15Payload, events.KSSLRead)
+			processEvent(event16Payload, events.KSSLRead)
+			processEvent(event17Payload, events.KSSLRead)
+			processEvent(event18Payload, events.KSSLRead)
+			processEvent(event19Payload, events.KSSLRead)
+			processEvent(event20Payload, events.KSSLRead)
+			processEvent(event21Payload, events.KSSLRead)
+			processEvent(event22Payload, events.KSSLRead)
+			processEvent(event23Payload, events.KSSLRead)
+			processEvent(event24Payload, events.KSSLRead)
+			processEvent(event25Payload, events.KSSLRead)
+			processEvent(event26Payload, events.KSSLRead)
+			processEvent(event27Payload, events.KSSLRead)
+			processEvent(event28Payload, events.KSSLRead)
+			processEvent(event29Payload, events.KSSLRead)
+		})
+
+		It("returns two flows", func() {
+			Expect(len(flows)).To(Equal(2))
+
+			for _, flow := range flows {
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("173.17.0.2:3306"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("mysql"))
+				Expect(flow.PID).To(Equal(222))
+				Expect(flow.FD).To(Equal(5))
+			}
+		})
+	})
 })

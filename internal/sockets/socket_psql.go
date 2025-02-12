@@ -44,6 +44,15 @@ func (socket *SocketPsql) AddFlowCallback(callback func(Flow)) {
 }
 
 func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
+	if socket.Common.SSL && !event.SSL() {
+		return // If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
+	}
+
+	if event.SSL() && !socket.Common.SSL {
+		fmt.Println("[SocketPsql] upgrading to SSL")
+		socket.Common.UpgradeToSSL()
+	}
+
 	payload := event.Payload()
 	messages := ExtractMessages(payload)
 

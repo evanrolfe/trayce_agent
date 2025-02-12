@@ -78,7 +78,7 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 
 	if event.SSL() && !socket.Common.SSL {
 		fmt.Println("[SocketHttp1.1] upgrading to SSL")
-		socket.Common.SSL = true
+		socket.Common.UpgradeToSSL()
 	}
 
 	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe

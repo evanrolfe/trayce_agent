@@ -14,11 +14,12 @@ type MysqlColumn struct {
 type MysqlResponse struct {
 	Columns []Column
 	Rows    [][]string
-	numEOF  int // the number of times an EOF packet has been received, it will receive one EOF for column data and one for row data
+	colEOF  bool // whether or not we have received an EOF packet for the columns
+	rowEOF  bool // whether or not we have received an EOF packet for the rows
 }
 
 func NewMysqlResponse() MysqlResponse {
-	return MysqlResponse{Columns: []Column{}, numEOF: 0}
+	return MysqlResponse{Columns: []Column{}, colEOF: false, rowEOF: false}
 }
 
 func (q *MysqlResponse) AddPayload(data []byte) {
@@ -54,12 +55,17 @@ func (q *MysqlResponse) AddRowPayload(data []byte) {
 }
 
 func (q *MysqlResponse) AddEOF() {
-	q.numEOF++
+	// sometimes we dont get an EOF packet for the columns but we do get one for the rows, so we need this logic to handle that
+	if len(q.Columns) > 0 && len(q.Rows) == 0 {
+		q.colEOF = true
+	} else if len(q.Columns) > 0 && len(q.Rows) > 0 {
+		q.rowEOF = true
+	}
 }
 
 // Complete returns true if all the column and row data for this response has been parsed
 func (q *MysqlResponse) Complete() bool {
-	return q.numEOF == 2
+	return q.rowEOF
 }
 
 func (q *MysqlResponse) String() string {
