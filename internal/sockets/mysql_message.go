@@ -8,14 +8,18 @@ const (
 
 // ForkEvent is sent from ebpf when a process is forked to create a child process
 type MysqlMessage struct {
-	Type    byte
-	Payload []byte
+	Type        byte
+	SequenceNum int
+	Payload     []byte
 }
 
-func NewMysqlMessage(payload []byte) MysqlMessage {
+func NewMysqlMessage(payload []byte, sequenceNum int) MysqlMessage {
+	// fmt.Printf("==========> NewMysqlMessage, type: %d, seq: %d\n", payload[0], sequenceNum)
+	// fmt.Println(hex.Dump(payload))
 	return MysqlMessage{
-		Type:    payload[0],
-		Payload: payload[1:],
+		Type:        payload[0],
+		SequenceNum: sequenceNum,
+		Payload:     payload,
 	}
 }
 

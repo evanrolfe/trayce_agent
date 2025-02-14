@@ -69,7 +69,7 @@ func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 		if len(ingressMessages) > 0 {
 			socket.clearIngress()
 		}
-		socket.proceseMessages(ingressMessages)
+		socket.processMessages(ingressMessages)
 
 	} else if event.Type() == events.TypeEgress {
 		socket.bufEgress = append(socket.bufEgress, event.Payload()...)
@@ -79,15 +79,21 @@ func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 		if len(egressMessages) > 0 {
 			socket.clearEgress()
 		}
-		socket.proceseMessages(egressMessages)
+		socket.processMessages(egressMessages)
 	}
 }
 
-func (socket *SocketMysql) proceseMessages(messages []MysqlMessage) {
+func (socket *SocketMysql) processMessages(messages []MysqlMessage) {
 	for _, msg := range messages {
 		if msg.Type == TypeMysqlQuery && socket.requestUuid == "" {
-			socket.requestUuid = uuid.NewString()
 			sqlQuery := NewMysqlQuery(string(msg.Payload))
+
+			if sqlQuery.Query[0:6] != "SELECT" {
+				fmt.Println("NOT A SELECT STATEMENT, SKIPPING. Query:", sqlQuery.Query[0:6])
+				continue
+			}
+
+			socket.requestUuid = uuid.NewString()
 			flow := NewFlowRequest(
 				socket.requestUuid,
 				socket.Common.SourceAddr,
@@ -105,17 +111,11 @@ func (socket *SocketMysql) proceseMessages(messages []MysqlMessage) {
 				resp := NewMysqlResponse()
 				socket.bufResp = &resp
 			}
-			// fmt.Println("Message response type:", msg.Type)
-			// fmt.Println(hex.Dump(msg.Payload))
 
-			if msg.Type == TypeMysqlQuery { // this is a column being sent
-				socket.bufResp.AddColumnPayload(msg.Payload)
-			} else if msg.Type == TypeMysqlRow {
-				socket.bufResp.AddRowPayload(msg.Payload)
+			// fmt.Printf("Message response type: %x, len: %d\n", msg.Type, len(msg.Payload))
+			// fmt.Println(hex.Dump(msg.Payload), "===")
 
-			} else if msg.Type == TypeMysqlEOF {
-				socket.bufResp.AddEOF()
-			}
+			socket.bufResp.AddMessage(msg)
 
 			if socket.bufResp.Complete() {
 				flow := NewFlowResponse(
@@ -154,7 +154,7 @@ func (socket *SocketMysql) clearBufResponse() {
 // ExtractMySQLMessages parses the provided data and returns a slice of payloads.
 // Each MySQL packet is structured as follows:
 //   - 3 bytes: payload length (little-endian)
-//   - 1 byte:  sequence number (ignored in this function)
+//   - 1 byte:  sequence number
 //   - Payload: <length> bytes of data
 func ExtractMySQLMessages(data []byte) []MysqlMessage {
 	messages := []MysqlMessage{}
@@ -176,7 +176,7 @@ func ExtractMySQLMessages(data []byte) []MysqlMessage {
 		payload := make([]byte, length)
 		copy(payload, data[4:totalPacketSize])
 
-		msg := NewMysqlMessage(payload)
+		msg := NewMysqlMessage(payload, int(data[3]))
 		messages = append(messages, msg)
 
 		// Remove the processed packet from the data slice

@@ -361,7 +361,7 @@ var _ = Describe("SocketMap", func() {
 			processReceive(event13Payload)
 		})
 
-		It("returns two flows", func() {
+		It("returns a query flow", func() {
 			Expect(flows).To(HaveLen(2))
 
 			for _, flow := range flows {
@@ -372,6 +372,36 @@ var _ = Describe("SocketMap", func() {
 				Expect(flow.PID).To(Equal(222))
 				Expect(flow.FD).To(Equal(5))
 			}
+
+			query := flows[0].Request.(*sockets.MysqlQuery)
+
+			Expect(query.Query).To(Equal(`SELECT id, name, quantity, price, created_at FROM things`))
+			Expect(len(query.Params)).To(Equal(0))
+		})
+
+		It("returns a response flow", func() {
+			Expect(flows).To(HaveLen(2))
+			resp := flows[1].Response.(*sockets.MysqlResponse)
+
+			Expect(len(resp.Rows)).To(Equal(3))
+
+			Expect(resp.Rows[0][0]).To(Equal("1"))
+			Expect(resp.Rows[0][1]).To(Equal("Widget"))
+			Expect(resp.Rows[0][2]).To(Equal("5"))
+			Expect(resp.Rows[0][3]).To(Equal("19.99"))
+			Expect(resp.Rows[0][4]).To(Equal("2024-12-14 20:29:49"))
+
+			Expect(resp.Rows[1][0]).To(Equal("2"))
+			Expect(resp.Rows[1][1]).To(Equal("Gadget"))
+			Expect(resp.Rows[1][2]).To(Equal("10"))
+			Expect(resp.Rows[1][3]).To(Equal("5.49"))
+			Expect(resp.Rows[1][4]).To(Equal("2024-12-14 20:29:49"))
+
+			Expect(resp.Rows[2][0]).To(Equal("3"))
+			Expect(resp.Rows[2][1]).To(Equal("Doodah"))
+			Expect(resp.Rows[2][2]).To(Equal("3"))
+			Expect(resp.Rows[2][3]).To(Equal("99.99"))
+			Expect(resp.Rows[2][4]).To(Equal("2024-12-14 20:29:49"))
 		})
 	})
 
@@ -385,10 +415,7 @@ var _ = Describe("SocketMap", func() {
 		event7Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent7)
 		event8Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent8)
 		event9Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent9)
-		event10Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent10)
-		event11Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent11)
-		event12Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent12)
-		event13Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent13)
+
 		event14Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent14)
 		event15Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent15)
 		event16Payload, _ := hexDumpToBytes(mysqlQuerySSLEvent16)
@@ -438,10 +465,7 @@ var _ = Describe("SocketMap", func() {
 			processEvent(event7Payload, events.KSSLRead)
 			processEvent(event8Payload, events.KSSLRead)
 			processEvent(event9Payload, events.KSSLRead)
-			processEvent(event10Payload, events.KSSLRead)
-			processEvent(event11Payload, events.KSSLRead)
-			processEvent(event12Payload, events.KSSLRead)
-			processEvent(event13Payload, events.KSSLRead)
+
 			processEvent(event14Payload, events.KSSLRead)
 			processEvent(event15Payload, events.KSSLRead)
 			processEvent(event16Payload, events.KSSLRead)
@@ -471,6 +495,43 @@ var _ = Describe("SocketMap", func() {
 				Expect(flow.PID).To(Equal(222))
 				Expect(flow.FD).To(Equal(5))
 			}
+
+			query := flows[0].Request.(*sockets.MysqlQuery)
+
+			Expect(query.Query).To(Equal("SELECT `things`.* FROM `things`"))
+			Expect(len(query.Params)).To(Equal(0))
+		})
+
+		It("returns a response flow", func() {
+			Expect(flows).To(HaveLen(2))
+			resp := flows[1].Response.(*sockets.MysqlResponse)
+
+			Expect(len(resp.Columns)).To(Equal(5))
+			Expect(resp.Columns[0].Name).To(Equal("id"))
+			Expect(resp.Columns[1].Name).To(Equal("name"))
+			Expect(resp.Columns[2].Name).To(Equal("quantity"))
+			Expect(resp.Columns[3].Name).To(Equal("price"))
+			Expect(resp.Columns[4].Name).To(Equal("created_at"))
+
+			Expect(len(resp.Rows)).To(Equal(3))
+
+			Expect(resp.Rows[0][0]).To(Equal("1"))
+			Expect(resp.Rows[0][1]).To(Equal("Widget"))
+			Expect(resp.Rows[0][2]).To(Equal("5"))
+			Expect(resp.Rows[0][3]).To(Equal("19.99"))
+			Expect(resp.Rows[0][4]).To(Equal("2025-02-11 20:54:39"))
+
+			Expect(resp.Rows[1][0]).To(Equal("2"))
+			Expect(resp.Rows[1][1]).To(Equal("Gadget"))
+			Expect(resp.Rows[1][2]).To(Equal("10"))
+			Expect(resp.Rows[1][3]).To(Equal("5.49"))
+			Expect(resp.Rows[1][4]).To(Equal("2025-02-11 20:54:39"))
+
+			Expect(resp.Rows[2][0]).To(Equal("3"))
+			Expect(resp.Rows[2][1]).To(Equal("Doodah"))
+			Expect(resp.Rows[2][2]).To(Equal("3"))
+			Expect(resp.Rows[2][3]).To(Equal("99.99"))
+			Expect(resp.Rows[2][4]).To(Equal("2025-02-11 20:54:39"))
 		})
 	})
 })

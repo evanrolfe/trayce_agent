@@ -1360,12 +1360,6 @@ const (
 	mysqlQuerySSLEvent9 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
 	00000010  67 73 06 74 68 69 6e 67  73 02 69 64 02 69 64 0c  |gs.things.id.id.|
 	00000020  3f 00 0b 00 00 00 03 03  42 00 00 00              |?.......B...|`
-	mysqlQuerySSLEvent10 = `00000000  30 00 00 03                                       |0...|`
-	mysqlQuerySSLEvent11 = `00000000  05                                                |.|`
-	mysqlQuerySSLEvent12 = `00000000  2c 00 00 02                                       |,...|`
-	mysqlQuerySSLEvent13 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
-	00000010  67 73 06 74 68 69 6e 67  73 02 69 64 02 69 64 0c  |gs.things.id.id.|
-	00000020  3f 00 0b 00 00 00 03 03  42 00 00 00              |?.......B...|`
 	mysqlQuerySSLEvent14 = `00000000  30 00 00 03                                       |0...|`
 	mysqlQuerySSLEvent15 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
 	00000010  67 73 06 74 68 69 6e 67  73 04 6e 61 6d 65 04 6e  |gs.things.name.n|
@@ -1399,4 +1393,38 @@ const (
 	00000020  35 34 3a 33 39                                    |54:39|`
 	mysqlQuerySSLEvent28 = `00000000  07 00 00 0a                                       |....|`
 	mysqlQuerySSLEvent29 = `00000000  fe 00 00 22 00 00 00                              |..."...|`
+
+	// Bytes for:
+	// SELECT table_name FROM information_schema.tables WHERE table_schema = database() AND table_name = 'schema_migrations' AND table_name IN (SELECT table_name FROM information_schema.tables WHERE table_schema = database()) AND table_type = 'BASE TABLE'
+	// SSL_Write
+	mysqlQueryMigrations1 = `00000000  fb 00 00 00 03 00 01 53  45 4c 45 43 54 20 74 61  |.......SELECT ta|
+	00000010  62 6c 65 5f 6e 61 6d 65  20 46 52 4f 4d 20 69 6e  |ble_name FROM in|
+	00000020  66 6f 72 6d 61 74 69 6f  6e 5f 73 63 68 65 6d 61  |formation_schema|
+	00000030  2e 74 61 62 6c 65 73 20  57 48 45 52 45 20 74 61  |.tables WHERE ta|
+	00000040  62 6c 65 5f 73 63 68 65  6d 61 20 3d 20 64 61 74  |ble_schema = dat|
+	00000050  61 62 61 73 65 28 29 20  41 4e 44 20 74 61 62 6c  |abase() AND tabl|
+	00000060  65 5f 6e 61 6d 65 20 3d  20 27 73 63 68 65 6d 61  |e_name = 'schema|
+	00000070  5f 6d 69 67 72 61 74 69  6f 6e 73 27 20 41 4e 44  |_migrations' AND|
+	00000080  20 74 61 62 6c 65 5f 6e  61 6d 65 20 49 4e 20 28  | table_name IN (|
+	00000090  53 45 4c 45 43 54 20 74  61 62 6c 65 5f 6e 61 6d  |SELECT table_nam|
+	000000a0  65 20 46 52 4f 4d 20 69  6e 66 6f 72 6d 61 74 69  |e FROM informati|
+	000000b0  6f 6e 5f 73 63 68 65 6d  61 2e 74 61 62 6c 65 73  |on_schema.tables|
+	000000c0  20 57 48 45 52 45 20 74  61 62 6c 65 5f 73 63 68  | WHERE table_sch|
+	000000d0  65 6d 61 20 3d 20 64 61  74 61 62 61 73 65 28 29  |ema = database()|
+	000000e0  29 20 41 4e 44 20 74 61  62 6c 65 5f 74 79 70 65  |) AND table_type|
+	000000f0  20 3d 20 27 42 41 53 45  20 54 41 42 4c 45 27     | = 'BASE TABLE'|`
+	// SSL_Read
+	mysqlQueryMigrations2 = `00000000  01 00 00 01  |....|`
+	mysqlQueryMigrations3 = `00000000  01  |.|`
+	mysqlQueryMigrations4 = `00000000  48 00 00 02  |H...|`
+	mysqlQueryMigrations5 = `00000000  03 64 65 66 12 69 6e 66  6f 72 6d 61 74 69 6f 6e  |.def.information|
+	00000010  5f 73 63 68 65 6d 61 06  74 61 62 6c 65 73 06 54  |_schema.tables.T|
+	00000020  41 42 4c 45 53 0a 54 41  42 4c 45 5f 4e 41 4d 45  |ABLES.TABLE_NAME|
+	00000030  0a 54 41 42 4c 45 5f 4e  41 4d 45 0c ff 00 00 01  |.TABLE_NAME.....|
+	00000040  00 00 fd 81 50 00 00 00                           |....P...|`
+	mysqlQueryMigrations6 = `00000000  12 00 00 03  |....|`
+	mysqlQueryMigrations7 = `00000000  11 73 63 68 65 6d 61 5f  6d 69 67 72 61 74 69 6f  |.schema_migratio|
+	00000010  6e 73                                             |ns|`
+	mysqlQueryMigrations8 = `00000000  07 00 00 04  |....|`
+	mysqlQueryMigrations9 = `00000000  fe 00 00 02 00 00 00  |.......|`
 )

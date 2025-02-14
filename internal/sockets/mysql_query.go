@@ -9,7 +9,7 @@ type MysqlQuery struct {
 
 func NewMysqlQuery(query string) MysqlQuery {
 	return MysqlQuery{
-		Query: query,
+		Query: trimNonASCII(query),
 	}
 }
 
@@ -32,4 +32,26 @@ func (q *MysqlQuery) String() string {
 		}
 	}
 	return out
+}
+
+// trimNonASCII removes non-ASCII characters from the beginning and end of a string
+func trimNonASCII(s string) string {
+	if s == "" {
+		return s
+	}
+
+	start := 0
+	end := len(s)
+
+	// Trim from start
+	for start < end && (s[start] < 32 || s[start] > 126) {
+		start++
+	}
+
+	// Trim from end
+	for end > start && (s[end-1] < 32 || s[end-1] > 126) {
+		end--
+	}
+
+	return s[start:end]
 }
