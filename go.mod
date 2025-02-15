@@ -14,6 +14,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.12.0
 	github.com/onsi/gomega v1.27.10
 	github.com/stretchr/testify v1.9.0
+	github.com/vczyh/mysql-protocol v1.0.5
 	github.com/zcalusic/sysinfo v1.1.0
 	golang.org/x/arch v0.9.0
 	golang.org/x/net v0.28.0
@@ -57,7 +58,6 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240820151423-278611b39280 // indirect
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 )

@@ -2,6 +2,9 @@ package sockets
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/vczyh/mysql-protocol/packet"
 )
 
 type MysqlColumn struct {
@@ -12,12 +15,13 @@ type MysqlColumn struct {
 }
 
 type MysqlResponse struct {
-	Columns    []Column
-	Rows       [][]string
-	colEOF     bool // whether or not we have received an EOF packet for the columns
-	rowEOF     bool // whether or not we have received an EOF packet for the rows
-	colCount   int
-	lastMsgSeq *int // the sequence number of the last message received
+	Columns       []Column
+	Rows          [][]string
+	colEOF        bool // whether or not we have received an EOF packet for the columns
+	rowEOF        bool // whether or not we have received an EOF packet for the rows
+	colCount      int
+	lastMsgSeq    *int // the sequence number of the last message received
+	packetColumns []packet.Column
 }
 
 func NewMysqlResponse() MysqlResponse {
@@ -40,9 +44,14 @@ func (q *MysqlResponse) AddMessage(msg MysqlMessage) {
 	}()
 
 	if q.lastMsgSeq == nil {
+		colCount, err := packet.ParseColumnCount(msg.FullMessage)
+		if err != nil {
+			fmt.Println("[Error] packet.ParseColumnCount():", err)
+			return
+		}
 		// First message received is the column count
-		q.colCount = int(msg.Payload[0]) // NOTE this will fail if there are > 255 columns
-		fmt.Println("----------> q.colCount:", q.colCount)
+		q.colCount = int(colCount)
+
 		return
 	}
 
@@ -58,33 +67,64 @@ func (q *MysqlResponse) AddMessage(msg MysqlMessage) {
 
 	if q.colCount > len(q.Columns) {
 		// Assume this is still a column definition being received
-		q.AddColumnPayload(msg.Payload[1:])
+		q.AddColumnPayload(msg.FullMessage)
 		return
 	}
 
-	q.AddRowPayload(msg.Payload)
+	q.AddRowPayload(msg)
 }
 
 // AddColumnPayload decodes a single column payload and adds it to this response
 func (q *MysqlResponse) AddColumnPayload(data []byte) {
-	col, err := parseColumn(data)
+	packetCol, err := packet.ParseColumnDefinition(data)
+	var col Column
 	if err != nil {
 		fmt.Println("Error - parsing mysql column:", err)
-		col = &Column{
+		col = Column{
 			Name: "PARSE_ERROR",
 			Type: 0xFC, // varchar
 		}
+	} else {
+		col = Column{
+			Name: packetCol.GetName(),
+			Type: 0xFC,
+		}
 	}
-	fmt.Println("----------> added col:", col.Name)
 
-	q.Columns = append(q.Columns, *col)
+	q.packetColumns = append(q.packetColumns, packetCol)
+	q.Columns = append(q.Columns, col)
 }
 
 // AddRowPayload decodes a single row payload and adds it to this response
-func (q *MysqlResponse) AddRowPayload(data []byte) {
-	row, err := parseRow(data)
-	if err != nil {
-		fmt.Println("Error - parsing mysql row:", err)
+func (q *MysqlResponse) AddRowPayload(msg MysqlMessage) {
+	row := []string{}
+
+	if msg.Payload[0] == 0x00 {
+		packetRow, err := packet.ParseBinaryResultSetRow(msg.FullMessage, q.packetColumns, time.Now().Location())
+		if err != nil {
+			fmt.Println("Error - parsing mysql binary row:", err)
+		}
+		for _, value := range packetRow {
+			valueBytes, err := value.DumpText()
+			if err != nil {
+				row = append(row, "PARSE_ERROR")
+				continue
+			}
+			row = append(row, trimNonASCII(string(valueBytes)))
+		}
+	} else {
+		packetRow, err := packet.ParseTextResultSetRow(msg.FullMessage, q.packetColumns, time.Now().Location())
+		if err != nil {
+			fmt.Println("Error - parsing mysql text row:", err)
+		}
+		for _, value := range packetRow {
+			valueBytes, err := value.DumpText()
+			if err != nil {
+				row = append(row, "PARSE_ERROR")
+				continue
+			}
+			row = append(row, trimNonASCII(string(valueBytes)))
+		}
 	}
 
 	q.Rows = append(q.Rows, row)
@@ -116,140 +156,4 @@ func (q *MysqlResponse) String() string {
 		}
 	}
 	return out
-}
-
-func parseColumn(data []byte) (*Column, error) {
-	if len(data) < 12 {
-		return nil, fmt.Errorf("packet too short")
-	}
-
-	// The format follows the MySQL Column Definition Packet structure:
-	// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_column_definition.html
-
-	offset := 0
-
-	// Skip catalog (always "def")
-	if offset+3 > len(data) {
-		return nil, fmt.Errorf("catalog field exceeds packet length at offset %d", offset)
-	}
-	offset += 3
-
-	// Read database name length
-	if offset >= len(data) {
-		return nil, fmt.Errorf("database name length field exceeds packet length at offset %d", offset)
-	}
-	dbNameLen := int(data[offset])
-	offset++
-
-	// Skip database name
-	if offset+dbNameLen > len(data) {
-		return nil, fmt.Errorf("database name field exceeds packet length at offset %d", offset)
-	}
-	offset += dbNameLen
-
-	// Read table name length
-	if offset >= len(data) {
-		return nil, fmt.Errorf("table name length field exceeds packet length at offset %d", offset)
-	}
-	tableNameLen := int(data[offset])
-	offset++
-
-	// Skip table name
-	if offset+tableNameLen > len(data) {
-		return nil, fmt.Errorf("table name field exceeds packet length at offset %d", offset)
-	}
-	offset += tableNameLen
-
-	// Read original table name length
-	if offset >= len(data) {
-		return nil, fmt.Errorf("original table name length field exceeds packet length at offset %d", offset)
-	}
-	orgTableNameLen := int(data[offset])
-	offset++
-
-	// Skip original table name
-	if offset+orgTableNameLen > len(data) {
-		return nil, fmt.Errorf("original table name field exceeds packet length at offset %d", offset)
-	}
-	offset += orgTableNameLen
-
-	// Read column name length
-	if offset >= len(data) {
-		return nil, fmt.Errorf("column name length field exceeds packet length at offset %d", offset)
-	}
-	columnNameLen := int(data[offset])
-	offset++
-
-	// Extract column name
-	if offset+columnNameLen > len(data) {
-		return nil, fmt.Errorf("column name field exceeds packet length at offset %d", offset)
-	}
-	columnName := string(data[offset : offset+columnNameLen])
-	offset += columnNameLen
-
-	// Read original column name length
-	if offset >= len(data) {
-		return nil, fmt.Errorf("original column name length field exceeds packet length at offset %d", offset)
-	}
-	orgColumnNameLen := int(data[offset])
-	offset++
-
-	// Skip original column name
-	if offset+orgColumnNameLen > len(data) {
-		return nil, fmt.Errorf("original column name field exceeds packet length at offset %d", offset)
-	}
-	offset += orgColumnNameLen
-
-	// Check fixed-length fields
-	if offset+6 > len(data) { // 2 bytes charset + 4 bytes column length
-		return nil, fmt.Errorf("fixed length fields exceed packet length at offset %d", offset)
-	}
-	offset += 2 // Character set (2 bytes)
-	offset += 4 // Column length (4 bytes)
-
-	// Extract column type
-	if offset >= len(data) {
-		return nil, fmt.Errorf("column type field exceeds packet length at offset %d", offset)
-	}
-	columnType := data[offset]
-
-	return &Column{Name: columnName, Type: columnType}, nil
-}
-
-func parseRow(data []byte) ([]string, error) {
-	var fields []string
-	pos := 0
-
-	// // First field is special - it's just a single byte value
-	// if pos >= len(data) {
-	// 	return nil, fmt.Errorf("empty data")
-	// }
-	// fields = append(fields, string([]byte{data[pos]}))
-	// pos++
-
-	// Parse remaining fields
-	for pos < len(data) {
-		// Check if we have at least 1 byte for the length
-		if pos >= len(data) {
-			return nil, fmt.Errorf("unexpected end of data at position %d", pos)
-		}
-
-		// Get length byte
-		length := int(data[pos])
-		pos++
-
-		// Check if we have enough bytes for the field
-		if pos+length > len(data) {
-			return nil, fmt.Errorf("field length %d exceeds remaining data at position %d", length, pos)
-		}
-
-		// Extract the field value
-		field := string(data[pos : pos+length])
-		fields = append(fields, field)
-
-		// Move position to next field
-		pos += length
-	}
-
-	return fields, nil
 }

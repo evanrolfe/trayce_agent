@@ -389,19 +389,19 @@ var _ = Describe("SocketMap", func() {
 			Expect(resp.Rows[0][1]).To(Equal("Widget"))
 			Expect(resp.Rows[0][2]).To(Equal("5"))
 			Expect(resp.Rows[0][3]).To(Equal("19.99"))
-			Expect(resp.Rows[0][4]).To(Equal("2024-12-14 20:29:49"))
+			Expect(resp.Rows[0][4]).To(Equal("2024-12-14 20:29:49.000000"))
 
 			Expect(resp.Rows[1][0]).To(Equal("2"))
 			Expect(resp.Rows[1][1]).To(Equal("Gadget"))
 			Expect(resp.Rows[1][2]).To(Equal("10"))
 			Expect(resp.Rows[1][3]).To(Equal("5.49"))
-			Expect(resp.Rows[1][4]).To(Equal("2024-12-14 20:29:49"))
+			Expect(resp.Rows[1][4]).To(Equal("2024-12-14 20:29:49.000000"))
 
 			Expect(resp.Rows[2][0]).To(Equal("3"))
 			Expect(resp.Rows[2][1]).To(Equal("Doodah"))
 			Expect(resp.Rows[2][2]).To(Equal("3"))
 			Expect(resp.Rows[2][3]).To(Equal("99.99"))
-			Expect(resp.Rows[2][4]).To(Equal("2024-12-14 20:29:49"))
+			Expect(resp.Rows[2][4]).To(Equal("2024-12-14 20:29:49.000000"))
 		})
 	})
 
@@ -519,19 +519,125 @@ var _ = Describe("SocketMap", func() {
 			Expect(resp.Rows[0][1]).To(Equal("Widget"))
 			Expect(resp.Rows[0][2]).To(Equal("5"))
 			Expect(resp.Rows[0][3]).To(Equal("19.99"))
-			Expect(resp.Rows[0][4]).To(Equal("2025-02-11 20:54:39"))
+			Expect(resp.Rows[0][4]).To(Equal("2025-02-11 20:54:39.000000"))
 
 			Expect(resp.Rows[1][0]).To(Equal("2"))
 			Expect(resp.Rows[1][1]).To(Equal("Gadget"))
 			Expect(resp.Rows[1][2]).To(Equal("10"))
 			Expect(resp.Rows[1][3]).To(Equal("5.49"))
-			Expect(resp.Rows[1][4]).To(Equal("2025-02-11 20:54:39"))
+			Expect(resp.Rows[1][4]).To(Equal("2025-02-11 20:54:39.000000"))
 
 			Expect(resp.Rows[2][0]).To(Equal("3"))
 			Expect(resp.Rows[2][1]).To(Equal("Doodah"))
 			Expect(resp.Rows[2][2]).To(Equal("3"))
 			Expect(resp.Rows[2][3]).To(Equal("99.99"))
-			Expect(resp.Rows[2][4]).To(Equal("2025-02-11 20:54:39"))
+			Expect(resp.Rows[2][4]).To(Equal("2025-02-11 20:54:39.000000"))
+		})
+	})
+
+	Context("[Mysql] receiving prepared query response SSL", Ordered, func() {
+		event1Payload, _ := hexDumpToBytes(mysqlPreparedQuery1)
+		event2Payload, _ := hexDumpToBytes(mysqlPreparedQuery2)
+		event3Payload, _ := hexDumpToBytes(mysqlPreparedQuery3)
+		event4Payload, _ := hexDumpToBytes(mysqlPreparedQuery4)
+		event5Payload, _ := hexDumpToBytes(mysqlPreparedQuery5)
+		event6Payload, _ := hexDumpToBytes(mysqlPreparedQuery6)
+		event7Payload, _ := hexDumpToBytes(mysqlPreparedQuery7)
+		event8Payload, _ := hexDumpToBytes(mysqlPreparedQuery8)
+		event9Payload, _ := hexDumpToBytes(mysqlPreparedQuery9)
+		event10Payload, _ := hexDumpToBytes(mysqlPreparedQuery10)
+		event11Payload, _ := hexDumpToBytes(mysqlPreparedQuery11)
+		event12Payload, _ := hexDumpToBytes(mysqlPreparedQuery12)
+		event13Payload, _ := hexDumpToBytes(mysqlPreparedQuery13)
+		event14Payload, _ := hexDumpToBytes(mysqlPreparedQuery14)
+		event15Payload, _ := hexDumpToBytes(mysqlPreparedQuery15)
+		event16Payload, _ := hexDumpToBytes(mysqlPreparedQuery16)
+		event17Payload, _ := hexDumpToBytes(mysqlPreparedQuery17)
+		event18Payload, _ := hexDumpToBytes(mysqlPreparedQuery18)
+		event19Payload, _ := hexDumpToBytes(mysqlPreparedQuery19)
+		event20Payload, _ := hexDumpToBytes(mysqlPreparedQuery20)
+
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
+
+		processEvent := func(payload []byte, source uint64) {
+			socketsMap.ProcessDataEvent(events.DataEvent{
+				PID:        222,
+				TID:        222,
+				FD:         5,
+				DataType:   source,
+				Data:       convertSliceToArray(payload),
+				DataLen:    int32(len(payload)),
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   33558957,
+				DestPort:   3306,
+			})
+		}
+
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			processEvent(event1Payload, events.KSSLWrite)
+			processEvent(event2Payload, events.KSSLRead)
+			processEvent(event3Payload, events.KSSLRead)
+			processEvent(event4Payload, events.KSSLWrite)
+			processEvent(event5Payload, events.KSSLRead)
+			processEvent(event6Payload, events.KSSLRead)
+			processEvent(event7Payload, events.KSSLRead)
+			processEvent(event8Payload, events.KSSLRead)
+			processEvent(event9Payload, events.KSSLRead)
+			processEvent(event10Payload, events.KSSLRead)
+			processEvent(event11Payload, events.KSSLRead)
+			processEvent(event12Payload, events.KSSLRead)
+			processEvent(event13Payload, events.KSSLRead)
+			processEvent(event14Payload, events.KSSLRead)
+			processEvent(event15Payload, events.KSSLRead)
+			processEvent(event16Payload, events.KSSLRead)
+			processEvent(event17Payload, events.KSSLRead)
+			processEvent(event18Payload, events.KSSLRead)
+			processEvent(event19Payload, events.KSSLRead)
+			processEvent(event20Payload, events.KSSLRead)
+
+		})
+
+		It("returns two flows", func() {
+			Expect(len(flows)).To(Equal(2))
+
+			for _, flow := range flows {
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("173.17.0.2:3306"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("mysql"))
+				Expect(flow.PID).To(Equal(222))
+				Expect(flow.FD).To(Equal(5))
+			}
+
+			query := flows[0].Request.(*sockets.MysqlQuery)
+
+			Expect(query.Query).To(Equal("PREPARED STATEMENT"))
+			Expect(len(query.Params)).To(Equal(0))
+		})
+
+		It("returns a response flow", func() {
+			Expect(flows).To(HaveLen(2))
+			resp := flows[1].Response.(*sockets.MysqlResponse)
+
+			Expect(len(resp.Columns)).To(Equal(5))
+			Expect(resp.Columns[0].Name).To(Equal("id"))
+			Expect(resp.Columns[1].Name).To(Equal("name"))
+			Expect(resp.Columns[2].Name).To(Equal("quantity"))
+			Expect(resp.Columns[3].Name).To(Equal("price"))
+			Expect(resp.Columns[4].Name).To(Equal("created_at"))
+
+			Expect(len(resp.Rows)).To(Equal(1))
+			Expect(resp.Rows[0][0]).To(Equal("1"))
+			Expect(resp.Rows[0][1]).To(Equal("Widget"))
+			Expect(resp.Rows[0][2]).To(Equal("5"))
+			Expect(resp.Rows[0][3]).To(Equal("19.99"))
+			Expect(resp.Rows[0][4]).To(Equal("2025-02-11 20:54:39.000000"))
 		})
 	})
 })

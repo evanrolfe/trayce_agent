@@ -83,9 +83,31 @@ func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 	}
 }
 
+func (socket *SocketMysql) newFlowFromQuery(sqlQuery MysqlQuery) Flow {
+	socket.requestUuid = uuid.NewString()
+	flow := NewFlowRequest(
+		socket.requestUuid,
+		socket.Common.SourceAddr,
+		socket.Common.DestAddr,
+		"tcp",
+		"mysql",
+		int(socket.Common.PID),
+		int(socket.Common.FD),
+		&sqlQuery,
+	)
+
+	return *flow
+}
+
 func (socket *SocketMysql) processMessages(messages []MysqlMessage) {
 	for _, msg := range messages {
-		if msg.Type == TypeMysqlQuery && socket.requestUuid == "" {
+		if msg.Type == TypeMysqlPreparedQuery && socket.requestUuid == "" {
+			// Execute a prepared query
+			sqlQuery := NewMysqlQuery("PREPARED STATEMENT")
+			flow := socket.newFlowFromQuery(sqlQuery)
+			socket.Common.sendFlowBack(flow)
+
+		} else if msg.Type == TypeMysqlQuery && socket.requestUuid == "" {
 			sqlQuery := NewMysqlQuery(string(msg.Payload))
 
 			if sqlQuery.Query[0:6] != "SELECT" {
@@ -104,16 +126,12 @@ func (socket *SocketMysql) processMessages(messages []MysqlMessage) {
 				int(socket.Common.FD),
 				&sqlQuery,
 			)
-			// don't buffer on zero port because mysql never calls getsockname so the port will always be zero, we just accept that
 			socket.Common.sendFlowBack(*flow)
 		} else if socket.requestUuid != "" { // msg.Type == TypeMysqlQuery &&
 			if socket.bufResp == nil {
 				resp := NewMysqlResponse()
 				socket.bufResp = &resp
 			}
-
-			// fmt.Printf("Message response type: %x, len: %d\n", msg.Type, len(msg.Payload))
-			// fmt.Println(hex.Dump(msg.Payload), "===")
 
 			socket.bufResp.AddMessage(msg)
 
@@ -176,7 +194,7 @@ func ExtractMySQLMessages(data []byte) []MysqlMessage {
 		payload := make([]byte, length)
 		copy(payload, data[4:totalPacketSize])
 
-		msg := NewMysqlMessage(payload, int(data[3]))
+		msg := NewMysqlMessage(payload, data, int(data[3]))
 		messages = append(messages, msg)
 
 		// Remove the processed packet from the data slice

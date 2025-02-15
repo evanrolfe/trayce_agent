@@ -74,7 +74,7 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 			if socket.bufQueryFlow == nil {
 				// In a Postgres named query, we will just get a Bind message and the name of the query, but not the query itself
 				// so in this case we just create a PSQLQuery with the query name as query
-				sqlQuery := NewPSQLQuery("PREPARED QUERY")
+				sqlQuery := NewPSQLQuery("PREPARED STATEMENT")
 				socket.newFlowFromQuery(sqlQuery)
 			}
 

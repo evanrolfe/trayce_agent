@@ -1427,4 +1427,45 @@ const (
 	00000010  6e 73                                             |ns|`
 	mysqlQueryMigrations8 = `00000000  07 00 00 04  |....|`
 	mysqlQueryMigrations9 = `00000000  fe 00 00 02 00 00 00  |.......|`
+
+	// SSL_write
+	mysqlPreparedQuery1 = `00000000  01 00 00 00 0e  |.....|`
+	// SSL_read
+	mysqlPreparedQuery2 = `00000000  07 00 00 01  |....|`
+	mysqlPreparedQuery3 = `00000000  00 00 00 02 00 00 00  |.......|`
+	// SSL_write
+	mysqlPreparedQuery4 = `00000000  23 00 00 00 17 01 00 00  00 08 01 00 00 00 02 00  |#...............|
+	00000010  01 08 00 00 08 00 00 01  00 00 00 00 00 00 00 01  |................|
+	00000020  00 00 00 00 00 00 00                              |.......|`
+	// SSL_read
+	mysqlPreparedQuery5 = `00000000  01 00 00 01                                       |....|`
+	mysqlPreparedQuery6 = `00000000  05                                                |.|`
+	mysqlPreparedQuery7 = `00000000  2c 00 00 02                                       |,...|`
+	mysqlPreparedQuery8 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 02 69 64 02 69 64 0c  |gs.things.id.id.|
+	00000020  3f 00 0b 00 00 00 03 03  42 00 00 00              |?.......B...|`
+	mysqlPreparedQuery9  = `00000000  30 00 00 03      	                                 |0...|`
+	mysqlPreparedQuery10 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 04 6e 61 6d 65 04 6e  |gs.things.name.n|
+	00000020  61 6d 65 0c ff 00 fc ff  03 00 fc 11 10 00 00 00  |ame.............|`
+	mysqlPreparedQuery11 = `00000000  38 00 00 04                                       |8...|`
+	mysqlPreparedQuery12 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 08 71 75 61 6e 74 69  |gs.things.quanti|
+	00000020  74 79 08 71 75 61 6e 74  69 74 79 0c 3f 00 0b 00  |ty.quantity.?...|
+	00000030  00 00 03 01 00 00 00 00                           |........|`
+	mysqlPreparedQuery13 = `00000000  32 00 00 05                                       |2...|`
+	mysqlPreparedQuery14 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 05 70 72 69 63 65 05  |gs.things.price.|
+	00000020  70 72 69 63 65 0c 3f 00  0c 00 00 00 f6 01 00 02  |price.?.........|
+	00000030  00 00                                             |..|`
+	mysqlPreparedQuery15 = `00000000  3c 00 00 06                                       |<...|`
+	mysqlPreparedQuery16 = `00000000  03 64 65 66 06 6d 65 67  61 64 62 06 74 68 69 6e  |.def.megadb.thin|
+	00000010  67 73 06 74 68 69 6e 67  73 0a 63 72 65 61 74 65  |gs.things.create|
+	00000020  64 5f 61 74 0a 63 72 65  61 74 65 64 5f 61 74 0c  |d_at.created_at.|
+	00000030  3f 00 13 00 00 00 07 81  04 00 00 00              |?...........|`
+	mysqlPreparedQuery17 = `00000000  1f 00 00 07                                       |....|`
+	mysqlPreparedQuery18 = `00000000  00 00 01 00 00 00 06 57  69 64 67 65 74 05 00 00  |.......Widget...|
+	00000010  00 05 31 39 2e 39 39 07  e9 07 02 0b 14 36 27     |..19.99......6'|`
+	mysqlPreparedQuery19 = `00000000  07 00 00 08                                       |....|`
+	mysqlPreparedQuery20 = `00000000  fe 00 00 02 00 00 00                              |.......|`
 )

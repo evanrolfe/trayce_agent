@@ -351,7 +351,7 @@ var _ = Describe("SocketPsql", func() {
 
 			query := flows[0].Request.(*sockets.PSQLQuery)
 
-			Expect(query.Query).To(ContainSubstring(`PREPARED QUERY`))
+			Expect(query.Query).To(ContainSubstring(`PREPARED STATEMENT`))
 			Expect(query.Params).To(Equal([]string{"4", "1"}))
 		})
 
