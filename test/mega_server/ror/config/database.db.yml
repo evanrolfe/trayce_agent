@@ -1,12 +1,12 @@
+# Use this for when you want it to connect to postgres/mysql
 default: &default
-  adapter: mysql2
-  encoding: utf8mb4
+  adapter: <%= ENV['DATABASE_ADAPTER'] %>
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
   checkout_timeout: 1
   reaping_frequency: nil
   reconnect: true
   url: <%= ENV['DATABASE_URL'] %>
-  prepared_statements: false
+  prepared_statements: <%= ENV.fetch("DATABASE_PREPARED_STATEMENTS") { false } %>
 
 development:
   <<: *default

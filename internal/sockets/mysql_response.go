@@ -55,7 +55,7 @@ func (q *MysqlResponse) AddMessage(msg MysqlMessage) {
 		return
 	}
 
-	if *q.lastMsgSeq != msg.SequenceNum-1 {
+	if *q.lastMsgSeq != msg.SequenceNum-1 && msg.SequenceNum != 0 {
 		fmt.Printf("[WARN] MysqlResponse.AddMessage() received an out-of-order message, seq: %d, last seq: %d\n", msg.SequenceNum, *q.lastMsgSeq)
 		return
 	}

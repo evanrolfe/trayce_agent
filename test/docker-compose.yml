@@ -11,8 +11,11 @@ services:
     volumes:
       - ./mega_server:/app
     # environment:
+      # - DATABASE_ADAPTER=mysql2
       # - DATABASE_URL=mysql2://mysql:mysql@mysql:3306/megadb
+      # - DATABASE_ADAPTER=postgresql
       # - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
+      # - DATABASE_PREPARED_STATEMENTS=true
     ports:
       - "3001:3001"
       - "3002:3002"

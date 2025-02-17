@@ -104,4 +104,84 @@ var _ = Describe("SocketMysql", func() {
 	// 	Expect(len(messages[0].Payload)).To(Equal(1))
 	// 	Expect(messages[0].SequenceNum).To(Equal(2))
 	// })
+
+	Context("Receiving an UPDATE query transaction", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		event1Payload, _ := hexDumpToBytes(mysqlUpdateQuery1)
+		event2Payload, _ := hexDumpToBytes(mysqlUpdateQuery1)
+		event3Payload, _ := hexDumpToBytes(mysqlUpdateQuery3)
+		event4Payload, _ := hexDumpToBytes(mysqlUpdateQuery4)
+		event5Payload, _ := hexDumpToBytes(mysqlUpdateQuery5)
+		event6Payload, _ := hexDumpToBytes(mysqlUpdateQuery6)
+		event7Payload, _ := hexDumpToBytes(mysqlUpdateQuery7)
+
+		BeforeAll(func() {
+			socketUnknown := sockets.NewSocketUnknownFromData(&events.DataEvent{
+				PID:        123,
+				TID:        123,
+				FD:         5,
+				DataType:   7, // go_tls_write
+				Data:       [4096]byte{0},
+				DataLen:    0,
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   16777343,
+				DestPort:   3306,
+			})
+			socket := sockets.NewSocketMysqlFromUnknown(&socketUnknown)
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			processEvent := func(payload []byte, source uint64) {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:        1232,
+					TID:        1232,
+					FD:         5,
+					DataType:   source,
+					Data:       convertSliceToArray(payload),
+					DataLen:    int32(len(payload)),
+					SourceHost: 33558956,
+					SourcePort: 1234,
+					DestHost:   33558957,
+					DestPort:   3306,
+				})
+			}
+
+			processEvent(event1Payload, events.KSSLWrite)
+			processEvent(event2Payload, events.KSSLWrite)
+			processEvent(event3Payload, events.KSSLWrite)
+			processEvent(event4Payload, events.KSSLWrite)
+			processEvent(event5Payload, events.KSSLWrite)
+			processEvent(event6Payload, events.KSSLWrite)
+			processEvent(event7Payload, events.KSSLWrite)
+		})
+
+		It("returns a request flow", func() {
+			Expect(len(flows)).To(Equal(3))
+
+			for _, flow := range flows {
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("127.0.0.1:3306"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("mysql"))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
+			}
+
+			query0 := flows[0].Request.(*sockets.MysqlQuery)
+			Expect(query0.Query).To(Equal("BEGIN"))
+			Expect(len(query0.Params)).To(Equal(0))
+
+			query1 := flows[1].Request.(*sockets.MysqlQuery)
+			Expect(query1.Query).To(Equal("UPDATE `things` SET `things`.`quantity` = ? WHERE `things`.`id` = ?"))
+			Expect(len(query1.Params)).To(Equal(0))
+
+			query2 := flows[2].Request.(*sockets.MysqlQuery)
+			Expect(query2.Query).To(Equal("COMMIT"))
+			Expect(len(query2.Params)).To(Equal(0))
+		})
+	})
 })

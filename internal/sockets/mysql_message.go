@@ -1,10 +1,21 @@
 package sockets
 
 const (
-	TypeMysqlRow           = 0x01
-	TypeMysqlQuery         = 0x03 // COM_QUERY - Execute an SQL query
-	TypeMysqlPreparedQuery = 0x17 // COM_STMT_EXECUTE - Execute a prepared query
-	TypeMysqlEOF           = 0xFE
+	TypeMysqlOK           = 0x00
+	TypeMysqlRow          = 0x01
+	TypeMysqlQuery        = 0x03 // COM_QUERY - Execute an SQL query
+	TypeMysqlPrepareQuery = 0x16 // COM_STMT_PREPARE - Prepare a preapred query
+	TypeMysqlExecute      = 0x17 // COM_STMT_EXECUTE - Execute a prepared query
+	TypeMysqlClose        = 0x19 // COM_STMT_CLOSE
+	TypeMysqlEOF          = 0xFE
+)
+
+const (
+	OK_HEADER          byte = 0x00
+	MORE_DATE_HEADER   byte = 0x01
+	ERR_HEADER         byte = 0xff
+	EOF_HEADER         byte = 0xfe
+	LocalInFile_HEADER byte = 0xfb
 )
 
 // ForkEvent is sent from ebpf when a process is forked to create a child process

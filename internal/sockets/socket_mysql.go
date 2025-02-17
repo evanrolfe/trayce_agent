@@ -2,6 +2,7 @@ package sockets
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/google/uuid"
@@ -13,6 +14,8 @@ type SocketMysql struct {
 	bufEgress []byte
 	// bufEgress is a buffer for ingress traffic data
 	bufIngress []byte
+	// bufStatement is a raw query that is part of a perpared transaction, it will be sent when COMMIT is executed
+	bufStatement []byte
 	// bufResp is a MysqlResponse that has be been buffered, to wait until more info is received to complete it (i.e. waiting for all rows to be sent)
 	bufResp *MysqlResponse
 	// When a query is observed, this value is set, when the response comes, we send this value back with the response
@@ -59,17 +62,17 @@ func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 
 		// Check ingress messages & process them
 		ingressMessages := ExtractMySQLMessages(socket.bufIngress)
-		// fmt.Println("==============================================")
-		// for i, msg := range ingressMessages {
-		// 	fmt.Println("Message", i, "type:", msg.Type)
-		// 	fmt.Println(hex.Dump(msg.Payload))
-		// }
-		// fmt.Println("==============================================")
-
 		if len(ingressMessages) > 0 {
 			socket.clearIngress()
 		}
-		socket.processMessages(ingressMessages)
+
+		for _, msg := range ingressMessages {
+			if msg.SequenceNum > 0 {
+				socket.handleAsClient(msg)
+			} else {
+				socket.handleAsServer(msg)
+			}
+		}
 
 	} else if event.Type() == events.TypeEgress {
 		socket.bufEgress = append(socket.bufEgress, event.Payload()...)
@@ -79,11 +82,46 @@ func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
 		if len(egressMessages) > 0 {
 			socket.clearEgress()
 		}
-		socket.processMessages(egressMessages)
+
+		for _, msg := range egressMessages {
+			if msg.SequenceNum > 0 {
+				socket.handleAsClient(msg)
+			} else {
+				socket.handleAsServer(msg)
+			}
+		}
 	}
 }
 
-func (socket *SocketMysql) newFlowFromQuery(sqlQuery MysqlQuery) Flow {
+func isAllowedSQLCommand(s string) bool {
+	if len(s) < 4 {
+		return false
+	}
+
+	// Convert first 6 chars (or whole string if shorter) to uppercase for comparison
+	upTo := 6
+	if len(s) < 6 {
+		upTo = len(s)
+	}
+	prefix := strings.ToUpper(s[:upTo])
+
+	return strings.HasPrefix(prefix, "SELECT") ||
+		strings.HasPrefix(prefix, "INSERT") ||
+		strings.HasPrefix(prefix, "UPDATE") ||
+		strings.HasPrefix(prefix, "DELETE") ||
+		strings.HasPrefix(prefix, "BEGIN") ||
+		strings.HasPrefix(prefix, "COMMIT") ||
+		strings.HasPrefix(prefix, "PREPAR")
+}
+
+func (socket *SocketMysql) newFlowFromQuery(rawQuery []byte) *Flow {
+	sqlQuery := NewMysqlQuery(string(rawQuery))
+
+	if !isAllowedSQLCommand(sqlQuery.Query) {
+		fmt.Println("[Warn] not a handled query, skipping..")
+		return nil
+	}
+
 	socket.requestUuid = uuid.NewString()
 	flow := NewFlowRequest(
 		socket.requestUuid,
@@ -96,63 +134,80 @@ func (socket *SocketMysql) newFlowFromQuery(sqlQuery MysqlQuery) Flow {
 		&sqlQuery,
 	)
 
-	return *flow
+	return flow
 }
 
-func (socket *SocketMysql) processMessages(messages []MysqlMessage) {
-	for _, msg := range messages {
-		if msg.Type == TypeMysqlPreparedQuery && socket.requestUuid == "" {
-			// Execute a prepared query
-			sqlQuery := NewMysqlQuery("PREPARED STATEMENT")
-			flow := socket.newFlowFromQuery(sqlQuery)
-			socket.Common.sendFlowBack(flow)
+// func (socket *SocketMysql) processMessages(messages []MysqlMessage) {
+// 	for _, msg := range messages {
+// 		if socket.requestUuid == "" {
+// 			// This will be a message from client => server (i.e. a query)
+// 			socket.handleAsServer(msg)
+// 		} else {
+// 			// This will be a message from server => client (i.e. a set of rows)
+// 			socket.handleAsClient(msg)
+// 		}
+// 	}
+// }
 
-		} else if msg.Type == TypeMysqlQuery && socket.requestUuid == "" {
-			sqlQuery := NewMysqlQuery(string(msg.Payload))
+func (socket *SocketMysql) handleAsServer(msg MysqlMessage) {
+	socket.bufResp = nil // everytime a message goes from client->server, reset the buffered response
 
-			if sqlQuery.Query[0:6] != "SELECT" {
-				fmt.Println("NOT A SELECT STATEMENT, SKIPPING. Query:", sqlQuery.Query[0:6])
-				continue
-			}
+	switch msg.Type {
+	case TypeMysqlQuery:
+		flow := socket.newFlowFromQuery(msg.Payload)
+		if flow == nil {
+			return
+		}
+		socket.Common.sendFlowBack(*flow)
 
-			socket.requestUuid = uuid.NewString()
-			flow := NewFlowRequest(
-				socket.requestUuid,
-				socket.Common.SourceAddr,
-				socket.Common.DestAddr,
-				"tcp",
-				"mysql",
-				int(socket.Common.PID),
-				int(socket.Common.FD),
-				&sqlQuery,
-			)
-			socket.Common.sendFlowBack(*flow)
-		} else if socket.requestUuid != "" { // msg.Type == TypeMysqlQuery &&
-			if socket.bufResp == nil {
-				resp := NewMysqlResponse()
-				socket.bufResp = &resp
-			}
+	case TypeMysqlPrepareQuery:
+		socket.bufStatement = msg.Payload
 
-			socket.bufResp.AddMessage(msg)
+	case TypeMysqlExecute:
+		if len(socket.bufStatement) == 0 {
+			socket.bufStatement = []byte("PREPARED STATEMENT")
+		}
+		flow := socket.newFlowFromQuery(socket.bufStatement)
+		if flow == nil {
+			return
+		}
+		socket.Common.sendFlowBack(*flow)
+		socket.bufStatement = []byte{}
 
-			if socket.bufResp.Complete() {
-				flow := NewFlowResponse(
-					socket.requestUuid,
-					socket.Common.SourceAddr,
-					socket.Common.DestAddr,
-					"tcp",
-					"mysql",
-					int(socket.Common.PID),
-					int(socket.Common.FD),
-					socket.bufResp,
-				)
-				socket.Common.sendFlowBack(*flow)
-				socket.clearBufResponse()
-			}
-		} // else if msg.Type == TypeMysqlRow && socket.requestUuid != "" {
-		// 	fmt.Println("Message query row type:", msg.Type)
-		// 	fmt.Println(hex.Dump(msg.Payload))
-		// }
+	case TypeMysqlClose:
+		// TODO: Handle close, should delete the prepared statement
+
+	default:
+		return
+	}
+}
+
+func (socket *SocketMysql) handleAsClient(msg MysqlMessage) {
+	if socket.requestUuid == "" {
+		// No query has been observed yet, so ignore this mesage
+		return
+	}
+
+	if socket.bufResp == nil {
+		resp := NewMysqlResponse()
+		socket.bufResp = &resp
+	}
+
+	socket.bufResp.AddMessage(msg)
+
+	if socket.bufResp.Complete() {
+		flow := NewFlowResponse(
+			socket.requestUuid,
+			socket.Common.SourceAddr,
+			socket.Common.DestAddr,
+			"tcp",
+			"mysql",
+			int(socket.Common.PID),
+			int(socket.Common.FD),
+			socket.bufResp,
+		)
+		socket.Common.sendFlowBack(*flow)
+		socket.clearBufResponse()
 	}
 }
 
