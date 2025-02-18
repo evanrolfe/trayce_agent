@@ -53,19 +53,30 @@ func detectProtocol(raw []byte, prevRaw []byte) string {
 		return HTTP2
 	}
 
-	// Mysql
+	// Postgres
+	if isPSQLMessage(raw) {
+		return PSQL
+	}
+
+	// Mysql (if the header packet is sent separately from the payload)
 	if len(prevRaw) == 4 {
 		// The first 3 bytes represent the payload length in little-endian order.
 		headerLen := int(prevRaw[0]) | int(prevRaw[1])<<8 | int(prevRaw[2])<<16
+		msgType := raw[0]
 
-		if len(raw) == headerLen {
+		if len(raw) == headerLen && isDesiredMySQLMessage(msgType) {
 			return MySQL
 		}
 	}
 
-	// Postgres
-	if isPSQLMessage(raw) {
-		return PSQL
+	// Mysql (if the header packet is sent with the payload in a single message)
+	if len(raw) > 4 {
+		headerLen := int(raw[0]) | int(raw[1])<<8 | int(raw[2])<<16
+		msgType := raw[4]
+
+		if len(raw) == headerLen+4 && isDesiredMySQLMessage(msgType) {
+			return MySQL
+		}
 	}
 
 	return Unknown
@@ -123,4 +134,15 @@ func isPSQLMessage(raw []byte) bool {
 	lastByte := payload[len(payload)-1]
 
 	return lastByte == 0x00
+}
+
+func isDesiredMySQLMessage(msgType byte) bool {
+	desiredTypes := []byte{
+		TypeMysqlQuery,
+		TypeMysqlPrepareQuery,
+		TypeMysqlExecute,
+		TypeMysqlClose,
+	}
+
+	return slices.Contains(desiredTypes, msgType)
 }

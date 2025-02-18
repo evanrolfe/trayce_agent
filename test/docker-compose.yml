@@ -4,7 +4,7 @@ networks:
     name: trayce_network
 
 services:
-  mega_server:
+  megaserver:
     build:
       context: ./mega_server
     container_name: megaserver
@@ -16,6 +16,11 @@ services:
       # - DATABASE_ADAPTER=postgresql
       # - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
       # - DATABASE_PREPARED_STATEMENTS=true
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "3001:3001"
       - "3002:3002"
@@ -24,21 +29,26 @@ services:
     networks:
       - trayce_network
 
-  mega_server2:
-    build:
-      context: ./mega_server
-    container_name: megaserver2
-    volumes:
-      - ./mega_server:/app
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
-    networks:
-      - trayce_network
+  # megaserver2:
+  #   build:
+  #     context: ./mega_server
+  #   container_name: megaserver2
+  #   volumes:
+  #     - ./mega_server:/app
+  #   environment:
+  #     - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
+  #   networks:
+  #     - trayce_network
 
 # psql -h localhost -U postgres -W megadb
   postgres:
     image: postgres
     container_name: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -55,6 +65,11 @@ services:
   mysql:
     image: mysql:8.0
     container_name: mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mysql", "-pmysql"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
     environment:
       - MYSQL_ROOT_PASSWORD=mysql
       - MYSQL_USER=mysql

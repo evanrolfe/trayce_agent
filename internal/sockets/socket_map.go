@@ -76,8 +76,10 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 			newSocket := NewSocketMysqlFromUnknown(unkownSocket)
 			m.setSocket(event.Key(), &newSocket)
 			socket = &newSocket
-			// still need the previous event for mysql only
-			socket.ProcessDataEvent(prevDataevent)
+			// still need the previous event for mysql, if it sends the header packet in a separate message from the payload
+			if prevDataevent != nil && prevDataevent.DataLen == 4 {
+				socket.ProcessDataEvent(prevDataevent)
+			}
 		}
 	}
 

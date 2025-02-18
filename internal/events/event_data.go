@@ -200,9 +200,9 @@ func (se *DataEvent) IsBlank() bool {
 }
 
 // htons converst host ot network byte order
-func htons(x uint16) uint16 {
-	return (x&0xff)<<8 | (x&0xff00)>>8
-}
+// func htons(x uint16) uint16 {
+// 	return (x&0xff)<<8 | (x&0xff00)>>8
+// }
 
 // func (se *SSLDataEvent) StringHex() string {
 // 	//addr := se.module.(*module.MOpenSSLProbe).GetConn(se.Pid, se.Fd)

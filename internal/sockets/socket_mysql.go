@@ -111,7 +111,8 @@ func isAllowedSQLCommand(s string) bool {
 		strings.HasPrefix(prefix, "DELETE") ||
 		strings.HasPrefix(prefix, "BEGIN") ||
 		strings.HasPrefix(prefix, "COMMIT") ||
-		strings.HasPrefix(prefix, "PREPAR")
+		strings.HasPrefix(prefix, "PREPAR") ||
+		strings.HasPrefix(prefix, "START")
 }
 
 func (socket *SocketMysql) newFlowFromQuery(rawQuery []byte) *Flow {
@@ -151,7 +152,6 @@ func (socket *SocketMysql) newFlowFromQuery(rawQuery []byte) *Flow {
 
 func (socket *SocketMysql) handleAsServer(msg MysqlMessage) {
 	socket.bufResp = nil // everytime a message goes from client->server, reset the buffered response
-
 	switch msg.Type {
 	case TypeMysqlQuery:
 		flow := socket.newFlowFromQuery(msg.Payload)

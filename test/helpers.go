@@ -31,7 +31,7 @@ const (
 	reqRegexHttp2          = `^GET /\d* HTTP/2`
 	reqChunkRegex          = `^GET /chunked HTTP/1\.1`
 	numRequestsLoad        = 100
-	mega_server_image_name = "mega_server"
+	mega_server_image_name = "megaserver"
 )
 
 func AssertFlows(t *testing.T, flows []*api.Flow) {
@@ -113,7 +113,7 @@ func getTestConfig() (int, int, time.Duration) {
 		timeout = 3 * time.Second
 	} else {
 		numRequests = numRequestsLoad
-		timeout = 20 * time.Second
+		timeout = 15 * time.Second
 	}
 
 	return numRequests, numRequests * 2, timeout

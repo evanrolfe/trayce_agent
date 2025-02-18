@@ -640,4 +640,74 @@ var _ = Describe("SocketMap", func() {
 			Expect(resp.Rows[0][4]).To(Equal("2025-02-11 20:54:39.000000"))
 		})
 	})
+
+	Context("[Mysql] receiving events from a Mysql query & response (sent by Go)", Ordered, func() {
+		event1Payload, _ := hexDumpToBytes(mysqlGoQuery1)
+		event2Payload, _ := hexDumpToBytes(mysqlGoQuery2)
+
+		var socketsMap *sockets.SocketMap
+		var flows []*sockets.Flow
+
+		processEvent := func(payload []byte, source uint64) {
+			socketsMap.ProcessDataEvent(events.DataEvent{
+				PID:        222,
+				TID:        222,
+				FD:         5,
+				DataType:   source,
+				Data:       convertSliceToArray(payload),
+				DataLen:    int32(len(payload)),
+				SourceHost: 33558956,
+				SourcePort: 1234,
+				DestHost:   33558957,
+				DestPort:   3306,
+			})
+		}
+
+		BeforeAll(func() {
+			socketsMap = sockets.NewSocketMap()
+			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			processEvent(event1Payload, events.KWrite)
+			processEvent(event2Payload, events.KRead)
+
+		})
+
+		It("returns two flows", func() {
+			Expect(len(flows)).To(Equal(2))
+
+			for _, flow := range flows {
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("173.17.0.2:3306"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("mysql"))
+				Expect(flow.PID).To(Equal(222))
+				Expect(flow.FD).To(Equal(5))
+			}
+
+			query := flows[0].Request.(*sockets.MysqlQuery)
+
+			Expect(query.Query).To(Equal("SELECT id, name, quantity, price, created_at FROM things"))
+			Expect(len(query.Params)).To(Equal(0))
+		})
+
+		It("returns a response flow", func() {
+			Expect(flows).To(HaveLen(2))
+			resp := flows[1].Response.(*sockets.MysqlResponse)
+
+			Expect(len(resp.Columns)).To(Equal(5))
+			Expect(resp.Columns[0].Name).To(Equal("id"))
+			Expect(resp.Columns[1].Name).To(Equal("name"))
+			Expect(resp.Columns[2].Name).To(Equal("quantity"))
+			Expect(resp.Columns[3].Name).To(Equal("price"))
+			Expect(resp.Columns[4].Name).To(Equal("created_at"))
+
+			Expect(len(resp.Rows)).To(Equal(6))
+			Expect(resp.Rows[0][0]).To(Equal("1"))
+			Expect(resp.Rows[0][1]).To(Equal("Widget"))
+			Expect(resp.Rows[0][2]).To(Equal("123"))
+			Expect(resp.Rows[0][3]).To(Equal("19.99"))
+			Expect(resp.Rows[0][4]).To(Equal("2025-02-11 20:54:39.000000"))
+		})
+	})
 })
