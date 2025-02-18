@@ -47,7 +47,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 1s
-      timeout: 5s
+      timeout: 20s
       retries: 5
     environment:
       - POSTGRES_USER=postgres
@@ -66,10 +66,11 @@ services:
     image: mysql:8.0
     container_name: mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mysql", "-pmysql"]
-      interval: 1s
+      test: ["CMD", "mysql", "-h", "localhost", "-u", "mysql", "-pmysql", "-e", "SELECT 1"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     environment:
       - MYSQL_ROOT_PASSWORD=mysql
       - MYSQL_USER=mysql
