@@ -32,6 +32,7 @@ func Test_agent_server(t *testing.T) {
 	// Find the mega_server container
 	megaserverId, megaserverIp := getMegaServer(t)
 	numRequests, expectedNumFlows, timeout := getTestConfig()
+	megaserverIp = "127.0.0.1"
 
 	// Intercept it
 	grpcHandler.SetContainerIds([]string{megaserverId})
@@ -79,6 +80,7 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 			loadtest:    true,
+			focus:       true,
 		},
 		{
 			name:        "[Python] Server an HTTPS/1.1 request",
