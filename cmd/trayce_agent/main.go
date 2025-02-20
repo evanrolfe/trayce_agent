@@ -110,7 +110,7 @@ func main() {
 	go func() {
 		for {
 			// Connect to the GRPC server
-			fmt.Println("[GRPC] connecting to server...")
+			fmt.Println("[GRPC] connecting to server at", grpcServerAddr)
 			conn, err := grpc.Dial(
 				grpcServerAddr,
 				grpc.WithTransportCredentials(insecure.NewCredentials()),

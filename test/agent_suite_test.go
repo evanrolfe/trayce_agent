@@ -16,7 +16,7 @@ var grpcHandler *support.GRPCHandler
 
 func TestMain(m *testing.M) {
 	// Start GRPC server
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", grpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}

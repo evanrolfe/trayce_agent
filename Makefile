@@ -51,7 +51,7 @@ build: generate
 # test runs the tests but it also starts the trayce_agent process, its intended to be used during local development
 # from within the build container
 test:
-	START_AGENT=true go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
+	START_AGENT=false go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
 
 testload:
 	$(CGO_FLAGS) \

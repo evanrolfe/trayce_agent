@@ -59,7 +59,7 @@ func (h *Handlers) Init() error {
 	h.mysqlDB = mysqlDB
 
 	// PostgreSQL connection
-	pgDSN := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", pgAddr)
+	pgDSN := fmt.Sprintf("postgres://postgres:postgres@%s/megadb?sslmode=disable", pgAddr)
 	pgDB, err := sql.Open("postgres", pgDSN)
 	if err != nil {
 		h.mysqlDB.Close()

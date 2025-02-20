@@ -32,7 +32,6 @@ func Test_agent_server(t *testing.T) {
 	// Find the mega_server container
 	megaserverId, megaserverIp := getMegaServer(t)
 	numRequests, expectedNumFlows, timeout := getTestConfig()
-	megaserverIp = "127.0.0.1"
 
 	// Intercept it
 	grpcHandler.SetContainerIds([]string{megaserverId})
@@ -48,7 +47,7 @@ func Test_agent_server(t *testing.T) {
 	}
 
 	// Wait for trayce_agent to start, timeout of 5secs:
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	grpcHandler.SetAgentStartedCallback(func(input *api.AgentStarted) { cancel() })
 
@@ -80,7 +79,6 @@ func Test_agent_server(t *testing.T) {
 			http2:       false,
 			verify:      AssertFlows,
 			loadtest:    true,
-			focus:       true,
 		},
 		{
 			name:        "[Python] Server an HTTPS/1.1 request",
@@ -95,7 +93,7 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
-			multiplier:  2,
+			multiplier:  3,
 		},
 		{
 			name:        "[Python] Server an HTTP/1.1 request to /large",

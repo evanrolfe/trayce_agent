@@ -1,11 +1,19 @@
+networks:
+  trayce_network:
+    driver: bridge
+    name: trayce_network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
 services:
   megaserver:
     build:
       context: ./mega_server
     container_name: megaserver
-    network_mode: host
-    # volumes:
-    #   - ./mega_server:/app
+    volumes:
+      - ./mega_server:/app
     # environment:
       # - DATABASE_ADAPTER=mysql2
       # - DATABASE_URL=mysql2://mysql:mysql@mysql:3306/megadb
@@ -17,11 +25,40 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    # ports:
-    #   - "3001:3001"
-    #   - "3002:3002"
-    #   - "3003:3003"
-    #   - "3004:3004"
+    ports:
+      - "3001:3001"
+      - "3002:3002"
+      - "3003:3003"
+      - "3004:3004"
+    networks:
+      - trayce_network
+
+  trayce_agent:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    pid: host
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -s test:50051
+    networks:
+      - trayce_network
+
+  test:
+    hostname: test
+    build:
+      context: ..
+      dockerfile: Dockerfile.test
+    volumes:
+      - ../:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - trayce_network
+
+    # networks:
+    #   trayce_network:
+    #     ipv4_address: 172.20.0.5
 
   # megaserver2:
   #   build:
@@ -38,7 +75,6 @@ services:
   postgres:
     image: postgres
     container_name: postgres
-    network_mode: host
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 1s
@@ -48,19 +84,18 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=megadb
-    # ports:
-    #   - "5432:5432"
+    ports:
+      - "5432:5432"
     volumes:
       - ./mega_server/postgres:/docker-entrypoint-initdb.d
-    command: ["postgres", "-c", "log_statement=all", "-c", "log_min_duration_statement=0"]
-    # networks:
-    #   - trayce_network
+    command: ["postgres", "-c", "log_statement=all", "-c", "log_min_duration_statement=0", "-c", "log_connections=on"]
+    networks:
+      - trayce_network
 
   # mysql -h localhost -P 3306 -u mysql -p megadb
   mysql:
     image: mysql:8.0
     container_name: mysql
-    network_mode: host
     healthcheck:
       test: ["CMD", "mysql", "-h", "localhost", "-u", "mysql", "-pmysql", "-e", "SELECT 1"]
       interval: 5s
@@ -72,10 +107,10 @@ services:
       - MYSQL_USER=mysql
       - MYSQL_PASSWORD=mysql
       - MYSQL_DATABASE=megadb
-    # ports:
-    #   - "3306:3306"
+    ports:
+      - "3306:3306"
     volumes:
       - ./mega_server/mysql:/docker-entrypoint-initdb.d
     command: --general-log=1 --general-log-file=/var/log/mysql/general-log.log
-    # networks:
-    #   - trayce_network
+    networks:
+      - trayce_network
