@@ -22,6 +22,8 @@ const (
 
 // Test_agent_client tests requests made from this container to another server, it listens to the server
 func Test_agent_server(t *testing.T) {
+	assert.Equal(t, 2, 4)
+	return
 	// Handle command line args
 	startAgentFlg := os.Getenv("START_AGENT")
 	startAgent := false
@@ -93,7 +95,7 @@ func Test_agent_server(t *testing.T) {
 			numRequests: numRequests,
 			http2:       false,
 			verify:      AssertFlows,
-			multiplier:  3,
+			multiplier:  2,
 		},
 		{
 			name:        "[Python] Server an HTTP/1.1 request to /large",

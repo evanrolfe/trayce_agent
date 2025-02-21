@@ -115,28 +115,22 @@ commands:
             wget -q https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz -O /tmp/go.tar.gz
             tar -C /home/circleci/ -xf /tmp/go.tar.gz
             echo 'export PATH="$PATH:/home/circleci/go/bin/"' >> $BASH_ENV
-      - run:
-          name: Start docker containers
-          command: |
-            GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
-            GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
-            GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/grpc_server/
-            cd test && docker compose up -d trayce_agent megaserver
       # - run:
-      #     name: Build
+      #     name: Start docker containers
       #     command: |
-      #       docker build . -t traycer/trayce_agent_tmp:${ARCH}
-      # - run:
-      #     name: Run
-      #     command: |
-      #       export HOST_IP=$(ifconfig eth1 | grep 'inet ' | awk '{print $2}')
-      #       docker run -d --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock --network host -t traycer/trayce_agent_tmp:${ARCH} -s ${HOST_IP}:50051
+      #       GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
+      #       GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
+      #       GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/grpc_server/
+      #       cd test && docker compose up -d trayce_agent megaserver
       - run:
           name: Test
-          command: cd test && docker compose run test
-      # - run:
-      #     name: Load Test
-      #     command: DOCKER_API_VERSION=1.45 go test ./test -v -count=1 -run Test_agent_server
+          command: |
+            cd test
+            docker compose up test --exit-code-from test
+      - run:
+          name: Print trayce_agent logs
+          command: cd test && docker compose logs trayce_agent
+          when: always
   push:
     description: Push the image to docker hub
     steps:

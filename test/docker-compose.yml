@@ -12,8 +12,8 @@ services:
     build:
       context: ./mega_server
     container_name: megaserver
-    volumes:
-      - ./mega_server:/app
+    # volumes:
+    #   - ./mega_server:/app
     # environment:
       # - DATABASE_ADAPTER=mysql2
       # - DATABASE_URL=mysql2://mysql:mysql@mysql:3306/megadb
@@ -51,8 +51,8 @@ services:
       context: ..
       dockerfile: Dockerfile.test
     volumes:
-      - ../:/app
       - /var/run/docker.sock:/var/run/docker.sock
+      # - ../:/app
     networks:
       - trayce_network
 
