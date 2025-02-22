@@ -22,8 +22,6 @@ const (
 
 // Test_agent_client tests requests made from this container to another server, it listens to the server
 func Test_agent_server(t *testing.T) {
-	assert.Equal(t, 2, 4)
-	return
 	// Handle command line args
 	startAgentFlg := os.Getenv("START_AGENT")
 	startAgent := false
