@@ -5,7 +5,6 @@ WORKDIR /app
 
 # Build dependencies:
 RUN apt update -y
-RUN apt upgrade -y
 RUN apt-get update --fix-missing
 RUN DEBIAN_FRONTEND=noninteractive apt install -y ruby-full python3-pip wget libssl-dev git libyaml-dev default-jre default-jdk nodejs postgresql postgresql-contrib mysql-server
 
