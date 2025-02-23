@@ -69,4 +69,4 @@ WORKDIR /app
 
 COPY --from=build /app/trayce_agent /app/trayce_agent
 
-ENTRYPOINT ["./trayce_agent"]
+ENTRYPOINT ["/app/trayce_agent"]
