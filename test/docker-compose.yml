@@ -33,17 +33,17 @@ services:
     networks:
       - trayce_network
 
-  # trayce_agent:
-  #   build:
-  #     context: ..
-  #     dockerfile: Dockerfile
-  #   pid: host
-  #   privileged: true
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   command: /app/trayce_agent -s test:50051
-  #   networks:
-  #     - trayce_network
+  trayce_agent:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    pid: host
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: /app/trayce_agent -s test:50051
+    networks:
+      - trayce_network
 
   test:
     hostname: test

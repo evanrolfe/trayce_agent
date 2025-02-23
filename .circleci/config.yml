@@ -116,17 +116,12 @@ commands:
             tar -C /home/circleci/ -xf /tmp/go.tar.gz
             echo 'export PATH="$PATH:/home/circleci/go/bin/"' >> $BASH_ENV
       - run:
-          name: Start megaserver
+          name: Start dependencies
           command: |
             GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
             GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
             GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/grpc_server/
-            cd test && docker compose up --build -d megaserver
-      - run:
-          name: Start trayce agent
-          command: |
-            docker build -t trayce_agent:local .
-            docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -t trayce_agent:local -s test:50051
+            cd test && docker compose up --build -d trayce_agent megaserver
       - run:
           name: Test
           command: |
