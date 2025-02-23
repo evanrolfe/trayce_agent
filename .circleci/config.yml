@@ -116,6 +116,11 @@ commands:
             tar -C /home/circleci/ -xf /tmp/go.tar.gz
             echo 'export PATH="$PATH:/home/circleci/go/bin/"' >> $BASH_ENV
       - run:
+          name: Build
+          command: |
+            cd test
+            docker compose build trayce_agent
+      - run:
           name: Start dependency containers
           command: |
             GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
@@ -126,7 +131,6 @@ commands:
           name: Test
           command: |
             cd test
-            docker compose build test
             docker compose up test --build --exit-code-from test
       - run:
           name: Print trayce_agent logs

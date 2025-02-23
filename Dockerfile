@@ -1,12 +1,34 @@
 #
 # Build Image
 #
-FROM ubuntu:22.04 AS build
+FROM ubuntu:25.04 AS build
 ENV GO_VERSION=1.23.0
 
 # Build dependencies:
 RUN apt update -y
-RUN apt install --fix-missing -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget binutils git libssl-dev protobuf-compiler gcc
+RUN apt upgrade -y
+RUN apt install --fix-missing -y \
+    clang \
+    libelf1 \
+    libelf-dev \
+    zlib1g-dev \
+    make \
+    build-essential \
+    libz-dev \
+    libcap-dev \
+    llvm \
+    llvm-dev \
+    lld \
+    binutils-dev \
+    pkg-config \
+    linux-tools-generic \
+    wget \
+    binutils \
+    git \
+    libssl-dev \
+    protobuf-compiler \
+    gcc \
+    libzstd-dev
 
 # Debugging tools:
 # RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
@@ -28,6 +50,11 @@ RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\
 
 WORKDIR /app
 ADD . /app
+
+RUN apt install -y \
+    libelf1 \
+    libdw1 \
+    libzstd1
 
 RUN make install-libbpf
 RUN make
