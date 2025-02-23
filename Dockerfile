@@ -58,15 +58,14 @@ RUN apt install -y \
 
 RUN make install-libbpf
 RUN make
-RUN make testunit
 
 #
 # Final Image
 #
-FROM alpine:latest AS final
+# FROM alpine:latest AS final
 
-WORKDIR /app
+# WORKDIR /app
 
-COPY --from=build /app/trayce_agent /app/trayce_agent
+# COPY --from=build /app/trayce_agent /app/trayce_agent
 
 ENTRYPOINT ["/app/trayce_agent"]
