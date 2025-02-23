@@ -74,7 +74,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          docker_layer_caching: true
+          docker_layer_caching: false
           version: edge
       - build-and-test
       - push
@@ -89,7 +89,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          docker_layer_caching: true
+          docker_layer_caching: false
           version: edge
       - build-and-test
       - push
@@ -100,7 +100,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          docker_layer_caching: true
+          docker_layer_caching: false
       - check-release
       - publish
 
