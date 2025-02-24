@@ -57,11 +57,11 @@ RUN make
 #
 # Final Image
 #
-# FROM ubuntu:25.04 AS final
+FROM ubuntu:25.04 AS final
 
-# WORKDIR /app
-# RUN apt update -y && apt install -y libelf-dev
+WORKDIR /app
+RUN apt update -y && apt install -y libelf-dev
 
-# COPY --from=build /app/trayce_agent /app/trayce_agent
+COPY --from=build /app/trayce_agent /app/trayce_agent
 
-ENTRYPOINT ["bash"]
+ENTRYPOINT ["/app/trayce_agent"]

@@ -43,7 +43,6 @@ func Test_agent_server(t *testing.T) {
 		trayceAgent = exec.Command("/app/trayce_agent")
 		trayceAgent.Stdout = &stdoutBuf
 		trayceAgent.Stderr = &stderrBuf
-		fmt.Println("STARTED TRAYCE AGENT")
 	}
 
 	// Wait for trayce_agent to start, timeout of 5secs:
@@ -54,7 +53,7 @@ func Test_agent_server(t *testing.T) {
 	// Trigger the command and then wait for the context to complete
 	if startAgent {
 		trayceAgent.Start()
-		fmt.Println("STARTED TRAYCE AGENT2")
+		fmt.Println("Started trayce_agent")
 	}
 	<-ctx.Done()
 	time.Sleep(2000 * time.Millisecond)
@@ -353,7 +352,7 @@ func Test_agent_server(t *testing.T) {
 			// if err != nil {
 			// 	fmt.Println("Error writing to file:", err)
 			// }
-			// fmt.Println(stdoutBuf.String())
+			fmt.Println(stdoutBuf.String())
 
 			// Verify the result
 			assert.Equal(t, expectedNumFlows*multiplier, len(flows))

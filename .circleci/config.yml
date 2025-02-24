@@ -127,7 +127,7 @@ commands:
           command: docker compose up test --build --exit-code-from test
       - run:
           name: Print trayce_agent logs
-          command: cd test && docker compose logs trayce_agent
+          command: docker compose logs trayce_agent
           when: always
   push:
     description: Push the image to docker hub
