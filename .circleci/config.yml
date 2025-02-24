@@ -121,12 +121,10 @@ commands:
             GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
             GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
             GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/grpc_server/
-            cd test && docker compose up --build -d trayce_agent megaserver
+            docker compose up --build -d trayce_agent megaserver
       - run:
           name: Test
-          command: |
-            cd test
-            docker compose up test --build --exit-code-from test
+          command: docker compose up test --build --exit-code-from test
       - run:
           name: Print trayce_agent logs
           command: cd test && docker compose logs trayce_agent

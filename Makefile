@@ -51,7 +51,7 @@ build: generate
 # test runs the tests but it also starts the trayce_agent process, its intended to be used during local development
 # from within the build container
 test:
-	START_AGENT=false go test ./test -v -count=1 -short -run Test_agent_server
+	go test ./test -v -count=1 -short -run Test_agent_server
 
 testload:
 	$(CGO_FLAGS) \
@@ -74,7 +74,7 @@ clean:
 	rm -f internal/bundle.go
 
 dev:
-	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -it trayce_agent:local bash
+	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -it trayce_agent:local
 
 decision:
 	@timestamp=$$(date +"%Y-%m-%d"); \

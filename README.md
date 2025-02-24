@@ -18,7 +18,7 @@ docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock 
 ```
 
 ### Develop
-Run the bash on the build container with a volume so you can make changes, rebuild and run trayce_agent easily. First comment out the final build stage of the Dockerfile, then build it to `trayce_agent:local` and run:
+Run the bash on the build container with a volume so you can make changes, rebuild and run trayce_agent easily. First comment out the final build stage of the Dockerfile, and change the entrypoint to `bash` then build it to `trayce_agent:local` and run:
 ```
 make dev
 ```
@@ -30,19 +30,19 @@ make
 (You must have a GRPC server running at 192.168.0.20:50051, you can do that by starting the GUI).
 
 ### Test
-First ensure the test containers are running:
+First ensure the megaserver is running:
 ```
-cd test && docker compose up
+docker compose up megaserver
 ```
 
 Run tests from within the build container (from the "Develop" step):
 ```
-make test
+START_AGENT=true make test
 ```
 
 Run load tests:
 ```
-make testload
+START_AGENT=true make testload
 ```
 
 Run unit tests:

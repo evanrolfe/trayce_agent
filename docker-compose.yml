@@ -10,7 +10,7 @@ networks:
 services:
   megaserver:
     build:
-      context: ./mega_server
+      context: ./test/mega_server
     container_name: megaserver
     # volumes:
     #   - ./mega_server:/app
@@ -35,7 +35,7 @@ services:
 
   trayce_agent:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
     pid: host
     privileged: true
@@ -48,7 +48,7 @@ services:
   test:
     hostname: test
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile.test
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
