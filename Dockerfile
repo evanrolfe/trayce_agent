@@ -51,21 +51,17 @@ RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\
 WORKDIR /app
 ADD . /app
 
-RUN apt install -y \
-    libelf1 \
-    libdw1 \
-    libzstd1
-
 RUN make install-libbpf
 RUN make
 
 #
 # Final Image
 #
-# FROM alpine:latest AS final
+FROM ubuntu:25.04 AS final
 
-# WORKDIR /app
+WORKDIR /app
+RUN apt update -y && apt install -y libelf-dev
 
-# COPY --from=build /app/trayce_agent /app/trayce_agent
+COPY --from=build /app/trayce_agent /app/trayce_agent
 
 ENTRYPOINT ["/app/trayce_agent"]
