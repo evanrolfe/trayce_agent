@@ -86,8 +86,6 @@ services:
       - POSTGRES_DB=megadb
     ports:
       - "5432:5432"
-    volumes:
-      - ./test/mega_server/postgres:/docker-entrypoint-initdb.d
     command: ["postgres", "-c", "log_statement=all", "-c", "log_min_duration_statement=0", "-c", "log_connections=on"]
     networks:
       - trayce_network
@@ -109,8 +107,6 @@ services:
       - MYSQL_DATABASE=megadb
     ports:
       - "3306:3306"
-    volumes:
-      - ./test/mega_server/mysql:/docker-entrypoint-initdb.d
     command: --general-log=1 --general-log-file=/var/log/mysql/general-log.log
     networks:
       - trayce_network

@@ -58,6 +58,31 @@ func (h *Handlers) Init() error {
 	}
 	h.mysqlDB = mysqlDB
 
+	// Initialize MySQL schema
+	initMySQL := `
+        CREATE TABLE IF NOT EXISTS things (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name TEXT NOT NULL,
+            quantity INT NOT NULL DEFAULT 0,
+            price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Delete existing data to avoid duplicates on restart
+        TRUNCATE TABLE things;
+
+        INSERT INTO things (name, quantity, price)
+        VALUES
+            ('Widget', 5, 19.99),
+            ('Gadget', 10, 5.49),
+            ('Doodah', 3, 99.99);
+    `
+
+	if _, err := h.mysqlDB.Exec(initMySQL); err != nil {
+		h.mysqlDB.Close()
+		return fmt.Errorf("error initializing mysql schema: %w", err)
+	}
+
 	// PostgreSQL connection
 	pgDSN := fmt.Sprintf("postgres://postgres:postgres@%s/megadb?sslmode=disable", pgAddr)
 	pgDB, err := sql.Open("postgres", pgDSN)
@@ -71,6 +96,32 @@ func (h *Handlers) Init() error {
 		return fmt.Errorf("error pinging postgres: %w", err)
 	}
 	h.pgDB = pgDB
+
+	// Initialize PostgreSQL schema
+	initSQL := `
+        CREATE TABLE IF NOT EXISTS things (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 0,
+            price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+
+        -- Delete existing data to avoid duplicates on restart
+        TRUNCATE TABLE things;
+
+        INSERT INTO things (name, quantity, price)
+        VALUES
+            ('Widget', 5, 19.99),
+            ('Gadget', 10, 5.49),
+            ('Doodah', 3, 99.99);
+    `
+
+	if _, err := h.pgDB.Exec(initSQL); err != nil {
+		h.pgDB.Close()
+		h.mysqlDB.Close()
+		return fmt.Errorf("error initializing postgres schema: %w", err)
+	}
 
 	return nil
 }
