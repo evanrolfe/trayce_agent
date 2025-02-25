@@ -117,11 +117,7 @@ commands:
             echo 'export PATH="$PATH:/home/circleci/go/bin/"' >> $BASH_ENV
       - run:
           name: Start dependencies
-          command: |
-            GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
-            GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
-            GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/grpc_server/
-            docker compose up --build -d trayce_agent megaserver
+          command: docker compose up --build -d trayce_agent megaserver
       - run:
           name: Test
           command: docker compose up test --build --exit-code-from test
