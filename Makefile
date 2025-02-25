@@ -48,14 +48,15 @@ build: generate
 
 	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./trayce_agent\n$(DIV)"
 
-# test runs the tests but it also starts the trayce_agent process, its intended to be used during local development
-# from within the build container
 test:
 	go test ./test -v -count=1 -short -run Test_agent_server
 
 testload:
-	$(CGO_FLAGS) \
-	START_AGENT=true go test ./test -v -count=1 -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
+	go test ./test -v -count=1 -run Test_agent_server
+
+testall:
+	go test ./test -v -count=1 -short -run Test_agent_server || exit $$?
+	go test ./test -v -count=1 -run Test_agent_server || exit $$?
 
 testunit: generate
 	$(CGO_FLAGS) \
@@ -74,7 +75,7 @@ clean:
 	rm -f internal/bundle.go
 
 dev:
-	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -it trayce_agent:local
+	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -it trayce_agent:local bash
 
 decision:
 	@timestamp=$$(date +"%Y-%m-%d"); \
