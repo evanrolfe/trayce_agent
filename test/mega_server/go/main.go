@@ -59,28 +59,35 @@ func (h *Handlers) Init() error {
 	h.mysqlDB = mysqlDB
 
 	// Initialize MySQL schema
-	initMySQL := `
+	createTableSQL := `
         CREATE TABLE IF NOT EXISTS things (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name TEXT NOT NULL,
             quantity INT NOT NULL DEFAULT 0,
             price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
+        )`
 
-        -- Delete existing data to avoid duplicates on restart
-        TRUNCATE TABLE things;
+	if _, err := h.mysqlDB.Exec(createTableSQL); err != nil {
+		h.mysqlDB.Close()
+		return fmt.Errorf("error creating mysql table: %w", err)
+	}
 
+	if _, err := h.mysqlDB.Exec("TRUNCATE TABLE things"); err != nil {
+		h.mysqlDB.Close()
+		return fmt.Errorf("error truncating mysql table: %w", err)
+	}
+
+	insertSQL := `
         INSERT INTO things (name, quantity, price)
         VALUES
             ('Widget', 5, 19.99),
             ('Gadget', 10, 5.49),
-            ('Doodah', 3, 99.99);
-    `
+            ('Doodah', 3, 99.99)`
 
-	if _, err := h.mysqlDB.Exec(initMySQL); err != nil {
+	if _, err := h.mysqlDB.Exec(insertSQL); err != nil {
 		h.mysqlDB.Close()
-		return fmt.Errorf("error initializing mysql schema: %w", err)
+		return fmt.Errorf("error inserting mysql data: %w", err)
 	}
 
 	// PostgreSQL connection
