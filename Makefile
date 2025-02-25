@@ -75,7 +75,7 @@ clean:
 	rm -f internal/bundle.go
 
 dev:
-	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -it trayce_agent:local bash
+	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -it trayce_agent:local
 
 decision:
 	@timestamp=$$(date +"%Y-%m-%d"); \

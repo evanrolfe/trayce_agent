@@ -140,20 +140,23 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 }
 
 func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
-	// Try parsing the buffer to an HTTP response
+	// Try parsing the buffer to an HTTP request
 	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(buf)))
 	if err != nil {
 		// fmt.Println("Error parsing response:", err)
 		return nil
 	}
 
-	// Readall from the body to ensure its complete
-	_, err = io.ReadAll(req.Body)
+	// Read the body to ensure it's complete
+	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		// fmt.Println("Error reading response body:", err)
 		return nil
 	}
 	req.Body.Close()
+
+	// Set the body back on the request so it can be read again later
+	req.Body = io.NopCloser(bytes.NewReader(body))
 
 	return req
 }

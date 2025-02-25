@@ -25,6 +25,8 @@ var _ = Describe("SocketHTTP1.1", func() {
 	gzip1Payload, _ := hexDumpToBytes(gzipEvent1)
 	gzip2Payload, _ := hexDumpToBytes(gzipEvent2)
 
+	post1Payload, _ := hexDumpToBytes(eventPost1)
+
 	Context("Receiving Data (request) events", Ordered, func() {
 		var flows []*sockets.Flow
 		payloads := [][]byte{
@@ -499,6 +501,50 @@ var _ = Describe("SocketHTTP1.1", func() {
 			Expect(resp.Headers["Content-Type"]).To(Equal([]string{"text/html; charset=UTF-8"}))
 			Expect(resp.Headers["Date"]).To(Equal([]string{"Mon, 12 Aug 2024 07:23:28 GMT"}))
 			Expect(resp.Payload).To(Equal([]byte{60, 33, 100, 111, 99, 116, 121, 112, 101, 32, 104, 116, 109, 108, 62, 10, 60, 104, 116, 109, 108, 62, 10, 60, 104, 101, 97, 100, 62, 10, 32, 32, 32, 32, 60, 116, 105, 116, 108, 101, 62, 69, 120, 97, 109, 112, 108, 101, 32, 68, 111, 109, 97, 105, 110, 60, 47, 116, 105, 116, 108, 101, 62, 10, 10, 32, 32, 32, 32, 60, 109, 101, 116, 97, 32, 99, 104, 97, 114, 115, 101, 116, 61, 34, 117, 116, 102, 45, 56, 34, 32, 47, 62, 10, 32, 32, 32, 32, 60, 109, 101, 116, 97, 32, 104, 116, 116, 112, 45, 101, 113, 117, 105, 118, 61, 34, 67, 111, 110, 116, 101, 110, 116, 45, 116, 121, 112, 101, 34, 32, 99, 111, 110, 116, 101, 110, 116, 61, 34, 116, 101, 120, 116, 47, 104, 116, 109, 108, 59, 32, 99, 104, 97, 114, 115, 101, 116, 61, 117, 116, 102, 45, 56, 34, 32, 47, 62, 10, 32, 32, 32, 32, 60, 109, 101, 116, 97, 32, 110, 97, 109, 101, 61, 34, 118, 105, 101, 119, 112, 111, 114, 116, 34, 32, 99, 111, 110, 116, 101, 110, 116, 61, 34, 119, 105, 100, 116, 104, 61, 100, 101, 118, 105, 99, 101, 45, 119, 105, 100, 116, 104, 44, 32, 105, 110, 105, 116, 105, 97, 108, 45, 115, 99, 97, 108, 101, 61, 49, 34, 32, 47, 62, 10, 32, 32, 32, 32, 60, 115, 116, 121, 108, 101, 32, 116, 121, 112, 101, 61, 34, 116, 101, 120, 116, 47, 99, 115, 115, 34, 62, 10, 32, 32, 32, 32, 98, 111, 100, 121, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 98, 97, 99, 107, 103, 114, 111, 117, 110, 100, 45, 99, 111, 108, 111, 114, 58, 32, 35, 102, 48, 102, 48, 102, 50, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 109, 97, 114, 103, 105, 110, 58, 32, 48, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 112, 97, 100, 100, 105, 110, 103, 58, 32, 48, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 102, 111, 110, 116, 45, 102, 97, 109, 105, 108, 121, 58, 32, 45, 97, 112, 112, 108, 101, 45, 115, 121, 115, 116, 101, 109, 44, 32, 115, 121, 115, 116, 101, 109, 45, 117, 105, 44, 32, 66, 108, 105, 110, 107, 77, 97, 99, 83, 121, 115, 116, 101, 109, 70, 111, 110, 116, 44, 32, 34, 83, 101, 103, 111, 101, 32, 85, 73, 34, 44, 32, 34, 79, 112, 101, 110, 32, 83, 97, 110, 115, 34, 44, 32, 34, 72, 101, 108, 118, 101, 116, 105, 99, 97, 32, 78, 101, 117, 101, 34, 44, 32, 72, 101, 108, 118, 101, 116, 105, 99, 97, 44, 32, 65, 114, 105, 97, 108, 44, 32, 115, 97, 110, 115, 45, 115, 101, 114, 105, 102, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 10, 32, 32, 32, 32, 125, 10, 32, 32, 32, 32, 100, 105, 118, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 119, 105, 100, 116, 104, 58, 32, 54, 48, 48, 112, 120, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 109, 97, 114, 103, 105, 110, 58, 32, 53, 101, 109, 32, 97, 117, 116, 111, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 112, 97, 100, 100, 105, 110, 103, 58, 32, 50, 101, 109, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 98, 97, 99, 107, 103, 114, 111, 117, 110, 100, 45, 99, 111, 108, 111, 114, 58, 32, 35, 102, 100, 102, 100, 102, 102, 59, 10, 32, 32, 32, 32, 32, 32, 32, 32, 98, 111, 114, 100, 101, 114, 45, 114, 97, 100, 105, 117, 115, 58}))
+		})
+	})
+
+	Context("Receiving POST request with body", Ordered, func() {
+		var flows []*sockets.Flow
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp11("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: events.KRead,
+				Data:     convertSliceToArray(post1Payload),
+				DataLen:  int32(len(post1Payload)),
+			})
+
+		})
+
+		It("returns a flow", func() {
+			Expect(flows).To(HaveLen(1))
+
+			flow := flows[0]
+			Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+			Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("http"))
+			Expect(flow.PID).To(Equal(123))
+			Expect(flow.FD).To(Equal(5))
+
+			httpReq := flow.Request.(*sockets.HTTPRequest)
+			Expect(httpReq.Method).To(Equal("POST"))
+			Expect(httpReq.Host).To(Equal("megaserver:4122"))
+			Expect(httpReq.Path).To(Equal("/"))
+			Expect(httpReq.HttpVersion).To(Equal("1.1"))
+			Expect(httpReq.Headers["User-Agent"]).To(ConsistOf([]string{"curl/8.12.1"}))
+			Expect(httpReq.Headers["Accept"]).To(ConsistOf([]string{"*/*"}))
+			Expect(httpReq.Headers["Content-Length"]).To(ConsistOf([]string{"19"}))
+			Expect(httpReq.Headers["Content-Type"]).To(ConsistOf([]string{"application/x-www-form-urlencoded"}))
+			Expect(string(httpReq.Payload)).To(Equal("!!!!!hellowrodl!!!!"))
 		})
 	})
 })
