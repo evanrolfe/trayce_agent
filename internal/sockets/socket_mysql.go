@@ -39,55 +39,55 @@ func NewSocketMysqlFromUnknown(unkownSocket *SocketUnknown) SocketMysql {
 	return socket
 }
 
-func (socket *SocketMysql) Key() string {
-	return socket.Common.Key()
+func (sk *SocketMysql) Key() string {
+	return sk.Common.Key()
 }
 
-func (socket *SocketMysql) AddFlowCallback(callback func(Flow)) {
-	socket.Common.AddFlowCallback(callback)
+func (sk *SocketMysql) AddFlowCallback(callback func(Flow)) {
+	sk.Common.AddFlowCallback(callback)
 }
 
-func (socket *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
-	if socket.Common.SSL && !event.SSL() {
+func (sk *SocketMysql) ProcessDataEvent(event *events.DataEvent) {
+	if sk.Common.SSL && !event.SSL() {
 		return // If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
 	}
 
-	if event.SSL() && !socket.Common.SSL {
+	if event.SSL() && !sk.Common.SSL {
 		fmt.Println("[SocketMysql] upgrading to SSL")
-		socket.Common.UpgradeToSSL()
+		sk.Common.UpgradeToSSL()
 	}
 
 	if event.Type() == events.TypeIngress {
-		socket.bufIngress = append(socket.bufIngress, event.Payload()...)
+		sk.bufIngress = append(sk.bufIngress, event.Payload()...)
 
 		// Check ingress messages & process them
-		ingressMessages := ExtractMySQLMessages(socket.bufIngress)
+		ingressMessages := ExtractMySQLMessages(sk.bufIngress)
 		if len(ingressMessages) > 0 {
-			socket.clearIngress()
+			sk.clearIngress()
 		}
 
 		for _, msg := range ingressMessages {
 			if msg.SequenceNum > 0 {
-				socket.handleAsClient(msg)
+				sk.handleAsClient(msg)
 			} else {
-				socket.handleAsServer(msg)
+				sk.handleAsServer(msg)
 			}
 		}
 
 	} else if event.Type() == events.TypeEgress {
-		socket.bufEgress = append(socket.bufEgress, event.Payload()...)
+		sk.bufEgress = append(sk.bufEgress, event.Payload()...)
 
 		// Check ingress messages & process them
-		egressMessages := ExtractMySQLMessages(socket.bufEgress)
+		egressMessages := ExtractMySQLMessages(sk.bufEgress)
 		if len(egressMessages) > 0 {
-			socket.clearEgress()
+			sk.clearEgress()
 		}
 
 		for _, msg := range egressMessages {
 			if msg.SequenceNum > 0 {
-				socket.handleAsClient(msg)
+				sk.handleAsClient(msg)
 			} else {
-				socket.handleAsServer(msg)
+				sk.handleAsServer(msg)
 			}
 		}
 	}
@@ -115,7 +115,7 @@ func isAllowedSQLCommand(s string) bool {
 		strings.HasPrefix(prefix, "START")
 }
 
-func (socket *SocketMysql) newFlowFromQuery(rawQuery []byte) *Flow {
+func (sk *SocketMysql) newFlowFromQuery(rawQuery []byte) *Flow {
 	sqlQuery := NewMysqlQuery(rawQuery)
 
 	if !isAllowedSQLCommand(sqlQuery.Query) {
@@ -123,15 +123,15 @@ func (socket *SocketMysql) newFlowFromQuery(rawQuery []byte) *Flow {
 		return nil
 	}
 
-	socket.requestUuid = uuid.NewString()
+	sk.requestUuid = uuid.NewString()
 	flow := NewFlowRequest(
-		socket.requestUuid,
-		socket.Common.SourceAddr,
-		socket.Common.DestAddr,
+		sk.requestUuid,
+		sk.Common.SourceAddr,
+		sk.Common.DestAddr,
 		"tcp",
 		"mysql",
-		int(socket.Common.PID),
-		int(socket.Common.FD),
+		int(sk.Common.PID),
+		int(sk.Common.FD),
 		&sqlQuery,
 	)
 
@@ -150,29 +150,29 @@ func (socket *SocketMysql) newFlowFromQuery(rawQuery []byte) *Flow {
 // 	}
 // }
 
-func (socket *SocketMysql) handleAsServer(msg MysqlMessage) {
-	socket.bufResp = nil // everytime a message goes from client->server, reset the buffered response
+func (sk *SocketMysql) handleAsServer(msg MysqlMessage) {
+	sk.bufResp = nil // everytime a message goes from client->server, reset the buffered response
 	switch msg.Type {
 	case TypeMysqlQuery:
-		flow := socket.newFlowFromQuery(msg.Payload)
+		flow := sk.newFlowFromQuery(msg.Payload)
 		if flow == nil {
 			return
 		}
-		socket.Common.sendFlowBack(*flow)
+		sk.Common.sendFlowBack(*flow)
 
 	case TypeMysqlPrepareQuery:
-		socket.bufStatement = msg.Payload
+		sk.bufStatement = msg.Payload
 
 	case TypeMysqlExecute:
-		if len(socket.bufStatement) == 0 {
-			socket.bufStatement = []byte("PREPARED STATEMENT")
+		if len(sk.bufStatement) == 0 {
+			sk.bufStatement = []byte("PREPARED STATEMENT")
 		}
-		flow := socket.newFlowFromQuery(socket.bufStatement)
+		flow := sk.newFlowFromQuery(sk.bufStatement)
 		if flow == nil {
 			return
 		}
-		socket.Common.sendFlowBack(*flow)
-		socket.bufStatement = []byte{}
+		sk.Common.sendFlowBack(*flow)
+		sk.bufStatement = []byte{}
 
 	case TypeMysqlClose:
 		// TODO: Handle close, should delete the prepared statement
@@ -182,46 +182,46 @@ func (socket *SocketMysql) handleAsServer(msg MysqlMessage) {
 	}
 }
 
-func (socket *SocketMysql) handleAsClient(msg MysqlMessage) {
-	if socket.requestUuid == "" {
+func (sk *SocketMysql) handleAsClient(msg MysqlMessage) {
+	if sk.requestUuid == "" {
 		// No query has been observed yet, so ignore this mesage
 		return
 	}
 
-	if socket.bufResp == nil {
+	if sk.bufResp == nil {
 		resp := NewMysqlResponse()
-		socket.bufResp = &resp
+		sk.bufResp = &resp
 	}
 
-	socket.bufResp.AddMessage(msg)
+	sk.bufResp.AddMessage(msg)
 
-	if socket.bufResp.Complete() {
+	if sk.bufResp.Complete() {
 		flow := NewFlowResponse(
-			socket.requestUuid,
-			socket.Common.SourceAddr,
-			socket.Common.DestAddr,
+			sk.requestUuid,
+			sk.Common.SourceAddr,
+			sk.Common.DestAddr,
 			"tcp",
 			"mysql",
-			int(socket.Common.PID),
-			int(socket.Common.FD),
-			socket.bufResp,
+			int(sk.Common.PID),
+			int(sk.Common.FD),
+			sk.bufResp,
 		)
-		socket.Common.sendFlowBack(*flow)
-		socket.clearBufResponse()
+		sk.Common.sendFlowBack(*flow)
+		sk.clearBufResponse()
 	}
 }
 
-func (socket *SocketMysql) clearIngress() {
-	socket.bufIngress = []byte{}
+func (sk *SocketMysql) clearIngress() {
+	sk.bufIngress = []byte{}
 }
 
-func (socket *SocketMysql) clearEgress() {
-	socket.bufEgress = []byte{}
+func (sk *SocketMysql) clearEgress() {
+	sk.bufEgress = []byte{}
 }
 
-func (socket *SocketMysql) clearBufResponse() {
-	socket.bufResp = nil
-	socket.requestUuid = ""
+func (sk *SocketMysql) clearBufResponse() {
+	sk.bufResp = nil
+	sk.requestUuid = ""
 }
 
 // ExtractMySQLMessages parses the provided data and returns a slice of payloads.

@@ -13,21 +13,21 @@ func NewPSQLQuery(query string) PSQLQuery {
 	}
 }
 
-func (q *PSQLQuery) AddPayload(data []byte) {
+func (qry *PSQLQuery) AddPayload(data []byte) {
 	// Do nothing, this isn't used for sql queries
 	params, err := extractBindArgsFromPayload(data)
 	if err != nil {
 		fmt.Println("[Error] extractBindArgsFromPayload():", err)
 		return
 	}
-	q.Params = params
+	qry.Params = params
 }
 
-func (q *PSQLQuery) String() string {
-	out := q.Query
-	if len(q.Params) > 0 {
+func (qry *PSQLQuery) String() string {
+	out := qry.Query
+	if len(qry.Params) > 0 {
 		out += "\n"
-		for _, param := range q.Params {
+		for _, param := range qry.Params {
 			out += fmt.Sprintf("%s\n", param)
 		}
 	}

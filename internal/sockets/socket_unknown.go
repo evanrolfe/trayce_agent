@@ -36,21 +36,21 @@ func NewSocketUnknownFromData(event *events.DataEvent) SocketUnknown {
 	return socket
 }
 
-func (socket *SocketUnknown) Key() string {
-	return fmt.Sprintf("%s->%s", socket.SourceAddr, socket.DestAddr)
+func (sk *SocketUnknown) Key() string {
+	return fmt.Sprintf("%s->%s", sk.SourceAddr, sk.DestAddr)
 }
 
-func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
-	socket.flowCallbacks = append(socket.flowCallbacks, callback)
+func (sk *SocketUnknown) AddFlowCallback(callback func(Flow)) {
+	sk.flowCallbacks = append(sk.flowCallbacks, callback)
 }
 
-func (socket *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
+func (sk *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
 }
 
-func (socket *SocketUnknown) SetPrevDataEvent(event *events.DataEvent) {
-	socket.prevDataEvent = event
+func (sk *SocketUnknown) SetPrevDataEvent(event *events.DataEvent) {
+	sk.prevDataEvent = event
 }
 
-func (socket *SocketUnknown) GetPrevDataEvent() *events.DataEvent {
-	return socket.prevDataEvent
+func (sk *SocketUnknown) GetPrevDataEvent() *events.DataEvent {
+	return sk.prevDataEvent
 }

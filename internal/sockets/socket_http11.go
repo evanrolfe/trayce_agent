@@ -59,54 +59,54 @@ func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 	return socket
 }
 
-func (socket *SocketHttp11) Key() string {
-	return socket.Common.Key()
+func (sk *SocketHttp11) Key() string {
+	return sk.Common.Key()
 }
 
-func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
-	socket.Common.AddFlowCallback(callback)
+func (sk *SocketHttp11) AddFlowCallback(callback func(Flow)) {
+	sk.Common.AddFlowCallback(callback)
 }
 
-func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
-	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf), " ssl?", event.SSL())
+func (sk *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
+	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(sk.dataBuf), " ssl?", event.SSL())
 	// fmt.Println(hex.Dump(event.Payload()))
 
-	if socket.Common.SSL && !event.SSL() {
+	if sk.Common.SSL && !event.SSL() {
 		// If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
 		return
 	}
 
-	if event.SSL() && !socket.Common.SSL {
+	if event.SSL() && !sk.Common.SSL {
 		fmt.Println("[SocketHttp1.1] upgrading to SSL")
-		socket.Common.UpgradeToSSL()
+		sk.Common.UpgradeToSSL()
 	}
 
 	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe
 	// this check fixes that because the encrypted data is dropped since it doesnt start with GET
 	if isStartOfHTTPMessage(event.Payload()) {
-		socket.clearDataBuffer()
+		sk.clearDataBuffer()
 		fmt.Println("[SocketHttp1.1] clearing dataBuffer")
 	}
 
-	socket.dataBuf = append(socket.dataBuf, stripTrailingZeros(event.Payload())...)
+	sk.dataBuf = append(sk.dataBuf, stripTrailingZeros(event.Payload())...)
 
 	// 1. Attempt to parse buffer as an HTTP request
-	req := socket.parseHTTPRequest(socket.dataBuf)
+	req := sk.parseHTTPRequest(sk.dataBuf)
 	if req != nil {
-		socket.requestUuid = uuid.NewString()
+		sk.requestUuid = uuid.NewString()
 		fmt.Println("[SocketHttp1.1] HTTP request complete")
 		flow := NewFlowRequest(
-			socket.requestUuid,
-			socket.Common.SourceAddr,
-			socket.Common.DestAddr,
+			sk.requestUuid,
+			sk.Common.SourceAddr,
+			sk.Common.DestAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
-			int(socket.Common.PID),
-			int(socket.Common.FD),
+			int(sk.Common.PID),
+			int(sk.Common.FD),
 			convertToHTTPRequest(req),
 		)
-		socket.clearDataBuffer()
-		socket.Common.sendFlowBack(*flow)
+		sk.clearDataBuffer()
+		sk.Common.sendFlowBack(*flow)
 		return
 	}
 
@@ -118,28 +118,28 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	// 2. Attempt to parse buffer as an HTTP response
 	// TODO: This code is quite convaluted and could probably be simplified, i.e. by just returning a response struct
 	// with the decompressed body set on it
-	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf, isFromGo)
+	resp, decompressedBuf := sk.parseHTTPResponse(sk.dataBuf, isFromGo)
 	respBody := extractResponseBody(decompressedBuf)
 
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
 		flow := NewFlowResponse(
-			socket.requestUuid,
-			socket.Common.SourceAddr,
-			socket.Common.DestAddr,
+			sk.requestUuid,
+			sk.Common.SourceAddr,
+			sk.Common.DestAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
-			int(socket.Common.PID),
-			int(socket.Common.FD),
+			int(sk.Common.PID),
+			int(sk.Common.FD),
 			convertToHTTPResponse(resp, respBody),
 		)
 
-		socket.clearDataBuffer()
-		socket.Common.sendFlowBack(*flow)
+		sk.clearDataBuffer()
+		sk.Common.sendFlowBack(*flow)
 	}
 }
 
-func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
+func (sk *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 	// Try parsing the buffer to an HTTP request
 	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(buf)))
 	if err != nil {
@@ -164,7 +164,7 @@ func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 // TODO: Go's HTTP parsing lib has some weird behaviour and doesn't always work in the way we need it to. We should
 // probably just write our own HTTP parsing function, there are so many work-arounds an extra checks I need to do here
 // just to be able to use the std lib, its probably more complicated then rolling our own parser..
-func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Response, []byte) {
+func (sk *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Response, []byte) {
 	// Hacky solution because http.ReadResponse does not return the Transfer-Encoding header for some stupid reason
 	isChunked := false
 	fullHeaders, err := parseHTTPResponseHeaders(buf)

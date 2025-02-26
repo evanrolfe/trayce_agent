@@ -35,22 +35,22 @@ func NewSocketPsqlFromUnknown(unkownSocket *SocketUnknown) SocketPsql {
 	return socket
 }
 
-func (socket *SocketPsql) Key() string {
-	return socket.Common.Key()
+func (sk *SocketPsql) Key() string {
+	return sk.Common.Key()
 }
 
-func (socket *SocketPsql) AddFlowCallback(callback func(Flow)) {
-	socket.Common.AddFlowCallback(callback)
+func (sk *SocketPsql) AddFlowCallback(callback func(Flow)) {
+	sk.Common.AddFlowCallback(callback)
 }
 
-func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
-	if socket.Common.SSL && !event.SSL() {
+func (sk *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
+	if sk.Common.SSL && !event.SSL() {
 		return // If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
 	}
 
-	if event.SSL() && !socket.Common.SSL {
+	if event.SSL() && !sk.Common.SSL {
 		fmt.Println("[SocketPsql] upgrading to SSL")
-		socket.Common.UpgradeToSSL()
+		sk.Common.UpgradeToSSL()
 	}
 
 	payload := event.Payload()
@@ -64,8 +64,8 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				return
 			}
 			sqlQuery := NewPSQLQuery(string(trimNonASCII(msg.Payload)))
-			socket.newFlowFromQuery(sqlQuery)
-			socket.Common.sendFlowBack(*socket.bufQueryFlow)
+			sk.newFlowFromQuery(sqlQuery)
+			sk.Common.sendFlowBack(*sk.bufQueryFlow)
 		case TypeParse:
 			_, queryStr, err := extractNamedQuery(msg.Payload)
 			if err != nil {
@@ -74,23 +74,23 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 			}
 
 			sqlQuery := NewPSQLQuery(queryStr)
-			socket.newFlowFromQuery(sqlQuery)
+			sk.newFlowFromQuery(sqlQuery)
 		case TypeBind:
-			if socket.bufQueryFlow == nil {
+			if sk.bufQueryFlow == nil {
 				// In a Postgres named query, we will just get a Bind message and the name of the query, but not the query itself
 				// so in this case we just create a PSQLQuery with the query name as query
 				sqlQuery := NewPSQLQuery("PREPARED STATEMENT")
-				socket.newFlowFromQuery(sqlQuery)
+				sk.newFlowFromQuery(sqlQuery)
 			}
 
-			query, ok := socket.bufQueryFlow.Request.(*PSQLQuery)
+			query, ok := sk.bufQueryFlow.Request.(*PSQLQuery)
 			if !ok {
 				fmt.Println("[Error] [SocketPsql] could not convert FlowRequest to SQLQuery")
 				return
 			}
 			query.AddPayload(msg.Payload)
-			socket.Common.sendFlowBack(*socket.bufQueryFlow)
-			socket.clearBufQueryFlow()
+			sk.Common.sendFlowBack(*sk.bufQueryFlow)
+			sk.clearBufQueryFlow()
 		case TypeRowDesc:
 			sqlResp, err := PSQLResponseFromRowDescription(msg.Payload)
 			if err != nil {
@@ -98,61 +98,61 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				return
 			}
 			flow := NewFlowResponse(
-				socket.requestUuid,
-				socket.Common.SourceAddr,
-				socket.Common.DestAddr,
+				sk.requestUuid,
+				sk.Common.SourceAddr,
+				sk.Common.DestAddr,
 				"tcp",
 				"psql",
-				int(socket.Common.PID),
-				int(socket.Common.FD),
+				int(sk.Common.PID),
+				int(sk.Common.FD),
 				&sqlResp,
 			)
 			// Buffer the flow until we receive the all the rows in this response
-			socket.bufRespFlow = flow
+			sk.bufRespFlow = flow
 		case TypeDataRow:
-			if socket.bufRespFlow == nil {
+			if sk.bufRespFlow == nil {
 				fmt.Println("[Error] [SocketPsql] data row message received but there is no buffered flow!")
 				return
 			}
-			resp, ok := socket.bufRespFlow.Response.(*PSQLResponse)
+			resp, ok := sk.bufRespFlow.Response.(*PSQLResponse)
 			if !ok {
 				fmt.Println("[Error] [SocketPsql] could not convert FlowResponse to SQLResponse")
 				return
 			}
 			resp.AddPayload(msg.Payload) // TODO: Make this work
 		case TypeCommandComplete:
-			if socket.bufRespFlow == nil {
+			if sk.bufRespFlow == nil {
 				fmt.Println("[Error] [SocketPsql] bind message received but there is no buffered flow!")
 				return
 			}
-			socket.Common.sendFlowBack(*socket.bufRespFlow)
-			socket.clearBufRespFlow()
+			sk.Common.sendFlowBack(*sk.bufRespFlow)
+			sk.clearBufRespFlow()
 		}
 	}
 }
 
-func (socket *SocketPsql) newFlowFromQuery(sqlQuery PSQLQuery) {
-	socket.requestUuid = uuid.NewString()
+func (sk *SocketPsql) newFlowFromQuery(sqlQuery PSQLQuery) {
+	sk.requestUuid = uuid.NewString()
 	flow := NewFlowRequest(
-		socket.requestUuid,
-		socket.Common.SourceAddr,
-		socket.Common.DestAddr,
+		sk.requestUuid,
+		sk.Common.SourceAddr,
+		sk.Common.DestAddr,
 		"tcp",
 		"psql",
-		int(socket.Common.PID),
-		int(socket.Common.FD),
+		int(sk.Common.PID),
+		int(sk.Common.FD),
 		&sqlQuery,
 	)
 	// Buffer the flow until we receive the arguments of this prepared query in a postgres bind message
-	socket.bufQueryFlow = flow
+	sk.bufQueryFlow = flow
 }
 
-func (socket *SocketPsql) clearBufQueryFlow() {
-	socket.bufQueryFlow = nil
+func (sk *SocketPsql) clearBufQueryFlow() {
+	sk.bufQueryFlow = nil
 }
 
-func (socket *SocketPsql) clearBufRespFlow() {
-	socket.bufRespFlow = nil
+func (sk *SocketPsql) clearBufRespFlow() {
+	sk.bufRespFlow = nil
 }
 
 // extractMessages parses a PostgreSQL message stream and extracts individual messages

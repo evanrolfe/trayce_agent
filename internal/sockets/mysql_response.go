@@ -28,7 +28,7 @@ func NewMysqlResponse() MysqlResponse {
 	return MysqlResponse{Columns: []Column{}, colEOF: false, rowEOF: false, lastMsgSeq: nil}
 }
 
-func (q *MysqlResponse) AddPayload(data []byte) {
+func (resp *MysqlResponse) AddPayload(data []byte) {
 	// if msg.Type == TypeMysqlQuery { // this is a column being sent
 	// 	socket.bufResp.AddColumnPayload(msg.Payload[1:])
 	// } else if msg.Type == TypeMysqlRow {
@@ -38,44 +38,44 @@ func (q *MysqlResponse) AddPayload(data []byte) {
 	// }
 }
 
-func (q *MysqlResponse) AddMessage(msg MysqlMessage) {
+func (resp *MysqlResponse) AddMessage(msg MysqlMessage) {
 	defer func() {
-		q.lastMsgSeq = &msg.SequenceNum
+		resp.lastMsgSeq = &msg.SequenceNum
 	}()
 
-	if q.lastMsgSeq == nil {
+	if resp.lastMsgSeq == nil {
 		colCount, err := packet.ParseColumnCount(msg.FullMessage)
 		if err != nil {
 			fmt.Println("[Error] packet.ParseColumnCount():", err)
 			return
 		}
 		// First message received is the column count
-		q.colCount = int(colCount)
+		resp.colCount = int(colCount)
 
 		return
 	}
 
-	if *q.lastMsgSeq != msg.SequenceNum-1 && msg.SequenceNum != 0 {
-		fmt.Printf("[WARN] MysqlResponse.AddMessage() received an out-of-order message, seq: %d, last seq: %d\n", msg.SequenceNum, *q.lastMsgSeq)
+	if *resp.lastMsgSeq != msg.SequenceNum-1 && msg.SequenceNum != 0 {
+		fmt.Printf("[WARN] MysqlResponse.AddMessage() received an out-of-order message, seq: %d, last seq: %d\n", msg.SequenceNum, *resp.lastMsgSeq)
 		return
 	}
 
 	if msg.Type == TypeMysqlEOF {
-		q.AddEOF()
+		resp.AddEOF()
 		return
 	}
 
-	if q.colCount > len(q.Columns) {
+	if resp.colCount > len(resp.Columns) {
 		// Assume this is still a column definition being received
-		q.AddColumnPayload(msg.FullMessage)
+		resp.AddColumnPayload(msg.FullMessage)
 		return
 	}
 
-	q.AddRowPayload(msg)
+	resp.AddRowPayload(msg)
 }
 
 // AddColumnPayload decodes a single column payload and adds it to this response
-func (q *MysqlResponse) AddColumnPayload(data []byte) {
+func (resp *MysqlResponse) AddColumnPayload(data []byte) {
 	packetCol, err := packet.ParseColumnDefinition(data)
 	var col Column
 	if err != nil {
@@ -91,16 +91,16 @@ func (q *MysqlResponse) AddColumnPayload(data []byte) {
 		}
 	}
 
-	q.packetColumns = append(q.packetColumns, packetCol)
-	q.Columns = append(q.Columns, col)
+	resp.packetColumns = append(resp.packetColumns, packetCol)
+	resp.Columns = append(resp.Columns, col)
 }
 
 // AddRowPayload decodes a single row payload and adds it to this response
-func (q *MysqlResponse) AddRowPayload(msg MysqlMessage) {
+func (resp *MysqlResponse) AddRowPayload(msg MysqlMessage) {
 	row := []string{}
 
 	if msg.Payload[0] == 0x00 {
-		packetRow, err := packet.ParseBinaryResultSetRow(msg.FullMessage, q.packetColumns, time.Now().Location())
+		packetRow, err := packet.ParseBinaryResultSetRow(msg.FullMessage, resp.packetColumns, time.Now().Location())
 		if err != nil {
 			fmt.Println("Error - parsing mysql binary row:", err)
 		}
@@ -113,7 +113,7 @@ func (q *MysqlResponse) AddRowPayload(msg MysqlMessage) {
 			row = append(row, string(trimNonASCII(valueBytes)))
 		}
 	} else {
-		packetRow, err := packet.ParseTextResultSetRow(msg.FullMessage, q.packetColumns, time.Now().Location())
+		packetRow, err := packet.ParseTextResultSetRow(msg.FullMessage, resp.packetColumns, time.Now().Location())
 		if err != nil {
 			fmt.Println("Error - parsing mysql text row:", err)
 		}
@@ -127,29 +127,29 @@ func (q *MysqlResponse) AddRowPayload(msg MysqlMessage) {
 		}
 	}
 
-	q.Rows = append(q.Rows, row)
+	resp.Rows = append(resp.Rows, row)
 }
 
-func (q *MysqlResponse) AddEOF() {
+func (resp *MysqlResponse) AddEOF() {
 	// sometimes we dont get an EOF packet for the columns but we do get one for the rows, so we need this logic to handle that
-	if len(q.Columns) > 0 && len(q.Rows) == 0 {
-		q.colEOF = true
-	} else if len(q.Columns) > 0 && len(q.Rows) > 0 {
-		q.rowEOF = true
+	if len(resp.Columns) > 0 && len(resp.Rows) == 0 {
+		resp.colEOF = true
+	} else if len(resp.Columns) > 0 && len(resp.Rows) > 0 {
+		resp.rowEOF = true
 	}
 }
 
 // Complete returns true if all the column and row data for this response has been parsed
-func (q *MysqlResponse) Complete() bool {
-	return q.rowEOF
+func (resp *MysqlResponse) Complete() bool {
+	return resp.rowEOF
 }
 
-func (q *MysqlResponse) String() string {
+func (resp *MysqlResponse) String() string {
 	out := ""
-	for _, col := range q.Columns {
+	for _, col := range resp.Columns {
 		out += fmt.Sprintf("%s, ", col.Name)
 	}
-	for _, row := range q.Rows {
+	for _, row := range resp.Rows {
 		out += "\n"
 		for _, value := range row {
 			out += fmt.Sprintf("%s, ", value)

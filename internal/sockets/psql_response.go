@@ -41,21 +41,21 @@ func PSQLResponseFromRowDescription(payload []byte) (PSQLResponse, error) {
 	return PSQLResponse{Columns: cols}, nil
 }
 
-func (q *PSQLResponse) AddPayload(data []byte) {
-	rowValues, err := q.extractRowValues(data)
+func (resp *PSQLResponse) AddPayload(data []byte) {
+	rowValues, err := resp.extractRowValues(data)
 	if err != nil {
 		fmt.Println("[Error] [SocketPsql] extractRowValues():", err)
 		return
 	}
-	q.Rows = append(q.Rows, rowValues)
+	resp.Rows = append(resp.Rows, rowValues)
 }
 
-func (q *PSQLResponse) String() string {
+func (resp *PSQLResponse) String() string {
 	out := ""
-	for _, col := range q.Columns {
+	for _, col := range resp.Columns {
 		out += fmt.Sprintf("%s, ", col.Name)
 	}
-	for _, row := range q.Rows {
+	for _, row := range resp.Rows {
 		out += "\n"
 		for _, value := range row {
 			out += fmt.Sprintf("%s, ", value)
@@ -66,7 +66,7 @@ func (q *PSQLResponse) String() string {
 
 // extractRowValues parses a PostgreSQL DataRow message payload and returns the column values as strings.
 // payload is the DataRow contents excluding the initial message type byte and length bytes.
-func (q *PSQLResponse) extractRowValues(payload []byte) ([]string, error) {
+func (resp *PSQLResponse) extractRowValues(payload []byte) ([]string, error) {
 	buf := bytes.NewReader(payload)
 	// Read the number of columns (int16)
 	var colCount int16
@@ -74,8 +74,8 @@ func (q *PSQLResponse) extractRowValues(payload []byte) ([]string, error) {
 		return nil, fmt.Errorf("failed to read column count: %w", err)
 	}
 
-	if int(colCount) != len(q.Columns) {
-		return nil, fmt.Errorf("column count in data (%d) does not match known columns (%d)", colCount, len(q.Columns))
+	if int(colCount) != len(resp.Columns) {
+		return nil, fmt.Errorf("column count in data (%d) does not match known columns (%d)", colCount, len(resp.Columns))
 	}
 
 	values := make([]string, 0, colCount)
@@ -102,7 +102,7 @@ func (q *PSQLResponse) extractRowValues(payload []byte) ([]string, error) {
 			return nil, fmt.Errorf("failed to read column value: %w", err)
 		}
 
-		colType := q.Columns[i].Type
+		colType := resp.Columns[i].Type
 		valStr := string(valBytes)
 
 		switch string(colType) {

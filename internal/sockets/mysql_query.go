@@ -13,7 +13,7 @@ func NewMysqlQuery(query []byte) MysqlQuery {
 	}
 }
 
-func (q *MysqlQuery) AddPayload(data []byte) {
+func (qry *MysqlQuery) AddPayload(data []byte) {
 	// // Do nothing, this isn't used for sql queries
 	// params, err := extractBindArgsFromPayload(data)
 	// if err != nil {
@@ -23,11 +23,11 @@ func (q *MysqlQuery) AddPayload(data []byte) {
 	// q.Params = params
 }
 
-func (q *MysqlQuery) String() string {
-	out := q.Query
-	if len(q.Params) > 0 {
+func (qry *MysqlQuery) String() string {
+	out := qry.Query
+	if len(qry.Params) > 0 {
 		out += "\n"
-		for _, param := range q.Params {
+		for _, param := range qry.Params {
 			out += fmt.Sprintf("%s\n", param)
 		}
 	}

@@ -31,32 +31,32 @@ func NewSocketCommonFromUnknown(unkownSocket *SocketUnknown) SocketCommon {
 	return socket
 }
 
-func (socket *SocketCommon) AddFlowCallback(callback func(Flow)) {
-	socket.flowCallbacks = append(socket.flowCallbacks, callback)
+func (sk *SocketCommon) AddFlowCallback(callback func(Flow)) {
+	sk.flowCallbacks = append(sk.flowCallbacks, callback)
 }
 
-func (socket *SocketCommon) Key() string {
-	return fmt.Sprintf("%s->%s", socket.SourceAddr, socket.DestAddr)
+func (sk *SocketCommon) Key() string {
+	return fmt.Sprintf("%s->%s", sk.SourceAddr, sk.DestAddr)
 }
 
-func (socket *SocketCommon) UpgradeToSSL() {
-	socket.SSL = true
+func (sk *SocketCommon) UpgradeToSSL() {
+	sk.SSL = true
 }
 
 // sendFlowBack calls all the callbacks with this flow, unless the flow has a zero address (meaning that we are yet to have received
 // a getsockname event which sets the missing source/dest address). In this case it buffers the flow so they can be released
 // once the getsockname event is finally received.
-func (socket *SocketCommon) sendFlowBack(flow Flow) {
+func (sk *SocketCommon) sendFlowBack(flow Flow) {
 	blackOnYellow := "\033[30;43m"
 	reset := "\033[0m"
 
-	flow.SourceAddr = socket.SourceAddr
-	flow.DestAddr = socket.DestAddr
+	flow.SourceAddr = sk.SourceAddr
+	flow.DestAddr = sk.DestAddr
 
 	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
 	flow.Debug()
 
-	for _, callback := range socket.flowCallbacks {
+	for _, callback := range sk.flowCallbacks {
 		callback(flow)
 	}
 }

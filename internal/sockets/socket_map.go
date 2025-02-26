@@ -11,14 +11,14 @@ import (
 // SocketMap tracks sockets which have been observed in ebpf
 type SocketMap struct {
 	mu            sync.Mutex
-	sockets       map[string]SocketI
+	sockets       map[string]Socket
 	flowCallbacks []func(Flow)
 	config        config.Config
 }
 
 func NewSocketMap(cfg config.Config) *SocketMap {
 	m := SocketMap{
-		sockets: make(map[string]SocketI),
+		sockets: make(map[string]Socket),
 		config:  cfg,
 	}
 	return &m
@@ -34,7 +34,7 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 
 	fmt.Println(event.LogLine(m.config.Verbose))
 
-	var socket SocketI
+	var socket Socket
 	socket, exists := m.getSocket(event.Key())
 	if !exists {
 		fmt.Println("[SocketMap] DataEvent no socket found, creating new one...", event.Key())
@@ -95,12 +95,12 @@ func (m *SocketMap) ProcessCloseEvent(event events.CloseEvent) {
 	}
 }
 
-func (m *SocketMap) getSocket(key string) (SocketI, bool) {
+func (m *SocketMap) getSocket(key string) (Socket, bool) {
 	socket, exists := m.sockets[key]
 	return socket, exists
 }
 
-func (m *SocketMap) setSocket(key string, socket SocketI) {
+func (m *SocketMap) setSocket(key string, socket Socket) {
 	socket.AddFlowCallback(func(flow Flow) {
 		for _, callback := range m.flowCallbacks {
 			callback(flow)

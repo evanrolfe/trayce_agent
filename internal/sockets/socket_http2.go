@@ -54,30 +54,30 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 	return socket
 }
 
-func (socket *SocketHttp2) Key() string {
-	return socket.Common.Key()
+func (sk *SocketHttp2) Key() string {
+	return sk.Common.Key()
 }
 
-func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
-	socket.Common.AddFlowCallback(callback)
+func (sk *SocketHttp2) AddFlowCallback(callback func(Flow)) {
+	sk.Common.AddFlowCallback(callback)
 }
 
 // TODO: Have a structure for handling the frame header + payload?
-func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
+func (sk *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
+	sk.mu.Lock()
+	defer sk.mu.Unlock()
 
 	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
 	// fmt.Println(hex.Dump(event.Payload()))
 
-	if socket.Common.SSL && !event.SSL() {
+	if sk.Common.SSL && !event.SSL() {
 		// If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
 		return
 	}
 
-	if event.SSL() && !socket.Common.SSL {
+	if event.SSL() && !sk.Common.SSL {
 		fmt.Println("[SocketHttp2] upgrading to SSL")
-		socket.Common.UpgradeToSSL()
+		sk.Common.UpgradeToSSL()
 	}
 
 	// Ignore the http2 magic string (PRI * SM...)
@@ -88,31 +88,31 @@ func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 	// Check if the frame is complete, if not buffer it.
 	// Its possible we receive partial ingress frame, then an egress frame, then the rest of the ingress frame,
 	// so because of that we need to buffer the frame bytes based on ingress/egress direction.
-	frameBytes := append(socket.frameBuffer[event.Type()], event.Payload()...)
+	frameBytes := append(sk.frameBuffer[event.Type()], event.Payload()...)
 	frames, remainder := ParseBytesToFrames(frameBytes)
 
-	socket.frameBuffer[event.Type()] = remainder
+	sk.frameBuffer[event.Type()] = remainder
 
 	for _, frame := range frames {
-		socket.processFrame(frame)
+		sk.processFrame(frame)
 	}
 }
 
-func (socket *SocketHttp2) processFrame(frame *Http2Frame) {
-	stream := socket.findOrCreateStream(frame.StreamID())
+func (sk *SocketHttp2) processFrame(frame *Http2Frame) {
+	stream := sk.findOrCreateStream(frame.StreamID())
 	flow := stream.ProcessFrame(frame)
 	if flow != nil {
-		socket.Common.sendFlowBack(*flow)
+		sk.Common.sendFlowBack(*flow)
 	}
 }
 
-func (socket *SocketHttp2) findOrCreateStream(streamID uint32) *Http2Stream {
-	stream, exists := socket.streams[streamID]
+func (sk *SocketHttp2) findOrCreateStream(streamID uint32) *Http2Stream {
+	stream, exists := sk.streams[streamID]
 	if !exists {
-		fmt.Println("[SocketHTTP2] creating stream", streamID, " socket:", socket.Key())
+		fmt.Println("[SocketHTTP2] creating stream", streamID, " socket:", sk.Key())
 		stream = NewHttp2Stream()
-		socket.streams[streamID] = stream
+		sk.streams[streamID] = stream
 	}
-	fmt.Println("[SocketHTTP2] Found stream", streamID, " socket:", socket.Key())
+	fmt.Println("[SocketHTTP2] Found stream", streamID, " socket:", sk.Key())
 	return stream
 }
