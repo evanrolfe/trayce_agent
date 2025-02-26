@@ -373,7 +373,10 @@ var _ = Describe("SocketPsql", func() {
 		flows := []*sockets.Flow{}
 
 		// Request payloads
-		event1Payload, _ := hexDumpToBytes(eventPsqlBegin)
+		event1Payload, _ := hexDumpToBytes(eventPsqlTransaction1)
+		event2Payload, _ := hexDumpToBytes(eventPsqlTransaction2)
+		event3Payload, _ := hexDumpToBytes(eventPsqlTransaction3)
+		event4Payload, _ := hexDumpToBytes(eventPsqlTransaction4)
 
 		BeforeAll(func() {
 			socket := sockets.SocketPsql{
@@ -397,10 +400,34 @@ var _ = Describe("SocketPsql", func() {
 				Data:     convertSliceToArray(event1Payload),
 				DataLen:  int32(len(event1Payload)),
 			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: events.KRead,
+				Data:     convertSliceToArray(event2Payload),
+				DataLen:  int32(len(event2Payload)),
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: events.KWrite,
+				Data:     convertSliceToArray(event3Payload),
+				DataLen:  int32(len(event3Payload)),
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: events.KWrite,
+				Data:     convertSliceToArray(event4Payload),
+				DataLen:  int32(len(event4Payload)),
+			})
 		})
 
-		It("returns a request flow", func() {
-			Expect(len(flows)).To(Equal(1))
+		It("returns begin & update flows", func() {
+			Expect(len(flows)).To(Equal(2))
 
 			for _, flow := range flows {
 				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
@@ -411,11 +438,14 @@ var _ = Describe("SocketPsql", func() {
 				Expect(flow.FD).To(Equal(5))
 			}
 
-			query := flows[0].Request.(*sockets.PSQLQuery)
-
 			// Important to check it trims null-bytes
-			Expect(query.Query).To(Equal(`BEGIN READ WRITE`))
-			Expect(len(query.Params)).To(Equal(0))
+			query1 := flows[0].Request.(*sockets.PSQLQuery)
+			Expect(query1.Query).To(Equal(`BEGIN READ WRITE`))
+			Expect(len(query1.Params)).To(Equal(0))
+
+			query2 := flows[1].Request.(*sockets.PSQLQuery)
+			Expect(query2.Query).To(Equal(`UPDATE things SET quantity=$1 WHERE id = $2`))
+			Expect(query2.Params).To(ConsistOf([]string{"123", "1"}))
 		})
 	})
 })

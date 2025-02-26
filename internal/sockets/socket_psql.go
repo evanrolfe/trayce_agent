@@ -63,12 +63,17 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				// This is a query with just ";" so we ignore it
 				return
 			}
-			sqlQuery := NewPSQLQuery(trimNonASCII(string(msg.Payload)))
+			sqlQuery := NewPSQLQuery(string(trimNonASCII(msg.Payload)))
 			socket.newFlowFromQuery(sqlQuery)
 			socket.Common.sendFlowBack(*socket.bufQueryFlow)
 		case TypeParse:
-			queryBytes := bytes.Trim(msg.Payload[1:], "\x00")
-			sqlQuery := NewPSQLQuery(trimNonASCII(string(queryBytes)))
+			_, queryStr, err := extractNamedQuery(msg.Payload)
+			if err != nil {
+				fmt.Println("[Error] [SocketPsql] could not extract named query")
+				return
+			}
+
+			sqlQuery := NewPSQLQuery(queryStr)
 			socket.newFlowFromQuery(sqlQuery)
 		case TypeBind:
 			if socket.bufQueryFlow == nil {
@@ -301,4 +306,30 @@ func readNullTerminatedString(buf *bytes.Buffer) (string, error) {
 	}
 
 	return string(strBytes), nil
+}
+
+func extractNamedQuery(payload []byte) (string, string, error) {
+	// Find the position of the first null byte
+	nullPos := bytes.IndexByte(payload, 0)
+	if nullPos == -1 {
+		return "", "", fmt.Errorf("no null terminator found in payload")
+	}
+
+	// Extract the name (everything before the null byte)
+	name := string(payload[:nullPos])
+
+	// Extract the query (everything after the null byte, until the next null byte or end)
+	queryStart := nullPos + 1
+	if queryStart >= len(payload) {
+		return "", "", fmt.Errorf("no query found after statement name")
+	}
+
+	// Find the end of the query (either at the next null byte or end of payload)
+	queryEnd := bytes.IndexByte(payload[queryStart:], 0)
+	if queryEnd == -1 {
+		queryEnd = len(payload) - queryStart
+	}
+	query := string(payload[queryStart : queryStart+queryEnd])
+
+	return name, query, nil
 }

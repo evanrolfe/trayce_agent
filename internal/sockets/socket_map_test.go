@@ -1,6 +1,7 @@
 package sockets_test
 
 import (
+	"github.com/evanrolfe/trayce_agent/internal/config"
 	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	. "github.com/onsi/ginkgo/v2"
@@ -16,7 +17,7 @@ var _ = Describe("SocketMap", func() {
 		var flows []*sockets.Flow
 
 		BeforeAll(func() {
-			socketsMap = sockets.NewSocketMap()
+			socketsMap = sockets.NewSocketMap(config.Config{Verbose: false})
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -110,7 +111,7 @@ var _ = Describe("SocketMap", func() {
 		}
 
 		BeforeAll(func() {
-			socketsMap = sockets.NewSocketMap()
+			socketsMap = sockets.NewSocketMap(config.Config{Verbose: false})
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -231,7 +232,7 @@ var _ = Describe("SocketMap", func() {
 		}
 
 		BeforeAll(func() {
-			socketsMap = sockets.NewSocketMap()
+			socketsMap = sockets.NewSocketMap(config.Config{Verbose: false})
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -342,7 +343,7 @@ var _ = Describe("SocketMap", func() {
 		}
 
 		BeforeAll(func() {
-			socketsMap = sockets.NewSocketMap()
+			socketsMap = sockets.NewSocketMap(config.Config{Verbose: false})
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -452,7 +453,7 @@ var _ = Describe("SocketMap", func() {
 		}
 
 		BeforeAll(func() {
-			socketsMap = sockets.NewSocketMap()
+			socketsMap = sockets.NewSocketMap(config.Config{Verbose: false})
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -576,7 +577,7 @@ var _ = Describe("SocketMap", func() {
 		}
 
 		BeforeAll(func() {
-			socketsMap = sockets.NewSocketMap()
+			socketsMap = sockets.NewSocketMap(config.Config{Verbose: false})
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -664,7 +665,7 @@ var _ = Describe("SocketMap", func() {
 		}
 
 		BeforeAll(func() {
-			socketsMap = sockets.NewSocketMap()
+			socketsMap = sockets.NewSocketMap(config.Config{Verbose: false})
 			socketsMap.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})

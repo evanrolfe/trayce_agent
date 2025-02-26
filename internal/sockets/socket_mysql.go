@@ -116,7 +116,7 @@ func isAllowedSQLCommand(s string) bool {
 }
 
 func (socket *SocketMysql) newFlowFromQuery(rawQuery []byte) *Flow {
-	sqlQuery := NewMysqlQuery(string(rawQuery))
+	sqlQuery := NewMysqlQuery(rawQuery)
 
 	if !isAllowedSQLCommand(sqlQuery.Query) {
 		fmt.Println("[Warn] not a handled query, skipping..")

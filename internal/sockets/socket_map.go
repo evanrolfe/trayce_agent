@@ -1,10 +1,10 @@
 package sockets
 
 import (
-	"encoding/hex"
 	"fmt"
 	"sync"
 
+	"github.com/evanrolfe/trayce_agent/internal/config"
 	"github.com/evanrolfe/trayce_agent/internal/events"
 )
 
@@ -13,11 +13,13 @@ type SocketMap struct {
 	mu            sync.Mutex
 	sockets       map[string]SocketI
 	flowCallbacks []func(Flow)
+	config        config.Config
 }
 
-func NewSocketMap() *SocketMap {
+func NewSocketMap(cfg config.Config) *SocketMap {
 	m := SocketMap{
 		sockets: make(map[string]SocketI),
+		config:  cfg,
 	}
 	return &m
 }
@@ -30,10 +32,7 @@ func (m *SocketMap) ProcessDataEvent(event events.DataEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	green := "\033[92m"
-	reset := "\033[0m"
-	fmt.Println(string(green), "[DataEvent]", string(reset), event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD:", event.FD, ", cgroup:", event.CGroupName(), "\n", event.Address())
-	fmt.Print(hex.Dump(event.PayloadTrimmed(128)))
+	fmt.Println(event.LogLine(m.config.Verbose))
 
 	var socket SocketI
 	socket, exists := m.getSocket(event.Key())

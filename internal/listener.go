@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/evanrolfe/trayce_agent/internal/config"
 	"github.com/evanrolfe/trayce_agent/internal/docker"
 	"github.com/evanrolfe/trayce_agent/internal/ebpf"
 	"github.com/evanrolfe/trayce_agent/internal/events"
@@ -16,11 +17,11 @@ type Listener struct {
 	sockets     *sockets.SocketMap
 }
 
-func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string, filterCmd string) *Listener {
-	containers := docker.NewContainers(filterCmd)
+func NewListener(cfg config.Config, bpfBytes []byte) *Listener {
+	containers := docker.NewContainers(cfg.FilterCmd)
 
 	// TODO: libSslPath is unused
-	bpfProg, err := ebpf.NewProbeManagerFromBytes(bpfBytes, btfFilePath)
+	bpfProg, err := ebpf.NewProbeManagerFromBytes(bpfBytes, cfg.BtfFilePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -29,7 +30,7 @@ func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string, filterC
 	return &Listener{
 		containers:  containers,
 		eventStream: ebpf.NewStream(containers, bpfProg),
-		sockets:     sockets.NewSocketMap(),
+		sockets:     sockets.NewSocketMap(cfg),
 	}
 }
 

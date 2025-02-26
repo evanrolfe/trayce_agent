@@ -110,7 +110,7 @@ func (q *MysqlResponse) AddRowPayload(msg MysqlMessage) {
 				row = append(row, "PARSE_ERROR")
 				continue
 			}
-			row = append(row, trimNonASCII(string(valueBytes)))
+			row = append(row, string(trimNonASCII(valueBytes)))
 		}
 	} else {
 		packetRow, err := packet.ParseTextResultSetRow(msg.FullMessage, q.packetColumns, time.Now().Location())
@@ -123,7 +123,7 @@ func (q *MysqlResponse) AddRowPayload(msg MysqlMessage) {
 				row = append(row, "PARSE_ERROR")
 				continue
 			}
-			row = append(row, trimNonASCII(string(valueBytes)))
+			row = append(row, string(trimNonASCII(valueBytes)))
 		}
 	}
 

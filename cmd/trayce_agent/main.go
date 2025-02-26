@@ -14,6 +14,7 @@ import (
 
 	"github.com/evanrolfe/trayce_agent/api"
 	"github.com/evanrolfe/trayce_agent/internal"
+	"github.com/evanrolfe/trayce_agent/internal/config"
 	"github.com/evanrolfe/trayce_agent/internal/docker"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	"github.com/evanrolfe/trayce_agent/internal/utils"
@@ -53,10 +54,13 @@ func main() {
 	// Parse Command line args
 	var pid int
 	var libSslPath, grpcServerAddr, filterCmd string
+	var verbose bool
 	flag.IntVar(&pid, "pid", 0, "The PID of the docker container to instrument. Or 0 to intsrument this container.")
 	flag.StringVar(&libSslPath, "libssl", sslLibDefault, "The path to the libssl shared object.")
 	flag.StringVar(&grpcServerAddr, "s", grpcServerDefault, "The address of the GRPC server to send observations to.")
 	flag.StringVar(&filterCmd, "filtercmd", "", "Only observe traffic from processes who's command contains this string")
+	flag.BoolVar(&verbose, "verbose", false, "Enable verbose logging")
+	flag.BoolVar(&verbose, "vv", false, "Enable verbose logging (shorthand)")
 	versionFlg := flag.Bool("v", false, "print current TrayceAgent version")
 	version2Flg := flag.Bool("version", false, "print current TrayceAgent version")
 	flag.Parse()
@@ -99,8 +103,11 @@ func main() {
 	socketFlowChan := make(chan sockets.Flow, 1000)
 	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 
+	// Create config
+	cfg := config.NewConfig(btfFilePath, libSslPath, filterCmd, verbose)
+
 	// Start the listener
-	listener := internal.NewListener(bpfBytes, btfFilePath, libSslPath, filterCmd)
+	listener := internal.NewListener(cfg, bpfBytes)
 	defer listener.Close()
 
 	go listener.Start(socketFlowChan)

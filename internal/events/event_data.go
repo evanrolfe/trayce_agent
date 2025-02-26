@@ -3,6 +3,7 @@ package events
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"slices"
@@ -197,6 +198,21 @@ func (se *DataEvent) IsBlank() bool {
 		}
 	}
 	return true
+}
+
+func (se *DataEvent) LogLine(verbose bool) string {
+	green := "\033[92m"
+	reset := "\033[0m"
+	cgroup := se.CGroupName()
+	if len(cgroup) > 20 {
+		cgroup = cgroup[:20]
+	}
+	fmt.Println(string(green), "[DataEvent]", string(reset), se.DataLen, "bytes, source:", se.Source(), ", PID:", se.PID, ", TID:", se.TID, "FD:", se.FD, ", cgroup:", cgroup, "\n", se.Address())
+	if verbose {
+		return hex.Dump(se.Payload())
+	} else {
+		return hex.Dump(se.PayloadTrimmed(16))
+	}
 }
 
 // htons converst host ot network byte order
