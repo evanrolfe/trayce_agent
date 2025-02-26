@@ -63,12 +63,12 @@ func (socket *SocketPsql) ProcessDataEvent(event *events.DataEvent) {
 				// This is a query with just ";" so we ignore it
 				return
 			}
-			sqlQuery := NewPSQLQuery(string(msg.Payload))
+			sqlQuery := NewPSQLQuery(trimNonASCII(string(msg.Payload)))
 			socket.newFlowFromQuery(sqlQuery)
 			socket.Common.sendFlowBack(*socket.bufQueryFlow)
 		case TypeParse:
 			queryBytes := bytes.Trim(msg.Payload[1:], "\x00")
-			sqlQuery := NewPSQLQuery(string(queryBytes))
+			sqlQuery := NewPSQLQuery(trimNonASCII(string(queryBytes)))
 			socket.newFlowFromQuery(sqlQuery)
 		case TypeBind:
 			if socket.bufQueryFlow == nil {
