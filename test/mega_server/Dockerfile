@@ -53,7 +53,8 @@ RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\
 RUN apt install -y libpq-dev mysql-server mysql-client libmysqlclient-dev
 
 # Build Go server
-RUN cd go && GOARCH=$(dpkg --print-architecture) go build -o mock_server -buildvcs=false -gcflags "all=-N -l" .
+RUN cd go && GOARCH=$(dpkg --print-architecture) go build -o http_server -buildvcs=false -gcflags "all=-N -l" ./cmd/http_server
+RUN cd go && GOARCH=$(dpkg --print-architecture) go build -o grpc_server -buildvcs=false -gcflags "all=-N -l" ./cmd/grpc_server
 
 # Bundle install RoR
 RUN cd ror && bundle install

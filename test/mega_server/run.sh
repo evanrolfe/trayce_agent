@@ -18,5 +18,5 @@ service mysql start &
 cd /app/ror/ && ./run.sh &
 cd /app/flask/ && ./run.sh &
 cd /app/node && ./run.sh &
-cd /app/go && ./mock_server &
+cd /app/go && ./http_server &
 cd /app/go && ./grpc_server
