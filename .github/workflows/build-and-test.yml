@@ -1,0 +1,33 @@
+name: Build and Test
+on: [push]
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-amd64:
+    name: Build Linux (amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_PASS }}
+
+
+      - name: Start dependencies
+        run: docker compose up --build -d trayce_agent megaserver
+
+      - name: Start tmate session
+        uses: mxschmitt/action-tmate@v3
+
+      - name: Test
+        run: docker compose up test --build --exit-code-from test
+
+      - name: Print trayce_agent logs
+        if: always()
+        run: docker compose logs trayce_agent

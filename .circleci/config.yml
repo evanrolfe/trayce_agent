@@ -1,159 +1,159 @@
-version: 2.1
+# version: 2.1
 
-workflows:
-  main_branch:
-    jobs:
-      - build-test-push-amd64:
-          filters:
-            branches:
-              only:
-                - main
-      - build-test-push-arm64:
-          filters:
-            branches:
-              only:
-                - main
-      - publish:
-          requires:
-            - build-test-push-amd64
-            - build-test-push-arm64
-          filters:
-            branches:
-              only:
-                - main
-  feature_branch:
-    jobs:
-      - build-test-amd64:
-          filters:
-            branches:
-              ignore:
-                - main
-      # arm64 is disabled here until i can get layer caching working
-      # - build-test-arm64:
-      #     filters:
-      #       branches:
-      #         ignore:
-      #           - main
+# workflows:
+#   main_branch:
+#     jobs:
+#       - build-test-push-amd64:
+#           filters:
+#             branches:
+#               only:
+#                 - main
+#       - build-test-push-arm64:
+#           filters:
+#             branches:
+#               only:
+#                 - main
+#       - publish:
+#           requires:
+#             - build-test-push-amd64
+#             - build-test-push-arm64
+#           filters:
+#             branches:
+#               only:
+#                 - main
+#   feature_branch:
+#     jobs:
+#       - build-test-amd64:
+#           filters:
+#             branches:
+#               ignore:
+#                 - main
+#       # arm64 is disabled here until i can get layer caching working
+#       # - build-test-arm64:
+#       #     filters:
+#       #       branches:
+#       #         ignore:
+#       #           - main
 
-jobs:
-  build-test-amd64:
-    docker:
-      - image: cimg/base:stable
-    resource_class: large
-    environment:
-      GO_VERSION: 1.21.12
-      ARCH: amd64
-    steps:
-      - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
-          version: edge
-      - build-and-test
+# jobs:
+#   build-test-amd64:
+#     docker:
+#       - image: cimg/base:stable
+#     resource_class: large
+#     environment:
+#       GO_VERSION: 1.21.12
+#       ARCH: amd64
+#     steps:
+#       - checkout
+#       - setup_remote_docker:
+#           docker_layer_caching: true
+#           version: edge
+#       - build-and-test
 
-  build-test-arm64:
-    docker:
-      - image: cimg/base:2023.06
-    resource_class: arm.large
-    environment:
-      GO_VERSION: 1.21.12
-      ARCH: arm64
-    steps:
-      - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
-          version: edge
-      - build-and-test
+#   build-test-arm64:
+#     docker:
+#       - image: cimg/base:2023.06
+#     resource_class: arm.large
+#     environment:
+#       GO_VERSION: 1.21.12
+#       ARCH: arm64
+#     steps:
+#       - checkout
+#       - setup_remote_docker:
+#           docker_layer_caching: true
+#           version: edge
+#       - build-and-test
 
-  build-test-push-amd64:
-    docker:
-      - image: cimg/base:stable
-    resource_class: large
-    environment:
-      GO_VERSION: 1.21.12
-      ARCH: amd64
-    steps:
-      - checkout
-      - setup_remote_docker:
-          docker_layer_caching: false
-          version: edge
-      - build-and-test
-      - push
+#   build-test-push-amd64:
+#     docker:
+#       - image: cimg/base:stable
+#     resource_class: large
+#     environment:
+#       GO_VERSION: 1.21.12
+#       ARCH: amd64
+#     steps:
+#       - checkout
+#       - setup_remote_docker:
+#           docker_layer_caching: false
+#           version: edge
+#       - build-and-test
+#       - push
 
-  build-test-push-arm64:
-    docker:
-      - image: cimg/base:2023.06
-    resource_class: arm.large
-    environment:
-      GO_VERSION: 1.21.12
-      ARCH: arm64
-    steps:
-      - checkout
-      - setup_remote_docker:
-          docker_layer_caching: false
-          version: edge
-      - build-and-test
-      - push
+#   build-test-push-arm64:
+#     docker:
+#       - image: cimg/base:2023.06
+#     resource_class: arm.large
+#     environment:
+#       GO_VERSION: 1.21.12
+#       ARCH: arm64
+#     steps:
+#       - checkout
+#       - setup_remote_docker:
+#           docker_layer_caching: false
+#           version: edge
+#       - build-and-test
+#       - push
 
-  publish:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - checkout
-      - setup_remote_docker:
-          docker_layer_caching: false
-      - check-release
-      - publish
+#   publish:
+#     docker:
+#       - image: cimg/base:stable
+#     steps:
+#       - checkout
+#       - setup_remote_docker:
+#           docker_layer_caching: false
+#       - check-release
+#       - publish
 
-commands:
-  build-and-test:
-    description: Build and test
-    steps:
-      - run:
-          name: Setup
-          command: |
-            echo "$DOCKERHUB_PASS" | docker login -u $DOCKERHUB_USER --password-stdin
-            wget -q https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz -O /tmp/go.tar.gz
-            tar -C /home/circleci/ -xf /tmp/go.tar.gz
-            echo 'export PATH="$PATH:/home/circleci/go/bin/"' >> $BASH_ENV
-      - run:
-          name: Start dependencies
-          command: docker compose up --build -d trayce_agent megaserver
-      - run:
-          name: Test
-          command: docker compose up test --build --exit-code-from test
-      - run:
-          name: Print trayce_agent logs
-          command: docker compose logs trayce_agent
-          when: always
-  push:
-    description: Push the image to docker hub
-    steps:
-      - run:
-          name: Push
-          command: |
-            docker push traycer/trayce_agent_tmp:${ARCH}
-  publish:
-    description: Combine both images into a multi-arch image & push to docker hub
-    steps:
-      - run:
-          name: Setup
-          command: |
-            echo "$DOCKERHUB_PASS" | docker login -u $DOCKERHUB_USER --password-stdin
-      - run:
-          name: Create and Push Multi-Arch Manifest
-          command: |
-            export VERSION=$(cat ./VERSION)
-            docker manifest create traycer/trayce_agent:${VERSION} traycer/trayce_agent_tmp:amd64 traycer/trayce_agent_tmp:arm64
-            docker manifest create traycer/trayce_agent:latest traycer/trayce_agent_tmp:amd64 traycer/trayce_agent_tmp:arm64
-            docker manifest push traycer/trayce_agent:${VERSION}
-            docker manifest push traycer/trayce_agent:latest
-  check-release:
-    description: Check for release commit
-    steps:
-      - run:
-          name: Check
-          command: |
-            if ! git log -1 --pretty=%B | grep -iqE "^release: [0-9]+\.[0-9]+\.[0-9]+$"; then
-              echo "Commit message does not match 'release: x.y.z'. Skipping publish steps."
-              circleci-agent step halt
-            fi
+# commands:
+#   build-and-test:
+#     description: Build and test
+#     steps:
+#       - run:
+#           name: Setup
+#           command: |
+#             echo "$DOCKERHUB_PASS" | docker login -u $DOCKERHUB_USER --password-stdin
+#             wget -q https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz -O /tmp/go.tar.gz
+#             tar -C /home/circleci/ -xf /tmp/go.tar.gz
+#             echo 'export PATH="$PATH:/home/circleci/go/bin/"' >> $BASH_ENV
+#       - run:
+#           name: Start dependencies
+#           command: docker compose up --build -d trayce_agent megaserver
+#       - run:
+#           name: Test
+#           command: docker compose up test --build --exit-code-from test
+#       - run:
+#           name: Print trayce_agent logs
+#           command: docker compose logs trayce_agent
+#           when: always
+#   push:
+#     description: Push the image to docker hub
+#     steps:
+#       - run:
+#           name: Push
+#           command: |
+#             docker push traycer/trayce_agent_tmp:${ARCH}
+#   publish:
+#     description: Combine both images into a multi-arch image & push to docker hub
+#     steps:
+#       - run:
+#           name: Setup
+#           command: |
+#             echo "$DOCKERHUB_PASS" | docker login -u $DOCKERHUB_USER --password-stdin
+#       - run:
+#           name: Create and Push Multi-Arch Manifest
+#           command: |
+#             export VERSION=$(cat ./VERSION)
+#             docker manifest create traycer/trayce_agent:${VERSION} traycer/trayce_agent_tmp:amd64 traycer/trayce_agent_tmp:arm64
+#             docker manifest create traycer/trayce_agent:latest traycer/trayce_agent_tmp:amd64 traycer/trayce_agent_tmp:arm64
+#             docker manifest push traycer/trayce_agent:${VERSION}
+#             docker manifest push traycer/trayce_agent:latest
+#   check-release:
+#     description: Check for release commit
+#     steps:
+#       - run:
+#           name: Check
+#           command: |
+#             if ! git log -1 --pretty=%B | grep -iqE "^release: [0-9]+\.[0-9]+\.[0-9]+$"; then
+#               echo "Commit message does not match 'release: x.y.z'. Skipping publish steps."
+#               circleci-agent step halt
+#             fi
