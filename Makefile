@@ -44,12 +44,16 @@ build: generate
 	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./trayce_agent\n$(DIV)"
 
 test:
+# otherwise this fails with: panic: Error response from daemon: client version 1.48 is too new. Maximum supported API version is 1.47 [recovered]
+	export DOCKER_API_VERSION=1.47
 	go test ./test -v -count=1 -short -run Test_agent_server
 
 testload:
+	export DOCKER_API_VERSION=1.47
 	go test ./test -v -count=1 -run Test_agent_server
 
 testall:
+	export DOCKER_API_VERSION=1.47
 	go test ./test -v -count=1 -short -run Test_agent_server || exit $$?
 	go test ./test -v -count=1 -run Test_agent_server || exit $$?
 
