@@ -7,7 +7,7 @@ require github.com/aquasecurity/libbpfgo v0.8.0-libbpf-1.5
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/aquasecurity/libbpfgo/helpers v0.4.5
-	github.com/docker/docker v28.0.4+incompatible
+	github.com/docker/docker v27.1.2+incompatible
 	github.com/go-sql-driver/mysql v1.9.1
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.10.9
