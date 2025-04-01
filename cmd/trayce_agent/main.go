@@ -32,7 +32,7 @@ const (
 	btfFilePath6      = "bundle/6.2.0-26-generic.btf"
 	sslLibDefault     = "/usr/lib/x86_64-linux-gnu/libssl.so.3"
 	grpcServerDefault = "localhost:50051"
-	version           = "0.2.0"
+	version           = "1.0.0"
 )
 
 type Settings struct {
