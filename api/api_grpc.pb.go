@@ -24,7 +24,6 @@ const _ = grpc.SupportPackageIsVersion7
 type TrayceAgentClient interface {
 	SendFlowsObserved(ctx context.Context, in *Flows, opts ...grpc.CallOption) (*Reply, error)
 	SendContainersObserved(ctx context.Context, in *Containers, opts ...grpc.CallOption) (*Reply, error)
-	SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error)
 	OpenCommandStream(ctx context.Context, opts ...grpc.CallOption) (TrayceAgent_OpenCommandStreamClient, error)
 }
 
@@ -48,15 +47,6 @@ func (c *trayceAgentClient) SendFlowsObserved(ctx context.Context, in *Flows, op
 func (c *trayceAgentClient) SendContainersObserved(ctx context.Context, in *Containers, opts ...grpc.CallOption) (*Reply, error) {
 	out := new(Reply)
 	err := c.cc.Invoke(ctx, "/api.TrayceAgent/SendContainersObserved", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *trayceAgentClient) SendAgentStarted(ctx context.Context, in *AgentStarted, opts ...grpc.CallOption) (*Reply, error) {
-	out := new(Reply)
-	err := c.cc.Invoke(ctx, "/api.TrayceAgent/SendAgentStarted", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +90,6 @@ func (x *trayceAgentOpenCommandStreamClient) Recv() (*Command, error) {
 type TrayceAgentServer interface {
 	SendFlowsObserved(context.Context, *Flows) (*Reply, error)
 	SendContainersObserved(context.Context, *Containers) (*Reply, error)
-	SendAgentStarted(context.Context, *AgentStarted) (*Reply, error)
 	OpenCommandStream(TrayceAgent_OpenCommandStreamServer) error
 	mustEmbedUnimplementedTrayceAgentServer()
 }
@@ -114,9 +103,6 @@ func (UnimplementedTrayceAgentServer) SendFlowsObserved(context.Context, *Flows)
 }
 func (UnimplementedTrayceAgentServer) SendContainersObserved(context.Context, *Containers) (*Reply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendContainersObserved not implemented")
-}
-func (UnimplementedTrayceAgentServer) SendAgentStarted(context.Context, *AgentStarted) (*Reply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendAgentStarted not implemented")
 }
 func (UnimplementedTrayceAgentServer) OpenCommandStream(TrayceAgent_OpenCommandStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method OpenCommandStream not implemented")
@@ -170,24 +156,6 @@ func _TrayceAgent_SendContainersObserved_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TrayceAgent_SendAgentStarted_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AgentStarted)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TrayceAgentServer).SendAgentStarted(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.TrayceAgent/SendAgentStarted",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TrayceAgentServer).SendAgentStarted(ctx, req.(*AgentStarted))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _TrayceAgent_OpenCommandStream_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(TrayceAgentServer).OpenCommandStream(&trayceAgentOpenCommandStreamServer{stream})
 }
@@ -228,10 +196,6 @@ var TrayceAgent_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendContainersObserved",
 			Handler:    _TrayceAgent_SendContainersObserved_Handler,
-		},
-		{
-			MethodName: "SendAgentStarted",
-			Handler:    _TrayceAgent_SendAgentStarted_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

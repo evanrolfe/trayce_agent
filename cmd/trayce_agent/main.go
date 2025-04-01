@@ -174,13 +174,7 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 		}
 	}
 
-	// Let em know we're here
-	// _, err = grpcClient.SendAgentStarted(context.Background(), &api.AgentStarted{})
-	// if err != nil {
-	// 	return err
-	// }
-	// Check the containers every 500ms and send them back to the GUI for display in the containers dialog
-
+	// Check the containers every 1sec and send them back to the GUI for display in the containers dialog
 	// Send-Containers go routine
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -226,8 +220,9 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 			continue
 		}
 		if resp != nil && resp.Type == "set_settings" {
-			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds)
+			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds, resp.Settings.LicenseKey)
 			listener.SetContainers(resp.Settings.ContainerIds)
+			// TODO: Check the license key
 			fmt.Println("[GRPC] done setting container_ids")
 		}
 	}

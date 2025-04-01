@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	makeGrpcRequest("172.17.0.3:50051")
+	makeGrpcRequest("megaserver:50051")
 }
 
 func makeGrpcRequest(addr string) {

@@ -7,7 +7,6 @@ package api;
 service TrayceAgent {
     rpc SendFlowsObserved (Flows) returns (Reply) {}
 	rpc SendContainersObserved (Containers) returns (Reply) {}
-    rpc SendAgentStarted (AgentStarted) returns (Reply) {}
     rpc OpenCommandStream (stream AgentStarted) returns (stream Command) {}
 }
 
@@ -90,6 +89,7 @@ message Command {
 
 message Settings {
     repeated string container_ids = 1;
+	string license_key = 2;
 }
 
 message Request {
