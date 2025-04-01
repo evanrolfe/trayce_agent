@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/evanrolfe/trayce_agent/internal/config"
 	"github.com/evanrolfe/trayce_agent/internal/docker"
 	"github.com/evanrolfe/trayce_agent/internal/ebpf"
 	"github.com/evanrolfe/trayce_agent/internal/events"
@@ -16,11 +17,11 @@ type Listener struct {
 	sockets     *sockets.SocketMap
 }
 
-func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string, filterCmd string) *Listener {
-	containers := docker.NewContainers(filterCmd)
+func NewListener(cfg config.Config, bpfBytes []byte) *Listener {
+	containers := docker.NewContainers(cfg.FilterCmd)
 
 	// TODO: libSslPath is unused
-	bpfProg, err := ebpf.NewProbeManagerFromBytes(bpfBytes, btfFilePath)
+	bpfProg, err := ebpf.NewProbeManagerFromBytes(bpfBytes, cfg.BtfFilePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -29,7 +30,7 @@ func NewListener(bpfBytes []byte, btfFilePath string, libSslPath string, filterC
 	return &Listener{
 		containers:  containers,
 		eventStream: ebpf.NewStream(containers, bpfProg),
-		sockets:     sockets.NewSocketMap(),
+		sockets:     sockets.NewSocketMap(cfg),
 	}
 }
 
@@ -43,16 +44,12 @@ func (listener *Listener) Start(outputChan chan sockets.Flow) {
 	for {
 		event := <-eventsChan
 		switch ev := event.(type) {
-		case *events.ConnectEvent:
-			listener.sockets.ProcessConnectEvent(*ev)
-		case *events.GetsocknameEvent:
-			listener.sockets.ProcessGetsocknameEvent(*ev)
 		case *events.DataEvent:
 			listener.sockets.ProcessDataEvent(*ev)
 		case *events.CloseEvent:
 			listener.sockets.ProcessCloseEvent(*ev)
 		default:
-			fmt.Println("ERROR: Listener.Start() event has to be ConnectEvent, DataEvent or CloseEvent")
+			fmt.Println("ERROR: Listener.Start() event type not handled")
 		}
 	}
 }

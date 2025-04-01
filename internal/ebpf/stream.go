@@ -32,9 +32,8 @@ type Stream struct {
 	dataEventsChan    chan []byte
 	interruptChan     chan int
 
-	connectCallbacks []func(events.ConnectEvent)
-	dataCallbacks    []func(events.DataEvent)
-	closeCallbacks   []func(events.CloseEvent)
+	dataCallbacks  []func(events.DataEvent)
+	closeCallbacks []func(events.CloseEvent)
 }
 
 type ContainersI interface {
@@ -45,6 +44,7 @@ type ContainersI interface {
 type ProbeManagerI interface {
 	AttachToKProbe(funcName string, probeFuncName string) error
 	AttachToKRetProbe(funcName string, probeFuncName string) error
+	AttachTracepoint(funcName string, category string, probeFuncName string) error
 	ReceiveEvents(mapName string, eventsChan chan []byte) error
 	GetMap(mapName string) (*libbpfgo.BPFMap, error)
 	AttachToUProbe(container docker.Container, funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
@@ -72,10 +72,6 @@ func NewStream(containers ContainersI, probeManager ProbeManagerI) *Stream {
 	}
 }
 
-func (stream *Stream) AddConnectCallback(callback func(events.ConnectEvent)) {
-	stream.connectCallbacks = append(stream.connectCallbacks, callback)
-}
-
 func (stream *Stream) AddDataCallback(callback func(events.DataEvent)) {
 	stream.dataCallbacks = append(stream.dataCallbacks, callback)
 }
@@ -85,7 +81,7 @@ func (stream *Stream) AddCloseCallback(callback func(events.CloseEvent)) {
 }
 
 func (stream *Stream) Start(outputChan chan events.IEvent) {
-	stream.attachKProbes()
+	stream.attachProbes()
 
 	// events.DataEvents ring buffer
 	err := stream.probeManager.ReceiveEvents("data_events", stream.dataEventsChan)
@@ -117,7 +113,7 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 
 	// colours
 	red := "\033[35m"
-	cyan := "\033[36m"
+	// cyan := "\033[36m"
 	reset := "\033[0m"
 
 	for {
@@ -129,16 +125,8 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 		case payload := <-stream.dataEventsChan:
 			eventType := getEventType(payload)
 
-			// events.ConnectEvent
 			if eventType == 0 {
-				event := events.ConnectEvent{}
-				event.Decode(payload)
-
-				fmt.Printf("%s[ConnectEvent]%s PID: %d, TID: %d, FD: %d, source: %s, %s=>%s cgroup: %s\n", cyan, reset, event.PID, event.TID, event.FD, event.TypeStr(), event.SourceAddr(), event.DestAddr(), event.CGroupName())
-				outputChan <- &event
-
-				// events.DataEvent
-			} else if eventType == 1 {
+				// DataEvent
 				event := events.DataEvent{}
 				err = event.Decode(payload)
 				if err != nil {
@@ -146,32 +134,27 @@ func (stream *Stream) Start(outputChan chan events.IEvent) {
 					panic(err)
 				}
 				if event.IsBlank() {
-					fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
+					// fmt.Println("\n[DataEvent] Received", event.DataLen, "bytes [ALL BLANK, DROPPING]")
 					continue
 				}
 
 				outputChan <- &event
 
-			} else if eventType == 2 {
+			} else if eventType == 1 {
+				// CloseEvent
 				event := events.CloseEvent{}
 				event.Decode(payload)
 
-				fmt.Println(string(red), "[CloseEvent]", string(reset), " PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
+				fmt.Printf("%s[CloseEvent]%s PID: %d, TID: %d, FD: %d\n", red, reset, event.PID, event.TID, event.FD)
 				outputChan <- &event
 
+			} else if eventType == 2 {
 				// DebugEvent
-			} else if eventType == 3 {
 				event := events.DebugEvent{}
 				event.Decode(payload)
 
 				fmt.Println("\n[DebugEvent] Received, PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD, " - ", string(event.Payload()))
 				fmt.Print(hex.Dump(payload))
-			} else if eventType == 4 {
-				event := events.GetsocknameEvent{}
-				event.Decode(payload)
-
-				fmt.Printf("%s[GetsocknameEvent]%s PID: %d, TID: %d, FD: %d, %s\n", cyan, reset, event.PID, event.TID, event.FD, event.Addr())
-				outputChan <- &event
 			}
 		}
 	}
@@ -308,20 +291,14 @@ func (stream *Stream) Close() {
 	stream.probeManager.Close()
 }
 
-func (stream *Stream) attachKProbes() {
+func (stream *Stream) attachProbes() {
 	kprobes := map[string][]string{
-		"sys_accept":      []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_accept4":     []string{"probe_accept4", "probe_ret_accept4"},
-		"sys_connect":     []string{"probe_connect", "probe_ret_connect"},
-		"sys_getsockname": []string{"probe_getsockname", "probe_ret_getsockname"},
-		"sys_close":       []string{"probe_close", "probe_ret_close"},
-		"sys_sendto":      []string{"probe_sendto", "probe_ret_sendto"},
-		"sys_recvfrom":    []string{"probe_recvfrom", "probe_ret_recvfrom"},
-		"sys_write":       []string{"probe_write", "probe_ret_write"},
-		"sys_read":        []string{"probe_read", "probe_ret_read"},
+		"sys_close":    []string{"probe_close", "probe_ret_close"},
+		"sys_sendto":   []string{"probe_sendto", "probe_ret_sendto"},
+		"sys_recvfrom": []string{"probe_recvfrom", "probe_ret_recvfrom"},
+		"sys_write":    []string{"probe_write", "probe_ret_write"},
+		"sys_read":     []string{"probe_read", "probe_ret_read"},
 	}
-	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
-	// security_socket_sendmsg & security_socket_recvmsg
 
 	for sysFunc, probeFuncs := range kprobes {
 		if len(probeFuncs) != 2 {
@@ -353,9 +330,6 @@ func (stream *Stream) attachUprobesLibSSL(container docker.Container) {
 		"SSL_write":    []string{"probe_entry_SSL_write", "probe_ret_SSL_write"},
 		"SSL_write_ex": []string{"probe_entry_SSL_write_ex", "probe_ret_SSL_write_ex"},
 	}
-	// These two are disabled because they are available on linuxkit (docker desktop for mac) kernel 6.6
-	// security_socket_sendmsg:
-	// security_socket_recvmsg
 
 	for funcName, probeFuncs := range uprobes {
 		if len(probeFuncs) != 2 {

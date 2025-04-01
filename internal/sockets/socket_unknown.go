@@ -14,16 +14,15 @@ type SocketUnknown struct {
 	TID        uint32
 	FD         uint32
 	SSL        bool
-	// Stores
-	activeFrame *Http2Frame
-	activeFlow  *Flow
 	// If a flow is observed, then these are called
 	flowCallbacks []func(Flow)
 	// When a request is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
+	// This is the previous data processed for this unknown socket, used in detectProtocol
+	prevDataEvent *events.DataEvent
 }
 
-func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
+func NewSocketUnknownFromData(event *events.DataEvent) SocketUnknown {
 	socket := SocketUnknown{
 		SourceAddr:  event.SourceAddr(),
 		DestAddr:    event.DestAddr(),
@@ -37,27 +36,21 @@ func NewSocketUnknown(event *events.ConnectEvent) SocketUnknown {
 	return socket
 }
 
-func (socket *SocketUnknown) Key() string {
-	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
+func (sk *SocketUnknown) Key() string {
+	return fmt.Sprintf("%s->%s", sk.SourceAddr, sk.DestAddr)
 }
 
-func (socket *SocketUnknown) Clear() {
+func (sk *SocketUnknown) AddFlowCallback(callback func(Flow)) {
+	sk.flowCallbacks = append(sk.flowCallbacks, callback)
 }
 
-func (socket *SocketUnknown) AddFlowCallback(callback func(Flow)) {
-	socket.flowCallbacks = append(socket.flowCallbacks, callback)
+func (sk *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
 }
 
-func (socket *SocketUnknown) ProcessConnectEvent(event *events.ConnectEvent) {
+func (sk *SocketUnknown) SetPrevDataEvent(event *events.DataEvent) {
+	sk.prevDataEvent = event
 }
 
-func (socket *SocketUnknown) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	if socket.SourceAddr == ZeroAddr {
-		socket.SourceAddr = event.Addr()
-	} else if socket.DestAddr == ZeroAddr {
-		socket.DestAddr = event.Addr()
-	}
-}
-
-func (socket *SocketUnknown) ProcessDataEvent(event *events.DataEvent) {
+func (sk *SocketUnknown) GetPrevDataEvent() *events.DataEvent {
+	return sk.prevDataEvent
 }

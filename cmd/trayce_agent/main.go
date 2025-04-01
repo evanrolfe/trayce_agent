@@ -14,6 +14,7 @@ import (
 
 	"github.com/evanrolfe/trayce_agent/api"
 	"github.com/evanrolfe/trayce_agent/internal"
+	"github.com/evanrolfe/trayce_agent/internal/config"
 	"github.com/evanrolfe/trayce_agent/internal/docker"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	"github.com/evanrolfe/trayce_agent/internal/utils"
@@ -53,10 +54,13 @@ func main() {
 	// Parse Command line args
 	var pid int
 	var libSslPath, grpcServerAddr, filterCmd string
+	var verbose bool
 	flag.IntVar(&pid, "pid", 0, "The PID of the docker container to instrument. Or 0 to intsrument this container.")
 	flag.StringVar(&libSslPath, "libssl", sslLibDefault, "The path to the libssl shared object.")
 	flag.StringVar(&grpcServerAddr, "s", grpcServerDefault, "The address of the GRPC server to send observations to.")
 	flag.StringVar(&filterCmd, "filtercmd", "", "Only observe traffic from processes who's command contains this string")
+	flag.BoolVar(&verbose, "verbose", false, "Enable verbose logging")
+	flag.BoolVar(&verbose, "vv", false, "Enable verbose logging (shorthand)")
 	versionFlg := flag.Bool("v", false, "print current TrayceAgent version")
 	version2Flg := flag.Bool("version", false, "print current TrayceAgent version")
 	flag.Parse()
@@ -78,6 +82,15 @@ func main() {
 		fmt.Println("Linux kernel version", kernelVersion, "is not supported, please upgrade to >= 5.0.0")
 	}
 
+	// Ensure the tracepoints are mounted (i.e. sched_process_fork)
+	if !isMounted("/sys/kernel/debug/tracing") {
+		err := syscall.Mount("debugfs", "/sys/kernel/debug", "debugfs", 0, "")
+		if err != nil {
+			fmt.Println("Failing to mount debugfs:", err)
+			return
+		}
+	}
+
 	// Extract bundled files
 	bpfBytes := internal.MustAsset(bpfFilePath)
 	btfBytes := internal.MustAsset(btfFilePath)
@@ -90,8 +103,11 @@ func main() {
 	socketFlowChan := make(chan sockets.Flow, 1000)
 	signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT)
 
+	// Create config
+	cfg := config.NewConfig(btfFilePath, libSslPath, filterCmd, verbose)
+
 	// Start the listener
-	listener := internal.NewListener(bpfBytes, btfFilePath, libSslPath, filterCmd)
+	listener := internal.NewListener(cfg, bpfBytes)
 	defer listener.Close()
 
 	go listener.Start(socketFlowChan)
@@ -101,7 +117,7 @@ func main() {
 	go func() {
 		for {
 			// Connect to the GRPC server
-			fmt.Println("[GRPC] connecting to server...")
+			fmt.Println("[GRPC] connecting to server at", grpcServerAddr)
 			conn, err := grpc.Dial(
 				grpcServerAddr,
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -158,13 +174,7 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 		}
 	}
 
-	// Let em know we're here
-	// _, err = grpcClient.SendAgentStarted(context.Background(), &api.AgentStarted{})
-	// if err != nil {
-	// 	return err
-	// }
-	// Check the containers every 500ms and send them back to the GUI for display in the containers dialog
-
+	// Check the containers every 1sec and send them back to the GUI for display in the containers dialog
 	// Send-Containers go routine
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -210,8 +220,9 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 			continue
 		}
 		if resp != nil && resp.Type == "set_settings" {
-			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds)
+			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds, resp.Settings.LicenseKey)
 			listener.SetContainers(resp.Settings.ContainerIds)
+			// TODO: Check the license key
 			fmt.Println("[GRPC] done setting container_ids")
 		}
 	}
@@ -247,4 +258,14 @@ func convertContainersGUIToAPI(containers []docker.ContainerGUI) api.Containers 
 	}
 
 	return api.Containers{Containers: apiContainers}
+}
+
+func isMounted(mountPoint string) bool {
+	info, err := os.Stat(mountPoint)
+	if err != nil {
+		fmt.Printf("Error checking mount point: %v\n", err)
+		return false
+	}
+	// Check if the mount point is a directory
+	return info.IsDir()
 }

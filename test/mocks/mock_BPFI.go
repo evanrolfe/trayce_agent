@@ -199,6 +199,66 @@ func (_c *MockBPFI_AttachKRetProbe_Call) RunAndReturn(run func(string, string) (
 	return _c
 }
 
+// AttachTracepoint provides a mock function with given fields: funcName, category, probeFuncName
+func (_m *MockBPFI) AttachTracepoint(funcName string, category string, probeFuncName string) (*libbpfgo.BPFLink, error) {
+	ret := _m.Called(funcName, category, probeFuncName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AttachTracepoint")
+	}
+
+	var r0 *libbpfgo.BPFLink
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, string, string) (*libbpfgo.BPFLink, error)); ok {
+		return rf(funcName, category, probeFuncName)
+	}
+	if rf, ok := ret.Get(0).(func(string, string, string) *libbpfgo.BPFLink); ok {
+		r0 = rf(funcName, category, probeFuncName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*libbpfgo.BPFLink)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, string, string) error); ok {
+		r1 = rf(funcName, category, probeFuncName)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBPFI_AttachTracepoint_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AttachTracepoint'
+type MockBPFI_AttachTracepoint_Call struct {
+	*mock.Call
+}
+
+// AttachTracepoint is a helper method to define mock.On call
+//   - funcName string
+//   - category string
+//   - probeFuncName string
+func (_e *MockBPFI_Expecter) AttachTracepoint(funcName interface{}, category interface{}, probeFuncName interface{}) *MockBPFI_AttachTracepoint_Call {
+	return &MockBPFI_AttachTracepoint_Call{Call: _e.mock.On("AttachTracepoint", funcName, category, probeFuncName)}
+}
+
+func (_c *MockBPFI_AttachTracepoint_Call) Run(run func(funcName string, category string, probeFuncName string)) *MockBPFI_AttachTracepoint_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockBPFI_AttachTracepoint_Call) Return(_a0 *libbpfgo.BPFLink, _a1 error) *MockBPFI_AttachTracepoint_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBPFI_AttachTracepoint_Call) RunAndReturn(run func(string, string, string) (*libbpfgo.BPFLink, error)) *MockBPFI_AttachTracepoint_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // AttachUProbe provides a mock function with given fields: funcName, probeFuncName, binaryPath
 func (_m *MockBPFI) AttachUProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error) {
 	ret := _m.Called(funcName, probeFuncName, binaryPath)

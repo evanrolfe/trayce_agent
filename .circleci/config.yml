@@ -74,7 +74,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          docker_layer_caching: true
+          docker_layer_caching: false
           version: edge
       - build-and-test
       - push
@@ -89,7 +89,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          docker_layer_caching: true
+          docker_layer_caching: false
           version: edge
       - build-and-test
       - push
@@ -100,7 +100,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          docker_layer_caching: true
+          docker_layer_caching: false
       - check-release
       - publish
 
@@ -116,27 +116,15 @@ commands:
             tar -C /home/circleci/ -xf /tmp/go.tar.gz
             echo 'export PATH="$PATH:/home/circleci/go/bin/"' >> $BASH_ENV
       - run:
-          name: Start Megaserver
-          command: |
-            GOARCH=${ARCH} go build -o test/scripts/go_request -buildvcs=false -gcflags "all=-N -l" ./cmd/request/
-            GOARCH=${ARCH} go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
-            docker build test/mega_server -t mega_server:${ARCH}
-            docker run -d -t mega_server:${ARCH}
-      - run:
-          name: Build
-          command: |
-            docker build . -t traycer/trayce_agent_tmp:${ARCH}
-      - run:
-          name: Run
-          command: |
-            export HOST_IP=$(ifconfig eth1 | grep 'inet ' | awk '{print $2}')
-            docker run -d --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -e DOCKER_API_VERSION=1.45 -t traycer/trayce_agent_tmp:${ARCH} -s ${HOST_IP}:50051
+          name: Start dependencies
+          command: docker compose up --build -d trayce_agent megaserver
       - run:
           name: Test
-          command: DOCKER_API_VERSION=1.45 go test ./test -v -count=1 -short -run Test_agent_server
+          command: docker compose up test --build --exit-code-from test
       - run:
-          name: Load Test
-          command: DOCKER_API_VERSION=1.45 go test ./test -v -count=1 -run Test_agent_server
+          name: Print trayce_agent logs
+          command: docker compose logs trayce_agent
+          when: always
   push:
     description: Push the image to docker hub
     steps:

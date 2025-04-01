@@ -1,4 +1,5 @@
 Rails.application.routes.draw do
+  resources :things
   get "/", to: "root#index"
 #   get "/:id", to: "root#index"
   get "/second_http", to: "root#second_http"

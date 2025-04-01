@@ -3,9 +3,6 @@
 Network traffic is captured using a combination of eBPF kprobes and uprobes which send events from kernel-space to user-space (Go). In user-space the events are using to build up a `SocketMap` which contains the details of each socket, each socket in the `SocketMap` collects data sent kernel-space until a complete HTTP1.1 or HTTP2 has been gather, at which point it sends the Flow to the GUI over GRPC.
 
 The eBPF probes and their uses are listed below:
-- **kprobe/accept4:** indicates an incoming connection has been opened, sends a `ConnectEvent` to Go which creates a socket in `SocketMap`
-- **kprobe/connect:** indicates an outgoing connection has been opened, sends a `ConnectEvent` to Go which creates a socket in `SocketMap`
-- **kprobe/getsockname:** sends a `GetsocknameEvent` to Go which is used to populate the source/dest address of a socket in `SocketMap`
 - **kprobe/close:** indicates a connection has been closed, sends a `CloseEvent` which deletes a socket (if it exists) from the `SocketMap`
 - **kprobe/sendto:** indicates data has been sent over a non-encrypted connection, sends a `DataEvent` which collects the data in a socket from `SocketMap` (if it exists)
 - **kprobe/recvfrom:** see above
@@ -28,9 +25,6 @@ For TLS-encrypted HTTP traffic by Go's `crypto/tls` package, uprobes for the fun
 
 |        Probe        | Python | Python TLS | Ruby | Ruby TLS | Go  | Go TLS |
 | ------------------- | ------ | ---------- | ---- | -------- | --- | ------ |
-| kprobe/accept4      | X      | X          | X    | X        | X   | X      |
-| kprobe/connect      | X      | X          | X    | X        | X   | X      |
-| kprobe/getsockname  | X      | X          | X    | X        | X   | X      |
 | kprobe/close        | X      | X          | X    | X        | X   | X      |
 | kprobe/sendto       | X      | .          | X    | .        | .   | .      |
 | kprobe/recvfrom     | X      | .          | X    | .        | .   | .      |
@@ -57,7 +51,7 @@ Every time a new process on a container is open, `internal/ebpf/stream.go` attem
 
 **Null-FD workaround**
 
-Connections are stored in the `SocketMap` using their PID and FD (file descriptor) as key, it matches up `DataEvent`s with Connections using that same key. In some cases, (i.e. Ruby TLS traffic), the FD is always set to -1 when `SSL_Read` & `SSL_Write` are called, this is a problem because it prevents us from matching up `DataEvents` with their connections in the `SocketMap`. So in order to keep find the FD for the `DataEvent`, two maps are used to keep track the FD between different calls:
+Connections are stored in the `SocketMap` using their source+destination address as key, it matches up `DataEvent`s with Connections using that same key. In some cases, (i.e. Ruby TLS traffic), the FD is always set to -1 when `SSL_Read` & `SSL_Write` are called, this is a problem because it prevents us from matching up `DataEvents` with their connections in the `SocketMap`. So in order to keep find the FD for the `DataEvent`, two maps are used to keep track the FD between different calls:
 - in `kprobe/recvfrom` the FD is set on the `fd_map` using `current_pid_tgid` key
 - in `uprobe/SSL_Read` the FD is fetched from `fd_map` (see `get_fd_from_libssl_read()`) and the saved again to `ssl_fd_map` using the `ssl` pointer num as key
 - in `uprobe/SSL_Write` the FD is fetched from `ssl_fd_map` since `SSL_Read` and `SSL_Write` both have the same pointer to the `ssl` arg

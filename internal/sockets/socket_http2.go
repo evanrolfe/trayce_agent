@@ -9,34 +9,25 @@ import (
 )
 
 type SocketHttp2 struct {
-	SourceAddr string
-	DestAddr   string
-	Protocol   string
-	PID        uint32
-	TID        uint32
-	FD         uint32
-	SSL        bool
+	Common SocketCommon
 
 	streams     map[uint32]*Http2Stream
 	frameBuffer map[string][]byte
 	mu          sync.Mutex
-	// If a flow is observed, then these are called
-	flowCallbacks []func(Flow)
-	// The flows are buffered until a GetsocknameEvent is received which sets the source/dest address on the flows
-	flowBuf []Flow
 }
 
-func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
+func NewSocketHttp2(sourceAddr, destAddr string, pid, tid, fd uint32) SocketHttp2 {
 	socket := SocketHttp2{
-		SourceAddr:  event.SourceAddr(),
-		DestAddr:    event.DestAddr(),
-		PID:         event.PID,
-		TID:         event.TID,
-		FD:          event.FD,
-		SSL:         false,
+		Common: SocketCommon{
+			SourceAddr: sourceAddr,
+			DestAddr:   destAddr,
+			PID:        pid,
+			TID:        tid,
+			FD:         fd,
+			SSL:        false,
+		},
 		streams:     map[uint32]*Http2Stream{},
 		frameBuffer: map[string][]byte{},
-		flowBuf:     []Flow{},
 	}
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
@@ -46,15 +37,16 @@ func NewSocketHttp2(event *events.ConnectEvent) SocketHttp2 {
 
 func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 	socket := SocketHttp2{
-		SourceAddr:  unkownSocket.SourceAddr,
-		DestAddr:    unkownSocket.DestAddr,
-		PID:         unkownSocket.PID,
-		TID:         unkownSocket.TID,
-		FD:          unkownSocket.FD,
-		SSL:         false,
+		Common: SocketCommon{
+			SourceAddr: unkownSocket.SourceAddr,
+			DestAddr:   unkownSocket.DestAddr,
+			PID:        unkownSocket.PID,
+			TID:        unkownSocket.TID,
+			FD:         unkownSocket.FD,
+			SSL:        false,
+		},
 		streams:     map[uint32]*Http2Stream{},
 		frameBuffer: map[string][]byte{},
-		flowBuf:     []Flow{},
 	}
 	socket.frameBuffer[events.TypeIngress] = []byte{}
 	socket.frameBuffer[events.TypeEgress] = []byte{}
@@ -62,49 +54,30 @@ func NewSocketHttp2FromUnknown(unkownSocket *SocketUnknown) SocketHttp2 {
 	return socket
 }
 
-func (socket *SocketHttp2) Key() string {
-	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
+func (sk *SocketHttp2) Key() string {
+	return sk.Common.Key()
 }
 
-func (socket *SocketHttp2) Clear() {
-	socket.clearFrameBuffer(events.TypeIngress)
-	socket.clearFrameBuffer(events.TypeEgress)
-}
-
-func (socket *SocketHttp2) AddFlowCallback(callback func(Flow)) {
-	socket.flowCallbacks = append(socket.flowCallbacks, callback)
-}
-
-// ProcessConnectEvent is called when the connect event arrives after the data event
-func (socket *SocketHttp2) ProcessConnectEvent(event *events.ConnectEvent) {
-}
-
-func (socket *SocketHttp2) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	if socket.SourceAddr == ZeroAddr {
-		socket.SourceAddr = event.Addr()
-	} else if socket.DestAddr == ZeroAddr {
-		socket.DestAddr = event.Addr()
-	}
-
-	socket.releaseFlows()
+func (sk *SocketHttp2) AddFlowCallback(callback func(Flow)) {
+	sk.Common.AddFlowCallback(callback)
 }
 
 // TODO: Have a structure for handling the frame header + payload?
-func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
-	socket.mu.Lock()
-	defer socket.mu.Unlock()
+func (sk *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
+	sk.mu.Lock()
+	defer sk.mu.Unlock()
 
 	fmt.Println("\n[SocketHttp2] Received ", event.DataLen, "bytes, source:", event.Source(), ", PID:", event.PID, ", TID:", event.TID, "FD: ", event.FD)
 	// fmt.Println(hex.Dump(event.Payload()))
 
-	if socket.SSL && !event.SSL() {
+	if sk.Common.SSL && !event.SSL() {
 		// If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
 		return
 	}
 
-	if event.SSL() && !socket.SSL {
-		fmt.Println("[SocketHttp1.1] upgrading to SSL")
-		socket.SSL = true
+	if event.SSL() && !sk.Common.SSL {
+		fmt.Println("[SocketHttp2] upgrading to SSL")
+		sk.Common.UpgradeToSSL()
 	}
 
 	// Ignore the http2 magic string (PRI * SM...)
@@ -115,66 +88,31 @@ func (socket *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 	// Check if the frame is complete, if not buffer it.
 	// Its possible we receive partial ingress frame, then an egress frame, then the rest of the ingress frame,
 	// so because of that we need to buffer the frame bytes based on ingress/egress direction.
-	frameBytes := append(socket.frameBuffer[event.Type()], event.Payload()...)
+	frameBytes := append(sk.frameBuffer[event.Type()], event.Payload()...)
 	frames, remainder := ParseBytesToFrames(frameBytes)
 
-	socket.frameBuffer[event.Type()] = remainder
+	sk.frameBuffer[event.Type()] = remainder
 
 	for _, frame := range frames {
-		socket.processFrame(frame)
+		sk.processFrame(frame)
 	}
 }
 
-func (socket *SocketHttp2) processFrame(frame *Http2Frame) {
-	stream := socket.findOrCreateStream(frame.StreamID())
+func (sk *SocketHttp2) processFrame(frame *Http2Frame) {
+	stream := sk.findOrCreateStream(frame.StreamID())
 	flow := stream.ProcessFrame(frame)
 	if flow != nil {
-		socket.sendFlowBack(*flow)
+		sk.Common.sendFlowBack(*flow)
 	}
 }
 
-func (socket *SocketHttp2) findOrCreateStream(streamID uint32) *Http2Stream {
-	stream, exists := socket.streams[streamID]
+func (sk *SocketHttp2) findOrCreateStream(streamID uint32) *Http2Stream {
+	stream, exists := sk.streams[streamID]
 	if !exists {
-		fmt.Println("[SocketHTTP2] creating stream", streamID, " socket:", socket.Key())
+		fmt.Println("[SocketHTTP2] creating stream", streamID, " socket:", sk.Key())
 		stream = NewHttp2Stream()
-		socket.streams[streamID] = stream
+		sk.streams[streamID] = stream
 	}
-	fmt.Println("[SocketHTTP2] Found stream", streamID, " socket:", socket.Key())
+	fmt.Println("[SocketHTTP2] Found stream", streamID, " socket:", sk.Key())
 	return stream
-}
-
-func (socket *SocketHttp2) clearFrameBuffer(key string) {
-	socket.frameBuffer[key] = []byte{}
-}
-
-func (socket *SocketHttp2) releaseFlows() {
-	for _, flow := range socket.flowBuf {
-		flow.SourceAddr = socket.SourceAddr
-		flow.DestAddr = socket.DestAddr
-		socket.sendFlowBack(flow)
-	}
-
-	socket.flowBuf = []Flow{}
-}
-
-func (socket *SocketHttp2) sendFlowBack(flow Flow) {
-	blackOnYellow := "\033[30;43m"
-	reset := "\033[0m"
-
-	if socket.DestAddr == ZeroAddr || socket.SourceAddr == ZeroAddr {
-		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
-		socket.flowBuf = append(socket.flowBuf, flow)
-		return
-	}
-
-	flow.SourceAddr = socket.SourceAddr
-	flow.DestAddr = socket.DestAddr
-
-	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
-	flow.Debug()
-
-	for _, callback := range socket.flowCallbacks {
-		callback(flow)
-	}
 }

@@ -148,7 +148,7 @@ int probe_ret_SSL_read(struct pt_regs *ctx) {
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kSSLRead, buf, buf_len, fd);
+        process_data(current_pid_tgid, kSSLRead, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_ssl_read_args_map, &current_pid_tgid);
 
@@ -187,7 +187,7 @@ int probe_ret_SSL_read_ex(struct pt_regs *ctx) {
         s32 version = active_buf_t->version;
         bpf_probe_read(&buf, sizeof(const char *), &active_buf_t->buf);
 
-        process_data(ctx, current_pid_tgid, kSSLRead, buf, buf_len, fd);
+        process_data(current_pid_tgid, kSSLRead, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_ssl_read_args_map, &current_pid_tgid);
 
@@ -294,7 +294,7 @@ int probe_ret_SSL_write(struct pt_regs *ctx) {
 
         size_t buf_len = (size_t)PT_REGS_RC(ctx);
 
-        process_data(ctx, current_pid_tgid, kSSLWrite, buf, buf_len, fd);
+        process_data(current_pid_tgid, kSSLWrite, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_ssl_write_args_map, &current_pid_tgid);
     return 0;
@@ -318,7 +318,7 @@ int probe_ret_SSL_write_ex(struct pt_regs *ctx) {
         size_t buf_len;
         bpf_probe_read(&buf_len, sizeof(buf_len), active_buf_t->ssl_ex_len_ptr);
 
-        process_data(ctx, current_pid_tgid, kSSLWrite, buf, buf_len, fd);
+        process_data(current_pid_tgid, kSSLWrite, buf, buf_len, fd);
     }
     bpf_map_delete_elem(&active_ssl_write_args_map, &current_pid_tgid);
     return 0;

@@ -3,36 +3,44 @@ package events
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
+	"net"
 	"slices"
 )
 
 const (
-	kSSLRead    = 0
-	kSSLWrite   = 1
-	kRead       = 2
-	kWrite      = 3
-	kRecvfrom   = 4
-	kSendto     = 5
-	goTlsRead   = 6
-	goTlsWrite  = 7
+	KSSLRead    = 0
+	KSSLWrite   = 1
+	KRead       = 2
+	KWrite      = 3
+	KRecvfrom   = 4
+	KSendto     = 5
+	GoTlsRead   = 6
+	GoTlsWrite  = 7
 	TypeEgress  = "egress"
 	TypeIngress = "ingress"
+	DIngress    = 0
+	DEgress     = 1
 )
 
 // DataEvent is sent from ebpf when data is sent or received over a socket, see corresponding: struct data_event_t
 type DataEvent struct {
-	EventType uint64            `json:"eventType"`
-	DataType  uint64            `json:"dataType"`
-	Timestamp uint64            `json:"timestamp"`
-	PID       uint32            `json:"pid"`
-	TID       uint32            `json:"tid"`
-	CGroup    [128]byte         `json:"cgroup"`
-	FD        uint32            `json:"fd"`
-	Version   int32             `json:"version"`
-	SSLPtr    int64             `json:"sslPtr"`
-	DataLen   int32             `json:"dataLen"`
-	Data      [MaxDataSize]byte `json:"data"`
+	EventType  uint64            `json:"eventType"`
+	DataType   uint64            `json:"dataType"`
+	Timestamp  uint64            `json:"timestamp"`
+	PID        uint32            `json:"pid"`
+	TID        uint32            `json:"tid"`
+	CGroup     [128]byte         `json:"cgroup"`
+	FD         uint32            `json:"fd"`
+	Version    int32             `json:"version"`
+	Direction  uint32            `json:"direction"`
+	SourceHost uint32            `json:"source_host"`
+	DestHost   uint32            `json:"dest_host"`
+	SourcePort uint16            `json:"source_port"`
+	DestPort   uint16            `json:"dest_port"`
+	DataLen    int32             `json:"dataLen"`
+	Data       [MaxDataSize]byte `json:"data"`
 }
 
 func (se *DataEvent) Decode(payload []byte) (err error) {
@@ -61,7 +69,19 @@ func (se *DataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &se.Version); err != nil {
 		return
 	}
-	if err = binary.Read(buf, binary.LittleEndian, &se.SSLPtr); err != nil {
+	if err = binary.Read(buf, binary.LittleEndian, &se.Direction); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.SourceHost); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.DestHost); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.SourcePort); err != nil {
+		return
+	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.DestPort); err != nil {
 		return
 	}
 	if err = binary.Read(buf, binary.LittleEndian, &se.DataLen); err != nil {
@@ -98,21 +118,21 @@ func (se *DataEvent) PayloadLen() int {
 
 func (se *DataEvent) Type() string {
 	switch AttachType(se.DataType) {
-	case kSSLRead:
+	case KSSLRead:
 		return TypeIngress
-	case kSSLWrite:
+	case KSSLWrite:
 		return TypeEgress
-	case kRead:
+	case KRead:
 		return TypeIngress
-	case kWrite:
+	case KWrite:
 		return TypeEgress
-	case kRecvfrom:
+	case KRecvfrom:
 		return TypeIngress
-	case kSendto:
+	case KSendto:
 		return TypeEgress
-	case goTlsRead:
+	case GoTlsRead:
 		return TypeIngress
-	case goTlsWrite:
+	case GoTlsWrite:
 		return TypeEgress
 
 	default:
@@ -122,21 +142,21 @@ func (se *DataEvent) Type() string {
 
 func (se *DataEvent) Source() string {
 	switch se.DataType {
-	case kSSLRead:
+	case KSSLRead:
 		return "SSL_read"
-	case kSSLWrite:
+	case KSSLWrite:
 		return "SSL_write"
-	case kRead:
+	case KRead:
 		return "kprobe/read"
-	case kWrite:
+	case KWrite:
 		return "kprobe/write"
-	case kRecvfrom:
+	case KRecvfrom:
 		return "kprobe/recvfrom"
-	case kSendto:
+	case KSendto:
 		return "kprobe/sendto"
-	case goTlsRead:
+	case GoTlsRead:
 		return "uprobe/go_tls_read"
-	case goTlsWrite:
+	case GoTlsWrite:
 		return "uprobe/go_tls_write"
 	default:
 		return "unknown"
@@ -144,11 +164,29 @@ func (se *DataEvent) Source() string {
 }
 
 func (se *DataEvent) Key() string {
-	return fmt.Sprintf("%d-%d", se.PID, se.FD)
+	return fmt.Sprintf("%s-%s", se.Address(), se.CGroupName())
+}
+
+func intToIP(ipInt uint32) string {
+	ip := make(net.IP, 4)
+	binary.LittleEndian.PutUint32(ip, ipInt)
+	return ip.String()
+}
+
+func (se *DataEvent) Address() string {
+	return fmt.Sprintf("%s:%d->%s:%d", intToIP(se.SourceHost), se.SourcePort, intToIP(se.DestHost), se.DestPort)
+}
+
+func (se *DataEvent) SourceAddr() string {
+	return fmt.Sprintf("%s:%d", intToIP(se.SourceHost), se.SourcePort)
+}
+
+func (se *DataEvent) DestAddr() string {
+	return fmt.Sprintf("%s:%d", intToIP(se.DestHost), se.DestPort)
 }
 
 func (se *DataEvent) SSL() bool {
-	sslTypes := []uint64{kSSLRead, kSSLWrite, goTlsRead, goTlsWrite}
+	sslTypes := []uint64{KSSLRead, KSSLWrite, GoTlsRead, GoTlsWrite}
 	return slices.Contains(sslTypes, se.DataType)
 }
 
@@ -161,6 +199,26 @@ func (se *DataEvent) IsBlank() bool {
 	}
 	return true
 }
+
+func (se *DataEvent) LogLine(verbose bool) string {
+	green := "\033[92m"
+	reset := "\033[0m"
+	cgroup := se.CGroupName()
+	if len(cgroup) > 20 {
+		cgroup = cgroup[:20]
+	}
+	fmt.Println(string(green), "[DataEvent]", string(reset), se.DataLen, "bytes, source:", se.Source(), ", PID:", se.PID, ", TID:", se.TID, "FD:", se.FD, ", cgroup:", cgroup, "\n", se.Address())
+	if verbose {
+		return hex.Dump(se.Payload())
+	} else {
+		return hex.Dump(se.PayloadTrimmed(16))
+	}
+}
+
+// htons converst host ot network byte order
+// func htons(x uint16) uint16 {
+// 	return (x&0xff)<<8 | (x&0xff00)>>8
+// }
 
 // func (se *SSLDataEvent) StringHex() string {
 // 	//addr := se.module.(*module.MOpenSSLProbe).GetConn(se.Pid, se.Fd)

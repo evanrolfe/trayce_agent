@@ -3,6 +3,8 @@ package sockets
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"golang.org/x/net/http2/hpack"
 )
@@ -113,6 +115,92 @@ func (f *Http2Frame) Append(raw []byte) {
 	f.raw = append(f.raw, raw...)
 }
 
+func (f *Http2Frame) ConvertToFlowRequest() (FlowRequest, error) {
+	if !f.Complete() || f.Type() != 1 {
+		return nil, fmt.Errorf("ERROR: cannot convert incomplete or non-header frame to HTTPRequest")
+	}
+
+	// parse psuedo headers
+	psuedoHeaders := f.psuedoHeaders()
+	if psuedoHeaders[":method"] == "" || psuedoHeaders[":path"] == "" {
+		return nil, fmt.Errorf("ERROR: cannot convert frame to HTTPRequest, missing :path header")
+	}
+
+	// parse headers
+	headers, err := f.Headers()
+	if err != nil {
+		return nil, fmt.Errorf("ERROR from f.Headers(): %v", err)
+	}
+
+	// determine http or grpc
+	isGRPC := false
+	for _, header := range headers {
+		if strings.ToLower(header.Name) == "content-type" && strings.Contains(header.Value, "application/grpc") {
+			isGRPC = true
+		}
+	}
+
+	if isGRPC {
+		grpcReq := &GRPCRequest{}
+		grpcReq.Path = psuedoHeaders[":path"]
+		grpcReq.Headers = convertHPackHeaders(headers)
+
+		return grpcReq, nil
+	} else {
+		httpReq := &HTTPRequest{}
+		httpReq.HttpVersion = "2"
+		httpReq.Method = psuedoHeaders[":method"]
+		httpReq.Path = psuedoHeaders[":path"]
+		httpReq.Host = psuedoHeaders[":authority"]
+		httpReq.Headers = convertHPackHeaders(headers)
+
+		return httpReq, nil
+	}
+}
+
+func (f *Http2Frame) ConvertToFlowResponse() (FlowResponse, error) {
+	if !f.Complete() || f.Type() != 1 {
+		return nil, fmt.Errorf("cannot convert incomplete or non-header frame to FlowResponse")
+	}
+
+	// parse psuedo headers, extract status
+	psuedoHeaders := f.psuedoHeaders()
+	if psuedoHeaders[":status"] == "" {
+		return nil, fmt.Errorf("ERROR: cannot convert frame to FlowResponse, missing :status header")
+	}
+	status, err := strconv.Atoi(psuedoHeaders[":status"])
+
+	// pare headers
+	headers, err := f.Headers()
+	if err != nil {
+		return nil, fmt.Errorf("ERROR from f.Headers(): %v", err)
+	}
+
+	// determine http or grpc
+	isGRPC := false
+	for _, header := range headers {
+		if strings.ToLower(header.Name) == "content-type" && strings.Contains(header.Value, "application/grpc") {
+			isGRPC = true
+		}
+	}
+
+	if isGRPC {
+		grpcResp := &GRPCResponse{}
+		grpcResp.Headers = convertHPackHeaders(headers)
+		grpcResp.Payload = []byte{}
+
+		return grpcResp, nil
+	} else {
+		httpResp := &HTTPResponse{}
+		httpResp.Status = status
+		httpResp.HttpVersion = "2"
+		httpResp.Headers = convertHPackHeaders(headers)
+		httpResp.Payload = []byte{}
+
+		return httpResp, nil
+	}
+}
+
 func (f *Http2Frame) Headers() ([]hpack.HeaderField, error) {
 	if !f.Complete() || f.Type() != 1 {
 		return []hpack.HeaderField{}, fmt.Errorf("cannot parse headers for this frame")
@@ -187,4 +275,22 @@ func (f *Http2Frame) psuedoHeaders() map[string]string {
 	}
 	return psuedoHeaders
 
+}
+
+func convertHPackHeaders(headers []hpack.HeaderField) map[string][]string {
+	newHeaders := map[string][]string{}
+
+	for _, header := range headers {
+		if header.IsPseudo() {
+			continue
+		}
+		h := newHeaders[header.Name]
+		if h == nil {
+			newHeaders[header.Name] = []string{header.Value}
+		} else {
+			h = append(h, header.Value)
+		}
+	}
+
+	return newHeaders
 }

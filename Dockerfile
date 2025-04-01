@@ -1,12 +1,34 @@
 #
 # Build Image
 #
-FROM ubuntu:22.04 AS build
+FROM ubuntu:25.04 AS build
 ENV GO_VERSION=1.23.0
 
 # Build dependencies:
 RUN apt update -y
-RUN apt install -y clang libelf1 libelf-dev zlib1g-dev make build-essential libz-dev libcap-dev llvm llvm-dev lld binutils-dev pkg-config linux-tools-generic wget binutils git libssl-dev protobuf-compiler gcc
+RUN apt upgrade -y
+RUN apt install --fix-missing -y \
+    clang \
+    libelf1 \
+    libelf-dev \
+    zlib1g-dev \
+    make \
+    build-essential \
+    libz-dev \
+    libcap-dev \
+    llvm \
+    llvm-dev \
+    lld \
+    binutils-dev \
+    pkg-config \
+    linux-tools-generic \
+    wget \
+    binutils \
+    git \
+    libssl-dev \
+    protobuf-compiler \
+    gcc \
+    libzstd-dev
 
 # Debugging tools:
 # RUN apt install -y curl net-tools iproute2 dnsutils strace ltrace
@@ -31,15 +53,15 @@ ADD . /app
 
 RUN make install-libbpf
 RUN make
-RUN make testunit
 
 #
 # Final Image
 #
-FROM alpine:latest AS final
+FROM ubuntu:25.04 AS final
 
 WORKDIR /app
+RUN apt update -y && apt install -y libelf-dev
 
 COPY --from=build /app/trayce_agent /app/trayce_agent
 
-ENTRYPOINT ["./trayce_agent"]
+ENTRYPOINT ["/app/trayce_agent"]

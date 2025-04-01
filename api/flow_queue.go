@@ -30,17 +30,9 @@ func (fq *FlowQueue) Start(ctx context.Context, inputChan chan sockets.Flow) {
 				fmt.Println("[FlowQueue] stopping receiver go-routine")
 				return
 			case flow := <-inputChan:
-				fmt.Println("[FlowQueue] received flow", flow.UUID, "req:", len(flow.Request), "resp:", len(flow.Response))
-				// Convert socket.Flow to Flow
-				apiFlow := &Flow{
-					Uuid:       flow.UUID,
-					SourceAddr: flow.SourceAddr,
-					DestAddr:   flow.DestAddr,
-					L4Protocol: flow.L4Protocol,
-					L7Protocol: flow.L7Protocol,
-					Request:    flow.Request,
-					Response:   flow.Response,
-				}
+				fmt.Println("[FlowQueue] received flow", flow.UUID)
+				apiFlow := convertToAPIFlow(flow)
+
 				// Queue the Flow
 				fq.flows = append(fq.flows, apiFlow)
 
@@ -95,32 +87,3 @@ func (fq *FlowQueue) shiftQueue(n int) []*Flow {
 
 	return flows
 }
-
-func (fq *FlowQueue) clearQueue() {
-	fq.flows = []*Flow{}
-}
-
-// func test() {
-// 	for keepGoing := true; keepGoing; {
-// 		var batch []string
-// 		expire := time.After(maxTimeout)
-// 		for {
-// 			select {
-// 			case value, ok := <-values:
-// 				if !ok {
-// 					keepGoing = false
-// 					goto done
-// 				}
-
-// 				batch = append(batch, value)
-// 				if len(batch) == maxItems {
-// 					goto done
-// 				}
-
-// 			case <-expire:
-// 				goto done
-// 			}
-// 		}
-
-// 	}
-// }

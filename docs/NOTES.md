@@ -180,3 +180,9 @@ Build and publish a multi-arch image with:
 ```
 docker buildx build . --platform linux/amd64,linux/arm64 -t traycer/trayce_agent:latest --push
 ```
+
+### Using TCPDUmp in postgres:
+```
+apt update && apt install -y tcpdump
+tcpdump -i any -X port 5432
+```

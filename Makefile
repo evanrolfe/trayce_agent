@@ -1,6 +1,6 @@
 CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output/"
-CGO_LDFLAGS_STATIC = "-lelf -lz /app/third_party/libbpfgo/output/libbpf/libbpf.a"
-CGO_EXTLDFLAGS_STATIC = '-w -extldflags "-static"'
+CGO_LDFLAGS_STATIC = "/app/third_party/libbpfgo/output/libbpf/libbpf.a -lelf -lzstd"
+CGO_EXTLDFLAGS_STATIC = '-w'
 CGO_CFLAGS_STATIC = "-I/app/third_party/libbpfgo/output"
 CGO_FLAGS = CC=$(CLANG) CGO_CFLAGS=$(CGO_CFLAGS_STATIC) CGO_LDFLAGS=$(CGO_LDFLAGS_STATIC) GOARCH=$(ARCH_FOR_CGO) GOOS=linux CGO_ENABLED=1
 ARCH_FOR_CGO := $(shell uname -m | sed 's/x86_64/amd64/g; s/aarch64/arm64/g')
@@ -17,7 +17,7 @@ all: build-bpf build
 install-libbpf: clean
 	git clone --recurse-submodules https://github.com/libbpf/libbpf-bootstrap ./third_party/libbpf-bootstrap
 	git clone https://github.com/aquasecurity/libbpfgo  ./third_party/libbpfgo
-	cd third_party/libbpfgo && rmdir libbpf && ln -s ../libbpf-bootstrap/libbpf ./libbpf
+	cd third_party/libbpf-bootstrap && git checkout 70de71d17613a25b7d43ce9a0ec649be1af1c4c9
 	cd third_party/libbpfgo && make libbpfgo-static
 
 # Compile the BPF code to .output/main.bpf.o
@@ -33,12 +33,6 @@ generate:
 # Generate the grpc code
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative api/api.proto
 
-# Generates the code for the grpc test server in mega_server
-generate-test:
-	go build -o test/mega_server/go -buildvcs=false -gcflags "all=-N -l" ./cmd/mock_server/
-	go build -o grpc_server ./cmd/grpc_server/
-	mv grpc_server test/mega_server/go/
-
 # Compile our Go binary using .output/main.bpf.o
 build: generate
 # Compile the Go app to our final executable ./trayce_agent
@@ -49,14 +43,15 @@ build: generate
 
 	@echo "\n$(DIV)\n+ Build complete. Binary executable at: ./trayce_agent\n$(DIV)"
 
-# test runs the tests but it also starts the trayce_agent process, its intended to be used during local development
-# from within the build container
 test:
-	START_AGENT=true go test ./test -v -count=1 -short -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
+	go test ./test -v -count=1 -short -run Test_agent_server
 
 testload:
-	$(CGO_FLAGS) \
-	START_AGENT=true go test ./test -v -count=1 -run Test_agent_server | sed $(SED_PASS) | sed $(SED_FAIL)
+	go test ./test -v -count=1 -run Test_agent_server
+
+testall:
+	go test ./test -v -count=1 -short -run Test_agent_server || exit $$?
+	go test ./test -v -count=1 -run Test_agent_server || exit $$?
 
 testunit: generate
 	$(CGO_FLAGS) \
@@ -75,10 +70,7 @@ clean:
 	rm -f internal/bundle.go
 
 dev:
-	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock -it trayce_agent:local bash
-
-megaserver:
-	docker run -it mega_server
+	docker run --pid=host --privileged -v ./:/app -v /var/run/docker.sock:/var/run/docker.sock --network trayce_network -it trayce_agent:local
 
 decision:
 	@timestamp=$$(date +"%Y-%m-%d"); \

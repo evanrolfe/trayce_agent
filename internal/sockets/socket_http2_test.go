@@ -1,9 +1,6 @@
 package sockets_test
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
 	. "github.com/onsi/ginkgo/v2"
@@ -11,7 +8,7 @@ import (
 )
 
 var _ = Describe("SocketHTTP2", func() {
-	Context("Receiving a Connect & Data events (POST request)", Ordered, func() {
+	Context("Receiving Data events (POST request)", Ordered, func() {
 		flows := []*sockets.Flow{}
 
 		// uprobe/go_tls_write
@@ -38,22 +35,7 @@ var _ = Describe("SocketHTTP2", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp2("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -84,14 +66,18 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
-			Expect(lines[0]).To(Equal("POST / HTTP/2"))
-			Expect(lines[1]).To(Equal("host: 172.17.0.3:4123"))
-			Expect(lines[2]).To(Equal("user-agent: curl/7.81.0"))
-			Expect(lines[3]).To(Equal("accept: */*"))
-			Expect(lines[4]).To(Equal("content-type: application/json"))
-			Expect(lines[5]).To(Equal("content-length: 34"))
-			Expect(lines[7]).To(Equal(`{"key1":"value1", "key2":"value2"}`))
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("POST"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:4123"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/7.81.0"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
+			Expect(req.Headers["content-type"]).To(Equal([]string{"application/json"}))
+			Expect(req.Headers["content-length"]).To(Equal([]string{"34"}))
+			Expect(req.Payload).To(Equal([]byte(`{"key1":"value1", "key2":"value2"}`)))
 		})
 
 		It("returns a response flow", func() {
@@ -106,16 +92,19 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).To(BeNil())
 			Expect(flow.Response).ToNot(BeNil())
 
-			lines := strings.Split(string(flow.Response), "\r\n")
-			Expect(lines[0]).To(Equal("HTTP/2 200"))
-			Expect(lines[1]).To(Equal("content-type: text/plain"))
-			Expect(lines[2]).To(Equal("content-length: 13"))
-			Expect(lines[3]).To(Equal("date: Mon, 06 May 2024 16:32:41 GMT"))
-			Expect(lines[5]).To(Equal("Hello world.\n"))
+			resp, ok := flow.Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Status).To(Equal(200))
+			Expect(resp.HttpVersion).To(Equal("2"))
+			Expect(resp.Headers["content-type"]).To(Equal([]string{"text/plain"}))
+			Expect(resp.Headers["content-length"]).To(Equal([]string{"13"}))
+			Expect(resp.Headers["date"]).To(Equal([]string{"Mon, 06 May 2024 16:32:41 GMT"}))
+			Expect(resp.Payload).To(Equal([]byte("Hello world.\n")))
 		})
 	})
 
-	Context("Receiving a Connect & Data events (GET request)", Ordered, func() {
+	Context("Receiving Data events (GET request)", Ordered, func() {
 		flows := []*sockets.Flow{}
 
 		payloads := [][]byte{
@@ -129,22 +118,7 @@ var _ = Describe("SocketHTTP2", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 0,
-				SourcePort: 0,
-				DestHost:   33558956,
-				DestPort:   1234,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp2("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -165,8 +139,8 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flows).To(HaveLen(1))
 
 			flow := flows[0]
-			Expect(flow.SourceAddr).To(Equal("127.0.0.1:80"))
-			Expect(flow.DestAddr).To(Equal("172.17.0.2:1234"))
+			Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+			Expect(flow.DestAddr).To(Equal("127.0.0.1:80"))
 			Expect(flow.L4Protocol).To(Equal("tcp"))
 			Expect(flow.L7Protocol).To(Equal("http2"))
 			Expect(flow.PID).To(Equal(123))
@@ -175,13 +149,19 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
-			Expect(lines[0]).To(Equal("GET / HTTP/2"))
-			fmt.Print(lines)
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:4123"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/7.81.0"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
 		})
 	})
 
-	Context("Receiving a Connect & Data events (GET request) with a large response payload", Ordered, func() {
+	Context("Receiving Data events (GET request) with a large response payload", Ordered, func() {
 		flows := []*sockets.Flow{}
 
 		// Request payloads
@@ -209,22 +189,7 @@ var _ = Describe("SocketHTTP2", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp2("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -268,9 +233,15 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
-			Expect(lines[0]).To(Equal("GET / HTTP/2"))
-			fmt.Print(lines)
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:4123"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/7.81.0"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
 		})
 
 		It("returns a response flow", func() {
@@ -283,15 +254,20 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.FD).To(Equal(5))
 
 			Expect(flow.Request).To(BeNil())
-			// Expect(flow.Response).To(BeNil())
+			Expect(flow.Response).ToNot(BeNil())
 
-			// lines := strings.Split(string(flow.Request), "\r\n")
-			// Expect(lines[0]).To(Equal("GET / HTTP/2"))
-			// fmt.Print(lines)
+			resp, ok := flow.Response.(*sockets.HTTPResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Status).To(Equal(200))
+			Expect(resp.HttpVersion).To(Equal("2"))
+			Expect(resp.Headers["content-type"]).To(Equal([]string{"text/plain"}))
+			Expect(resp.Headers["date"]).To(Equal([]string{"Mon, 03 Jun 2024 08:16:38 GMT"}))
+			Expect(len(resp.Payload)).To(Equal(4891))
 		})
 	})
 
-	Context("Receiving a Connect & Data events (POST request) with a large request payload", Ordered, func() {
+	Context("Receiving Data events (POST request) with a large request payload", Ordered, func() {
 		flows := []*sockets.Flow{}
 
 		// Request payloads
@@ -320,22 +296,7 @@ var _ = Describe("SocketHTTP2", func() {
 		}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp2("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -367,9 +328,18 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flow.Request).ToNot(BeNil())
 			Expect(flow.Response).To(BeNil())
 
-			lines := strings.Split(string(flow.Request), "\r\n")
-			Expect(lines[0]).To(Equal("POST / HTTP/2"))
-			fmt.Print(lines)
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("POST"))
+			Expect(req.Path).To(Equal("/"))
+			Expect(req.HttpVersion).To(Equal("2"))
+			Expect(req.Host).To(Equal("172.17.0.3:4123"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/7.81.0"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
+			Expect(req.Headers["content-type"]).To(Equal([]string{"application/x-www-form-urlencoded"}))
+			Expect(req.Headers["content-length"]).To(Equal([]string{"4889"}))
+			Expect(len(req.Payload)).To(Equal(4889))
 		})
 	})
 
@@ -405,7 +375,7 @@ var _ = Describe("SocketHTTP2", func() {
 	// This is a Window Update frame with a payload length of 4 bytes.
 	// Total length: 13 bytes (9 bytes header + 4 bytes payload)
 	//
-	Context("Receiving a Connect & Data events (GET request), then Data events with a multiple response frames in one event", Ordered, func() {
+	Context("Receiving Data events (GET request), then Data events with a multiple response frames in one event", Ordered, func() {
 		flows := []*sockets.Flow{}
 
 		// Request payloads
@@ -432,22 +402,7 @@ var _ = Describe("SocketHTTP2", func() {
 		responsePayloads := [][]byte{http2Event22, http2Event23, http2Event24}
 
 		BeforeAll(func() {
-			socket := sockets.NewSocketHttp2(&events.ConnectEvent{
-				PID:        123,
-				TID:        123,
-				FD:         5,
-				SourceHost: 33558956,
-				SourcePort: 1234,
-				DestHost:   0,
-				DestPort:   0,
-			})
-			socket.ProcessGetsocknameEvent(&events.GetsocknameEvent{
-				PID:  123,
-				TID:  123,
-				FD:   5,
-				Host: 16777343,
-				Port: 80,
-			})
+			socket := sockets.NewSocketHttp2("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
 			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
 				flows = append(flows, &flowFromCb)
 			})
@@ -485,9 +440,89 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(flows[1].Request).To(BeNil())
 			Expect(flows[1].Response).ToNot(BeNil())
 
-			// lines := strings.Split(string(flow.Request), "\r\n")
+			// lines := strings.Split(string(flow.Request.GetData()), "\r\n")
 			// Expect(lines[0]).To(Equal("POST / HTTP/2"))
 			// fmt.Print(lines)
+		})
+	})
+
+	Context("Receiving Data events (GRPC messages)", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		grpcEvent1Bytes, _ := hexDumpToBytes(grpcEvent1)
+		grpcEvent2Bytes, _ := hexDumpToBytes(grpcEvent2)
+		grpcEvent3Bytes, _ := hexDumpToBytes(grpcEvent3)
+		grpcEvent4Bytes, _ := hexDumpToBytes(grpcEvent4)
+
+		requestPayloads := [][]byte{grpcEvent1Bytes, grpcEvent2Bytes}
+		responsePayloads := [][]byte{grpcEvent3Bytes, grpcEvent4Bytes}
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp2("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			// Process request payloads
+			for _, payload := range requestPayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 6, // go_tls_read
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+			// Process response payloads
+			for _, payload := range responsePayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 7, // go_tls_write
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+		})
+
+		It("returns a request flow", func() {
+			Expect(flows).To(HaveLen(2))
+			flow := flows[0]
+
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("grpc"))
+
+			Expect(flow.Request).ToNot(BeNil())
+			Expect(flow.Response).To(BeNil())
+
+			req, ok := flow.Request.(*sockets.GRPCRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Path).To(Equal("/api.TrayceAgent/SendContainersObserved"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"grpc-go/1.65.0"}))
+			Expect(req.Headers["te"]).To(Equal([]string{"trailers"}))
+			Expect(req.Headers["content-type"]).To(Equal([]string{"application/grpc"}))
+			Expect(req.Payload).To(Equal([]byte{0, 0, 0, 0, 43, 10, 41, 10, 4, 49, 50, 51, 52, 18, 6, 117, 98, 117, 110, 116, 117, 26, 10, 49, 55, 50, 46, 48, 46, 49, 46, 49, 57, 34, 4, 101, 118, 97, 110, 42, 7, 114, 117, 110, 110, 105, 110, 103}))
+		})
+
+		It("returns a response flow", func() {
+			Expect(flows).To(HaveLen(2))
+			flow := flows[1]
+
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("grpc"))
+
+			Expect(flow.Request).To(BeNil())
+			Expect(flow.Response).ToNot(BeNil())
+
+			resp, ok := flow.Response.(*sockets.GRPCResponse)
+			Expect(ok).To(BeTrue())
+
+			Expect(resp.Headers["content-type"]).To(Equal([]string{"application/grpc"}))
+			Expect(resp.Payload).To(Equal([]byte{0, 0, 0, 0, 10, 10, 8, 115, 117, 99, 99, 101, 115, 115, 32}))
 		})
 	})
 })

@@ -17,7 +17,7 @@ func NewHttp2Stream() *Http2Stream {
 	return &Http2Stream{}
 }
 
-func (stream *Http2Stream) ProcessFrame(frame *Http2Frame) *Flow {
+func (strm *Http2Stream) ProcessFrame(frame *Http2Frame) *Flow {
 	// Only accept complete header or data frames, the rest are ignored
 	acceptedTypes := []uint8{frameTypeData, frameTypeHeaders}
 	if !frame.Complete() || !slices.Contains(acceptedTypes, frame.Type()) {
@@ -25,52 +25,85 @@ func (stream *Http2Stream) ProcessFrame(frame *Http2Frame) *Flow {
 	}
 
 	if frame.Complete() && frame.Type() == frameTypeHeaders {
-		return stream.processHeaderFrame(frame)
+		return strm.processHeaderFrame(frame)
 
 	} else if frame.Complete() && frame.Type() == frameTypeData {
-		return stream.processDataFrame(frame)
+		return strm.processDataFrame(frame)
 	}
 
 	return nil
 }
 
-func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
+func (strm *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 	if frame.IsRequest() {
 		fmt.Println("[HTTP2Stream] processHeaderFrame (request)")
 	} else {
 		fmt.Println("[HTTP2Stream] processHeaderFrame (response)")
 	}
 	if frame.IsRequest() {
-		stream.activeFlow = NewFlow(
+		req, err := frame.ConvertToFlowRequest()
+		if err != nil {
+			fmt.Println("ERROR ConvertToFlowRequest():", err)
+			return nil
+		}
+
+		var l7Protocol string
+		switch req.(type) {
+		case *GRPCRequest:
+			l7Protocol = "grpc"
+		case *HTTPRequest:
+			l7Protocol = "http2"
+		default:
+			l7Protocol = "http2"
+		}
+
+		strm.activeFlow = NewFlowRequest(
 			uuid.NewString(),
 			"0.0.0.0",
 			"127.0.0.1:80",
 			"tcp",
-			"http2",
+			l7Protocol,
 			123,
 			5,
-			[]byte(frame.HeadersText()),
+			req,
 		)
-		activeUUID := stream.activeFlow.UUID
-		stream.activeUuid = &activeUUID
+
+		activeUUID := strm.activeFlow.UUID
+		strm.activeUuid = &activeUUID
 		fmt.Println("[HTTP2Stream] activeUuid =", activeUUID)
 	} else {
-		if stream.activeUuid == nil {
+		if strm.activeUuid == nil {
 			fmt.Println("ERROR: no active request UUID for this response")
 			return nil
 		}
+
+		resp, err := frame.ConvertToFlowResponse()
+		if err != nil {
+			fmt.Println("ERROR ConvertToFlowResponse():", err)
+		}
+
 		// GRPC sends a header frame AFTER the data frames have been sent, this is the trailer frame and we ignore it
 		// so if there is already an active flow then dont try and create a new one
-		if stream.activeFlow == nil {
-			stream.activeFlow = NewFlowResponse(
-				*stream.activeUuid,
+		if strm.activeFlow == nil && resp != nil {
+			var l7Protocol string
+			switch resp.(type) {
+			case *GRPCResponse:
+				l7Protocol = "grpc"
+			case *HTTPResponse:
+				l7Protocol = "http2"
+			default:
+				l7Protocol = "http2"
+			}
+
+			strm.activeFlow = NewFlowResponse(
+				*strm.activeUuid,
 				"0.0.0.0",
 				"127.0.0.1:80",
 				"tcp",
-				"http2",
+				l7Protocol,
 				123,
 				5,
-				[]byte(frame.HeadersText()),
+				resp,
 			)
 		}
 	}
@@ -80,10 +113,10 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 
 	// If there is no body in the request then send the flow back
 	if frame.Flags().EndStream {
-		flow := *stream.activeFlow
-		stream.clearActiveFlow()
-		if len(flow.Response) > 0 {
-			stream.clearActiveUuid()
+		flow := *strm.activeFlow
+		strm.clearActiveFlow()
+		if flow.Response != nil {
+			strm.clearActiveUuid()
 		}
 
 		return &flow
@@ -92,20 +125,20 @@ func (stream *Http2Stream) processHeaderFrame(frame *Http2Frame) *Flow {
 	return nil
 }
 
-func (stream *Http2Stream) processDataFrame(frame *Http2Frame) *Flow {
-	if stream.activeFlow == nil {
+func (strm *Http2Stream) processDataFrame(frame *Http2Frame) *Flow {
+	if strm.activeFlow == nil {
 		fmt.Println("ERROR: received http2 data frame but no active Flow")
 		return nil
 	}
 
-	stream.activeFlow.AddData(frame.Payload())
+	strm.activeFlow.AddPayload(frame.Payload())
 
 	if frame.Flags().EndStream {
 		// Send the flow back
-		flow := *stream.activeFlow
-		stream.clearActiveFlow()
-		if len(flow.Response) > 0 {
-			stream.clearActiveUuid()
+		flow := *strm.activeFlow
+		strm.clearActiveFlow()
+		if flow.Response != nil {
+			strm.clearActiveUuid()
 		}
 
 		return &flow
@@ -114,10 +147,10 @@ func (stream *Http2Stream) processDataFrame(frame *Http2Frame) *Flow {
 	return nil
 }
 
-func (stream *Http2Stream) clearActiveFlow() {
-	stream.activeFlow = nil
+func (strm *Http2Stream) clearActiveFlow() {
+	strm.activeFlow = nil
 }
 
-func (stream *Http2Stream) clearActiveUuid() {
-	stream.activeUuid = nil
+func (strm *Http2Stream) clearActiveUuid() {
+	strm.activeUuid = nil
 }

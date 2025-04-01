@@ -37,6 +37,7 @@ type BPFI interface {
 	AttachUProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
 	AttachURetProbe(funcName string, probeFuncName string, binaryPath string) (*libbpfgo.BPFLink, error)
 	AttachGoUProbe(funcName string, exitFuncName string, probeFuncName string, binaryPath string) ([]*libbpfgo.BPFLink, error)
+	AttachTracepoint(funcName string, category string, probeFuncName string) (*libbpfgo.BPFLink, error)
 	DestroyProbe(probe *libbpfgo.BPFLink) error
 }
 
@@ -177,6 +178,15 @@ func (pm *ProbeManager) AttachGoUProbes(proc docker.Proc, funcName string, exitF
 		return nil
 	}
 
+	return nil
+}
+
+func (pm *ProbeManager) AttachTracepoint(funcName string, category string, probeFuncName string) error {
+	bpfLink, err := pm.bpf.AttachTracepoint(funcName, category, probeFuncName)
+	if err != nil {
+		return err
+	}
+	pm.kprobes = append(pm.kprobes, bpfLink)
 	return nil
 }
 

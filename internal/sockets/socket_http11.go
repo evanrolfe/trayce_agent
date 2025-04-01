@@ -17,31 +17,24 @@ import (
 )
 
 type SocketHttp11 struct {
-	SourceAddr string
-	DestAddr   string
-	Protocol   string
-	PID        uint32
-	TID        uint32
-	FD         uint32
-	SSL        bool
+	Common SocketCommon
+
 	// Stores the bytes being received from DataEvent until they form a full HTTP request or response
 	dataBuf []byte
-	// If a flow is observed, then these are called
-	flowCallbacks []func(Flow)
-	// The flows are buffered until a GetsocknameEvent is received which sets the source/dest address on the flows
-	flowBuf []Flow
 	// When a request is observed, this value is set, when the response comes, we send this value back with the response
 	requestUuid string
 }
 
-func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
+func NewSocketHttp11(sourceAddr, destAddr string, pid, tid, fd uint32) SocketHttp11 {
 	socket := SocketHttp11{
-		SourceAddr:  event.SourceAddr(),
-		DestAddr:    event.DestAddr(),
-		PID:         event.PID,
-		TID:         event.TID,
-		FD:          event.FD,
-		SSL:         false,
+		Common: SocketCommon{
+			SourceAddr: sourceAddr,
+			DestAddr:   destAddr,
+			PID:        pid,
+			TID:        tid,
+			FD:         fd,
+			SSL:        false,
+		},
 		dataBuf:     []byte{},
 		requestUuid: "",
 	}
@@ -51,12 +44,14 @@ func NewSocketHttp11(event *events.ConnectEvent) SocketHttp11 {
 
 func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 	socket := SocketHttp11{
-		SourceAddr:  unkownSocket.SourceAddr,
-		DestAddr:    unkownSocket.DestAddr,
-		PID:         unkownSocket.PID,
-		TID:         unkownSocket.TID,
-		FD:          unkownSocket.FD,
-		SSL:         false,
+		Common: SocketCommon{
+			SourceAddr: unkownSocket.SourceAddr,
+			DestAddr:   unkownSocket.DestAddr,
+			PID:        unkownSocket.PID,
+			TID:        unkownSocket.TID,
+			FD:         unkownSocket.FD,
+			SSL:        false,
+		},
 		dataBuf:     []byte{},
 		requestUuid: "",
 	}
@@ -64,73 +59,54 @@ func NewSocketHttp11FromUnknown(unkownSocket *SocketUnknown) SocketHttp11 {
 	return socket
 }
 
-func (socket *SocketHttp11) Key() string {
-	return fmt.Sprintf("%d-%d", socket.PID, socket.FD)
+func (sk *SocketHttp11) Key() string {
+	return sk.Common.Key()
 }
 
-func (socket *SocketHttp11) Clear() {
-	socket.clearDataBuffer()
+func (sk *SocketHttp11) AddFlowCallback(callback func(Flow)) {
+	sk.Common.AddFlowCallback(callback)
 }
 
-func (socket *SocketHttp11) AddFlowCallback(callback func(Flow)) {
-	socket.flowCallbacks = append(socket.flowCallbacks, callback)
-}
-
-// ProcessConnectEvent is called when the connect event arrives after the data event
-func (socket *SocketHttp11) ProcessConnectEvent(event *events.ConnectEvent) {
-
-}
-
-func (socket *SocketHttp11) ProcessGetsocknameEvent(event *events.GetsocknameEvent) {
-	if socket.SourceAddr == ZeroAddr {
-		socket.SourceAddr = event.Addr()
-	} else if socket.DestAddr == ZeroAddr {
-		socket.DestAddr = event.Addr()
-	}
-
-	socket.releaseFlows()
-}
-
-func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
-	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(socket.dataBuf), " ssl?", event.SSL())
+func (sk *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
+	fmt.Println("[SocketHttp1.1] ProcessDataEvent, dataBuf len:", len(sk.dataBuf), " ssl?", event.SSL())
 	// fmt.Println(hex.Dump(event.Payload()))
 
-	if socket.SSL && !event.SSL() {
+	if sk.Common.SSL && !event.SSL() {
 		// If the socket is SSL, then ignore non-SSL events becuase they will just be encrypted gibberish
 		return
 	}
 
-	if event.SSL() && !socket.SSL {
+	if event.SSL() && !sk.Common.SSL {
 		fmt.Println("[SocketHttp1.1] upgrading to SSL")
-		socket.SSL = true
+		sk.Common.UpgradeToSSL()
 	}
 
 	// NOTE: What happens here is that when ssl requests are intercepted twice: first by the uprobe, then by the kprobe
 	// this check fixes that because the encrypted data is dropped since it doesnt start with GET
 	if isStartOfHTTPMessage(event.Payload()) {
-		socket.clearDataBuffer()
+		sk.clearDataBuffer()
 		fmt.Println("[SocketHttp1.1] clearing dataBuffer")
 	}
 
-	socket.dataBuf = append(socket.dataBuf, stripTrailingZeros(event.Payload())...)
+	sk.dataBuf = append(sk.dataBuf, stripTrailingZeros(event.Payload())...)
 
 	// 1. Attempt to parse buffer as an HTTP request
-	req := socket.parseHTTPRequest(socket.dataBuf)
+	req := sk.parseHTTPRequest(sk.dataBuf)
 	if req != nil {
-		socket.requestUuid = uuid.NewString()
+		sk.requestUuid = uuid.NewString()
 		fmt.Println("[SocketHttp1.1] HTTP request complete")
-		flow := NewFlow(
-			socket.requestUuid,
-			socket.SourceAddr,
-			socket.DestAddr,
+		flow := NewFlowRequest(
+			sk.requestUuid,
+			sk.Common.SourceAddr,
+			sk.Common.DestAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
-			int(socket.PID),
-			int(socket.FD),
-			socket.dataBuf,
+			int(sk.Common.PID),
+			int(sk.Common.FD),
+			convertToHTTPRequest(req),
 		)
-		socket.clearDataBuffer()
-		socket.sendFlowBack(*flow)
+		sk.clearDataBuffer()
+		sk.Common.sendFlowBack(*flow)
 		return
 	}
 
@@ -140,71 +116,47 @@ func (socket *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 	isFromGo := (event.DataType == 6 || event.DataType == 7)
 
 	// 2. Attempt to parse buffer as an HTTP response
-	resp, decompressedBuf := socket.parseHTTPResponse(socket.dataBuf, isFromGo)
+	// TODO: This code is quite convaluted and could probably be simplified, i.e. by just returning a response struct
+	// with the decompressed body set on it
+	resp, decompressedBuf := sk.parseHTTPResponse(sk.dataBuf, isFromGo)
+	respBody := extractResponseBody(decompressedBuf)
+
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
 		flow := NewFlowResponse(
-			socket.requestUuid,
-			socket.SourceAddr,
-			socket.DestAddr,
+			sk.requestUuid,
+			sk.Common.SourceAddr,
+			sk.Common.DestAddr,
 			"tcp", // TODO Use constants here instead
 			"http",
-			int(socket.PID),
-			int(socket.FD),
-			socket.dataBuf,
+			int(sk.Common.PID),
+			int(sk.Common.FD),
+			convertToHTTPResponse(resp, respBody),
 		)
 
-		flow.AddResponse(decompressedBuf)
-
-		socket.clearDataBuffer()
-		socket.sendFlowBack(*flow)
+		sk.clearDataBuffer()
+		sk.Common.sendFlowBack(*flow)
 	}
 }
 
-func (socket *SocketHttp11) releaseFlows() {
-	for _, flow := range socket.flowBuf {
-		socket.sendFlowBack(flow)
-	}
-
-	socket.flowBuf = []Flow{}
-}
-
-func (socket *SocketHttp11) sendFlowBack(flow Flow) {
-	blackOnYellow := "\033[30;43m"
-	reset := "\033[0m"
-
-	if socket.DestAddr == ZeroAddr || socket.SourceAddr == ZeroAddr {
-		fmt.Printf("%s[Flow]%s buffered UUID: %s\n", blackOnYellow, reset, flow.UUID)
-		socket.flowBuf = append(socket.flowBuf, flow)
-		return
-	}
-
-	flow.SourceAddr = socket.SourceAddr
-	flow.DestAddr = socket.DestAddr
-
-	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
-	flow.Debug()
-
-	for _, callback := range socket.flowCallbacks {
-		callback(flow)
-	}
-}
-
-func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
-	// Try parsing the buffer to an HTTP response
+func (sk *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
+	// Try parsing the buffer to an HTTP request
 	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(buf)))
 	if err != nil {
 		// fmt.Println("Error parsing response:", err)
 		return nil
 	}
 
-	// Readall from the body to ensure its complete
-	_, err = io.ReadAll(req.Body)
+	// Read the body to ensure it's complete
+	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		// fmt.Println("Error reading response body:", err)
 		return nil
 	}
 	req.Body.Close()
+
+	// Set the body back on the request so it can be read again later
+	req.Body = io.NopCloser(bytes.NewReader(body))
 
 	return req
 }
@@ -212,7 +164,7 @@ func (socket *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 // TODO: Go's HTTP parsing lib has some weird behaviour and doesn't always work in the way we need it to. We should
 // probably just write our own HTTP parsing function, there are so many work-arounds an extra checks I need to do here
 // just to be able to use the std lib, its probably more complicated then rolling our own parser..
-func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Response, []byte) {
+func (sk *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Response, []byte) {
 	// Hacky solution because http.ReadResponse does not return the Transfer-Encoding header for some stupid reason
 	isChunked := false
 	fullHeaders, err := parseHTTPResponseHeaders(buf)
@@ -289,7 +241,22 @@ func (socket *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.
 	}
 
 	return resp, *bufReturn
+}
 
+func extractResponseBody(respBuf []byte) []byte {
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respBuf)), &http.Request{})
+	if err != nil {
+		fmt.Println("Error parsing response:", err)
+		return []byte{}
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading response body:", err)
+		return []byte{}
+	}
+	resp.Body.Close()
+
+	return body
 }
 
 func decodeGzipResponse(buf []byte) ([]byte, error) {
@@ -431,4 +398,40 @@ func parseChunkedResponse(response []byte) ([]byte, error) {
 	}
 
 	return append(headers, result.Bytes()...), nil
+}
+
+func convertToHTTPRequest(req *http.Request) *HTTPRequest {
+	// Parse request body
+	payload, err := io.ReadAll(req.Body)
+	if err != nil {
+		fmt.Println("convertToHTTPRequest() Error reading response body:", err)
+		payload = []byte{}
+	}
+	req.Body.Close()
+
+	return &HTTPRequest{
+		Method:      req.Method,
+		Path:        req.URL.Path,
+		Host:        req.Host,
+		HttpVersion: "1.1",
+		Headers:     req.Header,
+		Payload:     payload,
+	}
+}
+
+func convertToHTTPResponse(resp *http.Response, payload []byte) *HTTPResponse {
+	// Extract the message (i.e. "Not Found" from "404 Not Found")
+	spaceIndex := strings.Index(resp.Status, " ")
+	statusMsg := ""
+	if spaceIndex != -1 {
+		statusMsg = resp.Status[spaceIndex+1:]
+	}
+
+	return &HTTPResponse{
+		Status:      resp.StatusCode,
+		StatusMsg:   statusMsg,
+		HttpVersion: "1.1",
+		Headers:     resp.Header,
+		Payload:     payload,
+	}
 }
