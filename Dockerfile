@@ -2,7 +2,7 @@
 # Build Image
 #
 FROM ubuntu:25.04 AS build
-ENV GO_VERSION=1.23.1
+ENV GO_VERSION=1.23.8
 
 # Build dependencies:
 RUN apt update -y
