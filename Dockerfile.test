@@ -2,7 +2,7 @@
 # Test Image
 #
 FROM ubuntu:22.04 AS build
-ENV GO_VERSION=1.23.0
+ENV GO_VERSION=1.23.1
 
 # Build dependencies:
 RUN apt update -y

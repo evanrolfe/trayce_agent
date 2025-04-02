@@ -71,7 +71,7 @@ jobs:
   release:
     name: Publish Release
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:')
     needs: [build-linux-amd64, build-linux-arm64]
     steps:
       - name: Clone repository
