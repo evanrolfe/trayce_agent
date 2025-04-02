@@ -50,7 +50,7 @@ RUN service postgresql start && \
 
 RUN echo "PS1='${debian_chroot:+($debian_chroot)}\[\033[01;35m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$'" >> ~/.bashrc
 
-RUN apt install -y libpq-dev mysql-server mysql-client libmysqlclient-dev
+RUN apt update && apt install -y mysql-server mysql-client libmysqlclient-dev libpq-dev
 
 # Build Go server
 RUN cd go && GOARCH=$(dpkg --print-architecture) go build -o http_server -buildvcs=false -gcflags "all=-N -l" ./cmd/http_server

@@ -2,24 +2,16 @@ networks:
   trayce_network:
     driver: bridge
     name: trayce_network
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-          gateway: 172.20.0.1
+    # ipam:
+    #   config:
+    #     - subnet: 172.20.0.0/16
+    #       gateway: 172.20.0.1
 
 services:
   megaserver:
     build:
       context: ./test/mega_server
     container_name: megaserver
-    # volumes:
-    #   - ./mega_server:/app
-    # environment:
-      # - DATABASE_ADAPTER=mysql2
-      # - DATABASE_URL=mysql2://mysql:mysql@mysql:3306/megadb
-      # - DATABASE_ADAPTER=postgresql
-      # - DATABASE_URL=postgres://postgres:postgres@postgres:5432/megadb
-      # - DATABASE_PREPARED_STATEMENTS=true
     depends_on:
       mysql:
         condition: service_healthy

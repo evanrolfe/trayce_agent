@@ -18,7 +18,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_PASS }}
 
-
       - name: Start dependencies
         run: docker compose up --build -d trayce_agent megaserver
 
