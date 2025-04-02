@@ -65,4 +65,28 @@ jobs:
         run: docker build -t traycer/trayce_agent_tmp:${ARCH} .
 
       - name: Push
+        if: github.ref == 'refs/heads/main'
         run: docker push traycer/trayce_agent_tmp:${ARCH}
+
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [build-linux-amd64, build-linux-arm64]
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_PASS }}
+
+      - name: Create and Push Multi-Arch Manifest
+        run: |
+          export VERSION=$(cat ./VERSION)
+          docker manifest create traycer/trayce_agent:${VERSION} traycer/trayce_agent_tmp:amd64 traycer/trayce_agent_tmp:arm64
+          docker manifest create traycer/trayce_agent:latest traycer/trayce_agent_tmp:amd64 traycer/trayce_agent_tmp:arm64
+          docker manifest push traycer/trayce_agent:${VERSION}
+          docker manifest push traycer/trayce_agent:latest
