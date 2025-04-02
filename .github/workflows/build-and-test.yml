@@ -21,9 +21,6 @@ jobs:
       - name: Start dependencies
         run: docker compose up --build -d trayce_agent megaserver
 
-      - name: Start tmate session
-        uses: mxschmitt/action-tmate@v3
-
       - name: Test
         run: docker compose up test --build --exit-code-from test
 
