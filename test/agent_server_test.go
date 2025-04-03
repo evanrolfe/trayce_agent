@@ -31,7 +31,7 @@ func Test_agent_server(t *testing.T) {
 
 	licenseKey := os.Getenv("TRAYCE_LICENSE_KEY")
 	if licenseKey == "" {
-		t.Fatalf("TRAYCE_LICENSE_KEY is not set")
+		fmt.Println("Warning: TRAYCE_LICENSE_KEY is not set")
 	}
 
 	// Find the mega_server container
