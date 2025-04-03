@@ -12,6 +12,7 @@ type GRPCHandler struct {
 	callback             func(input *api.Flows)
 	agentStartedCallback func(input *api.AgentStarted)
 	containerIds         []string
+	licenseKey           string
 }
 
 func NewGRPCHandler() *GRPCHandler {
@@ -23,6 +24,10 @@ func NewGRPCHandler() *GRPCHandler {
 
 func (ts *GRPCHandler) SetContainerIds(containerIds []string) {
 	ts.containerIds = containerIds
+}
+
+func (ts *GRPCHandler) SetLicenseKey(licenseKey string) {
+	ts.licenseKey = licenseKey
 }
 
 func (ts *GRPCHandler) SetCallback(callback func(input *api.Flows)) {
@@ -52,7 +57,7 @@ func (ts *GRPCHandler) OpenCommandStream(srv api.TrayceAgent_OpenCommandStreamSe
 
 	command := api.Command{
 		Type:     "set_settings",
-		Settings: &api.Settings{ContainerIds: ts.containerIds},
+		Settings: &api.Settings{ContainerIds: ts.containerIds, LicenseKey: ts.licenseKey},
 	}
 
 	if err := srv.Send(&command); err != nil {

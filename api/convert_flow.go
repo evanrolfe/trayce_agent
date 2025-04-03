@@ -136,3 +136,57 @@ func convertToAPIRows(rows [][]string) []*StringList {
 
 	return apiRows
 }
+
+func (fq *FlowQueue) formatFlow(flow sockets.Flow) sockets.Flow {
+	if fq.v {
+		return flow
+	}
+	upgradeMsg := "Upgrade to Pro to see SQL queries"
+	// Convert request
+	if flow.Request != nil {
+		switch req := flow.Request.(type) {
+		case *sockets.HTTPRequest:
+			// Nothing
+		case *sockets.GRPCRequest:
+			req.Payload = []byte{0x00, 0x00, 0x00, 0x00, 0x00}
+			req.Payload = append(req.Payload, []byte(upgradeMsg)...)
+
+		case *sockets.PSQLQuery:
+			req.Query = upgradeMsg
+			req.Params = []string{}
+
+			flow.Request = req
+		case *sockets.MysqlQuery:
+			req.Query = upgradeMsg
+			req.Params = []string{}
+
+			flow.Request = req
+		}
+	}
+
+	if flow.Response != nil {
+		switch resp := flow.Response.(type) {
+		case *sockets.HTTPResponse:
+			// Nothing
+		case *sockets.GRPCResponse:
+			resp.Payload = []byte{0x00, 0x00, 0x00, 0x00, 0x00}
+			resp.Payload = append(resp.Payload, []byte(upgradeMsg)...)
+
+			flow.Response = resp
+		case *sockets.PSQLResponse:
+			resp.Rows = [][]string{}
+			resp.Columns = []sockets.Column{}
+
+			flow.Response = resp
+		case *sockets.MysqlResponse:
+			resp.Rows = [][]string{}
+			resp.Columns = []sockets.Column{}
+
+			flow.Response = resp
+		default:
+			fmt.Println("ERROR: convertToAPIFlow() wrong type for response")
+		}
+	}
+
+	return flow
+}

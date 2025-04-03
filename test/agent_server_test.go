@@ -24,9 +24,14 @@ const (
 func Test_agent_server(t *testing.T) {
 	// Handle command line args
 	startAgentFlg := os.Getenv("START_AGENT")
-	startAgent := false
-	if startAgentFlg == "true" {
-		startAgent = true
+	startAgent := true
+	if startAgentFlg == "false" {
+		startAgent = false
+	}
+
+	licenseKey := os.Getenv("TRAYCE_LICENSE_KEY")
+	if licenseKey == "" {
+		t.Fatalf("TRAYCE_LICENSE_KEY is not set")
 	}
 
 	// Find the mega_server container
@@ -35,6 +40,7 @@ func Test_agent_server(t *testing.T) {
 
 	// Intercept it
 	grpcHandler.SetContainerIds([]string{megaserverId})
+	grpcHandler.SetLicenseKey(licenseKey)
 
 	// Start trayce_agent
 	var trayceAgent *exec.Cmd

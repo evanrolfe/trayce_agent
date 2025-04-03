@@ -47,14 +47,14 @@ func (sk *SocketCommon) UpgradeToSSL() {
 // a getsockname event which sets the missing source/dest address). In this case it buffers the flow so they can be released
 // once the getsockname event is finally received.
 func (sk *SocketCommon) sendFlowBack(flow Flow) {
-	blackOnYellow := "\033[30;43m"
-	reset := "\033[0m"
+	// blackOnYellow := "\033[30;43m"
+	// reset := "\033[0m"
 
 	flow.SourceAddr = sk.SourceAddr
 	flow.DestAddr = sk.DestAddr
 
-	fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
-	flow.Debug()
+	// fmt.Printf("%s[Flow]%s Source: %s, Dest: %s, UUID: %s\n", blackOnYellow, reset, flow.SourceAddr, flow.DestAddr, flow.UUID)
+	// flow.Debug()
 
 	for _, callback := range sk.flowCallbacks {
 		callback(flow)

@@ -141,7 +141,7 @@ func main() {
 
 			// Start the main event loop which recieves commands from the GRPC CommandStream
 			// openCommandStreamAndAwait blocks until an error occurs
-			err = openCommandStreamAndAwait(grpcClient, listener)
+			err = openCommandStreamAndAwait(grpcClient, listener, flowQueue)
 			if errors.Is(err, ErrStreamClosed) {
 				fmt.Println("[GRPC] StreamClosed:", err)
 				cancel()
@@ -163,7 +163,7 @@ func main() {
 	fmt.Printf("Done, closing agent. PID: %d. GID: %d. EGID: %d \n", os.Getpid(), os.Getgid(), os.Getegid())
 }
 
-func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *internal.Listener) error {
+func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *internal.Listener, flowQueue *api.FlowQueue) error {
 	// Open command stream via GRPC
 	stream, err := grpcClient.OpenCommandStream(context.Background())
 	if err != nil {
@@ -220,9 +220,10 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 			continue
 		}
 		if resp != nil && resp.Type == "set_settings" {
-			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds, resp.Settings.LicenseKey)
+			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds)
+			flowQueue.SetLicenseKey(resp.Settings.LicenseKey)
 			listener.SetContainers(resp.Settings.ContainerIds)
-			// TODO: Check the license key
+
 			fmt.Println("[GRPC] done setting container_ids")
 		}
 	}
