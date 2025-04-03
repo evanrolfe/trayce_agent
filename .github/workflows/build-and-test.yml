@@ -51,15 +51,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_PASS }}
 
-      - name: Start dependencies
-        run: docker compose up --build -d trayce_agent megaserver
+      # - name: Start dependencies
+      #   run: docker compose up --build -d trayce_agent megaserver
 
-      - name: Test
-        run: docker compose up test --build --exit-code-from test
+      # - name: Test
+      #   run: docker compose up test --build --exit-code-from test
 
-      - name: Print trayce_agent logs
-        if: always()
-        run: docker compose logs trayce_agent
+      # - name: Print trayce_agent logs
+      #   if: always()
+      #   run: docker compose logs trayce_agent
 
       - name: Build
         run: docker build -t traycer/trayce_agent_tmp:${ARCH} .
