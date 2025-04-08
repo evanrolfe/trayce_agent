@@ -60,7 +60,7 @@ RUN make
 FROM ubuntu:25.04 AS final
 
 WORKDIR /app
-RUN apt update -y && apt install -y libelf-dev
+RUN apt update -y && apt install -y libelf-dev ca-certificates
 
 COPY --from=build /app/trayce_agent /app/trayce_agent
 

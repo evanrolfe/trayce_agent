@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -110,10 +111,19 @@ func (fq *FlowQueue) verifyLicenseKey() {
 		return
 	}
 
+	// Create a custom HTTP client with system root certificates
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs: nil, // This will use system root certificates
+			},
+		},
+	}
+
 	url := fmt.Sprintf("https://get.trayce.dev/verify/%s", fq.licenseKey)
-	resp, err := http.Get(url)
+	resp, err := client.Get(url) // Use client.Get instead of http.Get
 	if err != nil {
-		fmt.Println("ERROR: failed to verify license: %w", err)
+		fmt.Println("ERROR: failed to verify license:", err)
 		fq.v = false
 		return
 	}

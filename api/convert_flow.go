@@ -141,7 +141,7 @@ func (fq *FlowQueue) formatFlow(flow sockets.Flow) sockets.Flow {
 	if fq.v {
 		return flow
 	}
-	upgradeMsg := "Upgrade to Pro to see SQL queries"
+	upgradeMsg := "Upgrade to Trayce Pro to see SQL queries"
 	// Convert request
 	if flow.Request != nil {
 		switch req := flow.Request.(type) {
