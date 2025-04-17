@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strings"
 
 	"github.com/evanrolfe/trayce_agent/internal/events"
 	"github.com/google/uuid"
@@ -330,6 +331,8 @@ func extractNamedQuery(payload []byte) (string, string, error) {
 		queryEnd = len(payload) - queryStart
 	}
 	query := string(payload[queryStart : queryStart+queryEnd])
+
+	query = strings.TrimSpace(query)
 
 	return name, query, nil
 }

@@ -448,4 +448,74 @@ var _ = Describe("SocketPsql", func() {
 			Expect(query2.Params).To(ConsistOf([]string{"123", "1"}))
 		})
 	})
+
+	Context("Receiving a named query", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		event1Payload, _ := hexDumpToBytes(eventPsqlNamedQuery1)
+		event2Payload, _ := hexDumpToBytes(eventPsqlNamedQuery2)
+		event3Payload, _ := hexDumpToBytes(eventPsqlNamedQuery3)
+
+		BeforeAll(func() {
+			socket := sockets.SocketPsql{
+				Common: sockets.SocketCommon{
+					SourceAddr: "172.17.0.2:1234",
+					DestAddr:   "173.17.0.2:5432",
+					PID:        123,
+					TID:        123,
+					FD:         5,
+					SSL:        false,
+				},
+			}
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: events.KRecvfrom,
+				Data:     convertSliceToArray(event1Payload),
+				DataLen:  int32(len(event1Payload)),
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: events.KRecvfrom,
+				Data:     convertSliceToArray(event2Payload),
+				DataLen:  int32(len(event2Payload)),
+			})
+			socket.ProcessDataEvent(&events.DataEvent{
+				PID:      123,
+				TID:      123,
+				FD:       5,
+				DataType: events.KRecvfrom,
+				Data:     convertSliceToArray(event3Payload),
+				DataLen:  int32(len(event3Payload)),
+			})
+		})
+
+		It("returns the query flow", func() {
+			Expect(len(flows)).To(Equal(1))
+
+			for _, flow := range flows {
+				Expect(flow.SourceAddr).To(Equal("172.17.0.2:1234"))
+				Expect(flow.DestAddr).To(Equal("173.17.0.2:5432"))
+				Expect(flow.L4Protocol).To(Equal("tcp"))
+				Expect(flow.L7Protocol).To(Equal("psql"))
+				Expect(flow.PID).To(Equal(123))
+				Expect(flow.FD).To(Equal(5))
+			}
+
+			// Important to check it trims white space
+			query1 := flows[0].Request.(*sockets.PSQLQuery)
+			Expect(query1.Query[0:6]).To(Equal(`INSERT`))
+			Expect(query1.Query[215:227]).To(Equal(`created_at";`))
+
+			Expect(len(query1.Params)).To(Equal(7))
+		})
+	})
+
 })
