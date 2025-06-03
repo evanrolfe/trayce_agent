@@ -221,7 +221,6 @@ func openCommandStreamAndAwait(grpcClient api.TrayceAgentClient, listener *inter
 		}
 		if resp != nil && resp.Type == "set_settings" {
 			fmt.Println("[GRPC] received container_ids:", resp.Settings.ContainerIds)
-			flowQueue.SetLicenseKey(resp.Settings.LicenseKey)
 			listener.SetContainers(resp.Settings.ContainerIds)
 
 			fmt.Println("[GRPC] done setting container_ids")

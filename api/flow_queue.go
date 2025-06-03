@@ -2,10 +2,7 @@ package api
 
 import (
 	"context"
-	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/evanrolfe/trayce_agent/internal/sockets"
@@ -15,8 +12,6 @@ type FlowQueue struct {
 	grpcClient TrayceAgentClient
 	flows      []*Flow
 	batchSize  int
-	v          bool
-	licenseKey string
 }
 
 func NewFlowQueue(grpcClient TrayceAgentClient, batchSize int) *FlowQueue {
@@ -36,7 +31,6 @@ func (fq *FlowQueue) Start(ctx context.Context, inputChan chan sockets.Flow) {
 				return
 			case flow := <-inputChan:
 				fmt.Println("[FlowQueue] received flow", flow.UUID)
-				flow = fq.formatFlow(flow)
 				blackOnYellow := "\033[30;43m"
 				reset := "\033[0m"
 
@@ -70,11 +64,6 @@ func (fq *FlowQueue) Start(ctx context.Context, inputChan chan sockets.Flow) {
 	fmt.Println("[FlowQueue] running...")
 }
 
-func (fq *FlowQueue) SetLicenseKey(licenseKey string) {
-	fq.licenseKey = licenseKey
-	fq.verifyLicenseKey()
-}
-
 // TODO: Sometimes this doesn't process the flows in order, possibly because the FlowQueue is instantiated
 // inside another go routine so there are other flow queues running?
 func (fq *FlowQueue) processQueue() {
@@ -103,48 +92,4 @@ func (fq *FlowQueue) shiftQueue(n int) []*Flow {
 	fq.flows = fq.flows[n:]
 
 	return flows
-}
-
-func (fq *FlowQueue) verifyLicenseKey() {
-	if fq.licenseKey == "" {
-		fq.v = false
-		return
-	}
-
-	// Create a custom HTTP client with system root certificates
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs: nil, // This will use system root certificates
-			},
-		},
-	}
-
-	url := fmt.Sprintf("https://get.trayce.dev/verify/%s", fq.licenseKey)
-	resp, err := client.Get(url) // Use client.Get instead of http.Get
-	if err != nil {
-		fmt.Println("ERROR: failed to verify license:", err)
-		fq.v = false
-		return
-	}
-	defer resp.Body.Close()
-
-	type LicenseResponse struct {
-		Status string `json:"status"`
-	}
-
-	var license LicenseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&license); err != nil {
-		fmt.Println("ERROR: failed to decode license response: %w", err)
-		fq.v = false
-		return
-	}
-
-	if license.Status == "active" {
-		fmt.Println("License verified")
-		fq.v = true
-	} else {
-		fmt.Println("License is inactive")
-		fq.v = false
-	}
 }
