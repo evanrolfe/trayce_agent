@@ -426,71 +426,75 @@ static int process_data(u64 id, enum data_event_type type, const char* buf, size
 }
 
 static u32 get_fd_from_libssl_read(struct ssl_st ssl_info, u32 pid, u64 current_pid_tgid) {
-    int res;
-    u32 fd;
+    // 1st choice is to look up the fd from the fd_map, which is set by tracepoints, this is the most reliable way to get the fd
+    u32* fd = bpf_map_lookup_elem(&fd_map, &current_pid_tgid);
+    if (fd != NULL) {
+        return *fd;
+    }
+
+    // 2nd choice is to extract the fd from the ssl_info.rbio struct
     int *libssl_version = bpf_map_lookup_elem(&libssl_versions_map, &pid);
     if (libssl_version == NULL) {
         return 0;
     }
+
+    // libssl v1.1
     if (*libssl_version == 1) {
         struct bio_st_v1_1_1 bio_r;
-        res = bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
+        int res = bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
         if (res < 0) {
             bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
-        fd = bio_r.num;
-    } else if(*libssl_version == 3) {
+        return bio_r.num;
+    }
+
+    // libssl v3.0
+    if(*libssl_version == 3) {
         struct bio_st_v3_0 bio_r;
-        res = bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
+        int res = bpf_probe_read_user(&bio_r, sizeof(bio_r), ssl_info.rbio);
         if (res < 0) {
             bpf_printk("SSL_read enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
-        fd = bio_r.num;
+        return bio_r.num;
     }
 
-    if (fd == -1) {
-        int* fd2 = bpf_map_lookup_elem(&fd_map, &current_pid_tgid);
-
-        if (fd2 != NULL) {
-            fd = *fd2;
-        }
-    }
-
-    return fd;
+    return 0;
 }
 
 static u32 get_fd_from_libssl_write(struct ssl_st ssl_info, u32 pid, u64 ssl_ptr) {
-    int res;
-    u32 fd;
+    // 1st choice is to look up the fd from the ssl_fd_map, which is set by tracepoints, this is the most reliable way to get the fd
+    u32* fd = bpf_map_lookup_elem(&ssl_fd_map, &ssl_ptr);
+    if (fd != NULL) {
+        return *fd;
+    }
+
+    // 2nd choice is to extract the fd from the ssl_info.wbio struct
     int *libssl_version = bpf_map_lookup_elem(&libssl_versions_map, &pid);
     if (libssl_version == NULL) {
         return 0;
     }
+
+    // libssl v1.1
     if (*libssl_version == 1) {
         struct bio_st_v1_1_1 bio_w;
-        res = bpf_probe_read_user(&bio_w, sizeof(bio_w), ssl_info.wbio);
+        int res = bpf_probe_read_user(&bio_w, sizeof(bio_w), ssl_info.wbio);
         if (res < 0) {
             bpf_printk("SSL_write enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
-        fd = bio_w.num;
-    } else if(*libssl_version == 3) {
+        return bio_w.num;
+    }
+
+    // libssl v3.0
+    if(*libssl_version == 3) {
         struct bio_st_v3_0 bio_w;
-        res = bpf_probe_read_user(&bio_w, sizeof(bio_w), ssl_info.wbio);
+        int res = bpf_probe_read_user(&bio_w, sizeof(bio_w), ssl_info.wbio);
         if (res < 0) {
             bpf_printk("SSL_write enty bpf_probe_read_user ssl_info.rbio failed: %d", res);
         }
-        fd = bio_w.num;
+        return bio_w.num;
     }
 
-    if (fd == -1) {
-        int* fd2 = bpf_map_lookup_elem(&ssl_fd_map, &ssl_ptr);
-
-        if (fd2 != NULL) {
-            fd = *fd2;
-        }
-    }
-
-    return fd;
+    return 0;
 }
 
 int trayce_debug(u32 pid, u64 tid, int fd, char *str) {

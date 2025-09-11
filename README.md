@@ -14,7 +14,7 @@ docker build -t trayce_agent:local .
 
 2. Run the built container, replacing `-s` with the address of your GRPC server for receiving network flows (i.e. from TraceGUI).
 ```
-docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it trayce_agent:local -s 192.168.0.1:50051
+docker run --pid=host --privileged -v /var/run/docker.sock:/var/run/docker.sock -it trayce_agent:local -s 192.168.0.1:50052
 ```
 
 ### Develop
@@ -25,9 +25,9 @@ make dev
 Then from within the container run:
 ```
 make
-./trayce_agent -s 192.168.0.20:50051
+./trayce_agent -s 192.168.0.20:50052
 ```
-(You must have a GRPC server running at 192.168.0.20:50051, you can do that by starting the GUI).
+(You must have a GRPC server running at 192.168.0.20:50052, you can do that by starting the GUI).
 
 ### Test
 First ensure the megaserver is running:
