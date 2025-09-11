@@ -330,6 +330,9 @@ int probe_read(struct pt_regs *ctx) {
     int fd;
     bpf_probe_read(&fd, sizeof(fd), &PT_REGS_PARM1(ctx2));
 
+    // Save the FD incase SSL_Read or SSL_Write need it
+    bpf_map_update_elem(&fd_map, &current_pid_tgid, &fd, BPF_ANY);
+
     // Get the buffer
     const char *buf;
     bpf_probe_read(&buf, sizeof(buf), &PT_REGS_PARM2(ctx2));

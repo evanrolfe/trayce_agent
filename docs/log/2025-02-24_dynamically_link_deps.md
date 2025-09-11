@@ -1,5 +1,8 @@
 # Dynamically link libelf
 
+(UPDATE June 25): need 0.193 here:
+https://code.launchpad.net/ubuntu/plucky/arm64/libelf-dev
+
 **Background:**
 
 `apt install` was failing in CI, saying it could not find the repository sources. I think this should work but after looking into it I realised the build container in `Dockerfile` was running Ubuntu 22.04 which is 3 years old now, so I decided to upgrade to 25.04. This then brought about a new error when compiling the binary. I resolved it using a cursor-generated fix (it changed it to be dynamically linked). So it compiled succesfully, but then at run time I was getting this error:
