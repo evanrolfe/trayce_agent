@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -110,16 +109,10 @@ func (sk *SocketHttp11) ProcessDataEvent(event *events.DataEvent) {
 		return
 	}
 
-	// Events from Go still have carriage returns and chunk-related bytes in their payloads
-	// so we need to parse them differently
-	// TODO: Do not rely on hard coding these numbers
-	isFromGo := (event.DataType == 6 || event.DataType == 7)
-
 	// 2. Attempt to parse buffer as an HTTP response
 	// TODO: This code is quite convaluted and could probably be simplified, i.e. by just returning a response struct
 	// with the decompressed body set on it
-	resp, decompressedBuf := sk.parseHTTPResponse(sk.dataBuf, isFromGo)
-	respBody := extractResponseBody(decompressedBuf)
+	resp, respBody := sk.parseHTTPResponse(sk.dataBuf)
 
 	if resp != nil {
 		fmt.Println("[SocketHttp1.1] HTTP response complete")
@@ -150,7 +143,6 @@ func (sk *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 	// Read the body to ensure it's complete
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		// fmt.Println("Error reading response body:", err)
 		return nil
 	}
 	req.Body.Close()
@@ -164,8 +156,8 @@ func (sk *SocketHttp11) parseHTTPRequest(buf []byte) *http.Request {
 // TODO: Go's HTTP parsing lib has some weird behaviour and doesn't always work in the way we need it to. We should
 // probably just write our own HTTP parsing function, there are so many work-arounds an extra checks I need to do here
 // just to be able to use the std lib, its probably more complicated then rolling our own parser..
-func (sk *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Response, []byte) {
-	// Hacky solution because http.ReadResponse does not return the Transfer-Encoding header for some stupid reason
+func (sk *SocketHttp11) parseHTTPResponse(buf []byte) (*http.Response, []byte) {
+	// Using our own header parser code because http.ReadResponse does not return the Transfer-Encoding header for some stupid reason
 	isChunked := false
 	fullHeaders, err := parseHTTPResponseHeaders(buf)
 	if err != nil {
@@ -200,7 +192,7 @@ func (sk *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Resp
 	defer resp.Body.Close()
 	if err != nil {
 		if err != io.ErrUnexpectedEOF {
-			fmt.Println("Error reading response body:", err)
+			fmt.Println("Error reading response body 0:", err)
 			return nil, []byte{}
 		}
 	}
@@ -217,14 +209,8 @@ func (sk *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Resp
 		}
 
 		bufReturn = &decodedBuf
-	} else if isChunked {
-		parsedBuf, err := parseChunkedResponse(buf)
-		if err != nil {
-			fmt.Println("ERROR parseChunkedResponse():", err)
-		}
-		bufReturn = &parsedBuf
 	} else {
-		bufReturn = &buf
+		bufReturn = &body
 	}
 
 	// Check we actually have the full body
@@ -236,27 +222,11 @@ func (sk *SocketHttp11) parseHTTPResponse(buf []byte, isFromGo bool) (*http.Resp
 		}
 
 		if len(body) < contentLength {
-			return nil, []byte{}
+			return nil, *bufReturn
 		}
 	}
 
 	return resp, *bufReturn
-}
-
-func extractResponseBody(respBuf []byte) []byte {
-	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(respBuf)), &http.Request{})
-	if err != nil {
-		fmt.Println("Error parsing response:", err)
-		return []byte{}
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Error reading response body:", err)
-		return []byte{}
-	}
-	resp.Body.Close()
-
-	return body
 }
 
 func decodeGzipResponse(buf []byte) ([]byte, error) {
@@ -281,7 +251,7 @@ func decodeGzipResponse(buf []byte) ([]byte, error) {
 		// return nil, fmt.Errorf("io.ReadAll(): %v", err)
 	}
 
-	newBuf := bytes.Join([][]byte{parts[0], decodedBody}, []byte("\r\n\r\n"))
+	newBuf := bytes.Join([][]byte{decodedBody}, []byte("\r\n\r\n"))
 	return newBuf, nil
 }
 
@@ -348,56 +318,6 @@ func isStartOfHTTPMessage(payload []byte) bool {
 		return true
 	}
 	return false
-}
-
-// parseChunkedResponse removes all the extra chunk metadata like the chunk size and the end chunk
-func parseChunkedResponse(response []byte) ([]byte, error) {
-	// Split headers and body
-	headerEnd := bytes.Index(response, []byte("\r\n\r\n"))
-	if headerEnd == -1 {
-		return nil, fmt.Errorf("invalid HTTP response: no header-body separator found")
-	}
-
-	headers := response[:headerEnd+4]
-	body := response[headerEnd+4:]
-
-	// Read and process chunked body
-	reader := bytes.NewReader(body)
-	var result bytes.Buffer
-
-	for {
-		// Read the chunk size
-		var chunkSizeHex string
-		if _, err := fmt.Fscanf(reader, "%s\r\n", &chunkSizeHex); err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return nil, fmt.Errorf("fmt.Fscanf(): %v", err)
-		}
-
-		chunkSize := 0
-		if _, err := fmt.Sscanf(chunkSizeHex, "%x", &chunkSize); err != nil {
-			return nil, fmt.Errorf("fmt.Sscanf(): %v", err)
-		}
-
-		if chunkSize == 0 {
-			break
-		}
-
-		// Read the chunk data
-		chunk := make([]byte, chunkSize)
-		if _, err := io.ReadFull(reader, chunk); err != nil {
-			return nil, fmt.Errorf("io.ReadFull(): %v", err)
-		}
-		result.Write(chunk)
-
-		// Read the trailing \r\n
-		if _, err := fmt.Fscanf(reader, "\r\n"); err != nil {
-			return nil, fmt.Errorf("fmt.Fscanf() 2: %v", err)
-		}
-	}
-
-	return append(headers, result.Bytes()...), nil
 }
 
 func convertToHTTPRequest(req *http.Request) *HTTPRequest {
