@@ -52,8 +52,13 @@ Every time a new process on a container is open, `internal/ebpf/stream.go` attem
 **Null-FD workaround**
 
 Connections are stored in the `SocketMap` using their source+destination address as key, it matches up `DataEvent`s with Connections using that same key. In some cases, (i.e. Ruby TLS traffic), the FD is always set to -1 when `SSL_Read` & `SSL_Write` are called, this is a problem because it prevents us from matching up `DataEvents` with their connections in the `SocketMap`. So in order to keep find the FD for the `DataEvent`, two maps are used to keep track the FD between different calls:
-- in `kprobe/recvfrom` the FD is set on the `fd_map` using `current_pid_tgid` key
-- in `uprobe/SSL_Read` the FD is fetched from `fd_map` (see `get_fd_from_libssl_read()`) and the saved again to `ssl_fd_map` using the `ssl` pointer num as key
-- in `uprobe/SSL_Write` the FD is fetched from `ssl_fd_map` since `SSL_Read` and `SSL_Write` both have the same pointer to the `ssl` arg
+1. in `kprobe/recvfrom` the FD is set on the `fd_map` using `current_pid_tgid` key
+2. in `uprobe/SSL_Read` the FD is fetched from `fd_map` (see `get_fd_from_libssl_read()`) and the saved again to `ssl_fd_map` using the `ssl` pointer num as key
+3. in `uprobe/SSL_Write` the FD is fetched from `ssl_fd_map` since `SSL_Read` and `SSL_Write` both have the same pointer to the `ssl` arg
 
 ![](https://github.com/evanrolfe/trayce_agent/blob/main/docs/img/fd_map.png)
+
+The same process works in reverse for outgoing requests:
+1. in `kprobe/sendto` the FD is set on the `fd_map`
+2. in `uprobe/SSL_Write` the FD is fetched from `fd_map` and saved to `ssl_fd_map`
+3. in `uprobe/SSL_Read` the FD is fetched from `ssl_fd_map`
