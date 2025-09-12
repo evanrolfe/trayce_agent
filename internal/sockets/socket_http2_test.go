@@ -525,4 +525,58 @@ var _ = Describe("SocketHTTP2", func() {
 			Expect(resp.Payload).To(Equal([]byte{0, 0, 0, 0, 10, 10, 8, 115, 117, 99, 99, 101, 115, 115, 32}))
 		})
 	})
+
+	Context("Receiving Data events (HTTP2 request to https://trayce.dev)", Ordered, func() {
+		flows := []*sockets.Flow{}
+
+		// Request payloads
+		event1Bytes, _ := hexDumpToBytes(`00000000  50 52 49 20 2a 20 48 54  54 50 2f 32 2e 30 0d 0a  |PRI * HTTP/2.0..|
+00000010  0d 0a 53 4d 0d 0a 0d 0a  00 00 12 04 00 00 00 00  |..SM............|
+00000020  00 00 03 00 00 00 64 00  04 00 01 00 00 00 02 00  |......d.........|
+00000030  00 00 00 00 00 04 08 00  00 00 00 00 3e 7f 00 01  |............>...|
+00000040  00 00 25 01 05 00 00 00  01 82 87 41 88 4d 83 f4  |..%........A.M..|
+00000050  42 af 21 7b ff 04 88 62  c3 c6 74 a1 74 f9 4f 7a  |B.!{...b..t.t.Oz|
+00000060  88 25 b6 50 c3 cb 85 a5  c3 53 03 2a 2f 2a        |.%.P.....S.*/*|`)
+
+		requestPayloads := [][]byte{event1Bytes}
+
+		BeforeAll(func() {
+			socket := sockets.NewSocketHttp2("172.17.0.2:1234", "127.0.0.1:80", 123, 123, 5)
+			socket.AddFlowCallback(func(flowFromCb sockets.Flow) {
+				flows = append(flows, &flowFromCb)
+			})
+
+			// Process request payloads
+			for _, payload := range requestPayloads {
+				socket.ProcessDataEvent(&events.DataEvent{
+					PID:      123,
+					TID:      123,
+					FD:       5,
+					DataType: 6, // go_tls_read
+					Data:     convertSliceToArray(payload),
+					DataLen:  int32(len(payload)),
+				})
+			}
+		})
+
+		It("returns a request flow", func() {
+			Expect(flows).To(HaveLen(1))
+			flow := flows[0]
+
+			Expect(flow.L4Protocol).To(Equal("tcp"))
+			Expect(flow.L7Protocol).To(Equal("http2"))
+
+			Expect(flow.Request).ToNot(BeNil())
+			Expect(flow.Response).To(BeNil())
+
+			req, ok := flow.Request.(*sockets.HTTPRequest)
+			Expect(ok).To(BeTrue())
+
+			Expect(req.Method).To(Equal("GET"))
+			Expect(req.Path).To(Equal("/robots.txt"))
+			Expect(req.Headers["user-agent"]).To(Equal([]string{"curl/8.14.1"}))
+			Expect(req.Headers["accept"]).To(Equal([]string{"*/*"}))
+			Expect(req.Payload).To(Equal([]byte{}))
+		})
+	})
 })

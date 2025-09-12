@@ -80,15 +80,16 @@ func (sk *SocketHttp2) ProcessDataEvent(event *events.DataEvent) {
 		sk.Common.UpgradeToSSL()
 	}
 
-	// Ignore the http2 magic string (PRI * SM...)
-	if len(event.Payload()) >= 24 && bytes.Equal(event.Payload()[0:24], http2MagicString) {
-		return
+	// Strip the http2 magic string (PRI * SM...)
+	payload := event.Payload()
+	if len(payload) >= 24 && bytes.Equal(payload[0:24], http2MagicString) {
+		payload = payload[24:]
 	}
 
 	// Check if the frame is complete, if not buffer it.
 	// Its possible we receive partial ingress frame, then an egress frame, then the rest of the ingress frame,
 	// so because of that we need to buffer the frame bytes based on ingress/egress direction.
-	frameBytes := append(sk.frameBuffer[event.Type()], event.Payload()...)
+	frameBytes := append(sk.frameBuffer[event.Type()], payload...)
 	frames, remainder := ParseBytesToFrames(frameBytes)
 
 	sk.frameBuffer[event.Type()] = remainder
