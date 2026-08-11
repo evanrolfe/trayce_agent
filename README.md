@@ -1,5 +1,5 @@
 # TrayceAgent
-![](https://img.shields.io/badge/Go-1.23-blue)  [![ebpf.io](https://img.shields.io/badge/ebpf-yellow)](https://ebpf.io/) [![trayce.dev](https://img.shields.io/badge/Website-orange)](https://trayce.dev/)
+![](https://img.shields.io/badge/Go-1.26-blue)  [![ebpf.io](https://img.shields.io/badge/ebpf-yellow)](https://ebpf.io/) [![trayce.dev](https://img.shields.io/badge/Website-orange)](https://trayce.dev/)
 
 TrayceAgent is a binary executable, packaged in a Docker container, which uses EBPF to monitor network requests between Docker containers and to external hosts. It can be used along with the [TrayceGUI](https://github.com/evanrolfe/trayce_gui/) to inspect traffic.
 

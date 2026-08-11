@@ -1,6 +1,6 @@
 module github.com/evanrolfe/trayce_agent
 
-go 1.23.8
+go 1.26
 
 require github.com/aquasecurity/libbpfgo v0.8.0-libbpf-1.5
 
