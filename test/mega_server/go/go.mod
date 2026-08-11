@@ -1,8 +1,8 @@
 module github.com/evanrolfe/mock_server
 
-go 1.23
+go 1.26
 
-toolchain go1.23.6
+toolchain go1.26.1
 
 require (
 	github.com/go-sql-driver/mysql v1.8.1
